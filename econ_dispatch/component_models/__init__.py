@@ -56,8 +56,14 @@
 # }}}
 
 import abc
+import logging
+import pkgutil
 
-class BaseComponent(object):
+_componentList = [name for _, name, _ in pkgutil.iter_modules(__path__)]
+
+_componentDict = {}
+
+class ComponentBase(object):
     __metaclass__ = abc.ABCMeta
     def __init__(self, **kwargs):
         self.update_parameters(**kwargs)
@@ -108,3 +114,21 @@ class BaseComponent(object):
         As the model must be aware of component types the format can be whatever the component wants."""
         pass
 
+for componentName in _componentList:
+    try:
+        module = __import__(componentName,globals(),locals(),['Component'], 1)
+        klass = module.Component
+    except Exception as e:
+        logging.error('Module {name} cannot be imported. Reason: {ex}'.format(name=componentName, ex=e))
+        continue
+
+    #Validation of Algorithm class
+
+    if not issubclass(klass, ComponentBase):
+        logging.warning('The implementation of {name} does not inherit from econ_dispatch.component_models.ComponentBase.'.format(name=componentName))
+
+    _componentDict[componentName] = klass
+
+
+def get_algorithm_class(name):
+    return _componentDict.get(name)
