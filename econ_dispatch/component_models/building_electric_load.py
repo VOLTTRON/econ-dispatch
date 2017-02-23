@@ -58,7 +58,7 @@
 from econ_dispatch.component_models import ComponentBase
 
 class Component(ComponentBase):
-    def __init__(self, current_load=10.00):
+    def __init__(self, current_load=0):
         super(Component, self).__init__(current_load=current_load)
 
     def get_input_metadata(self):

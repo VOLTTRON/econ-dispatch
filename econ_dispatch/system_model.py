@@ -54,3 +54,9 @@
 # operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
 # }}}
+
+import networkx as nx
+
+class SystemModel(object):
+    def __init__(self):
+        self.component_graph = nx.Graph()

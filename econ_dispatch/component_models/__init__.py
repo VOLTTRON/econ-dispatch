@@ -63,6 +63,15 @@ _componentList = [name for _, name, _ in pkgutil.iter_modules(__path__)]
 
 _componentDict = {}
 
+valid_io_types = set(["heated_water",
+                      "heated_air",
+                      "waste_heat",
+                      "heat",
+                      "chilled_water",
+                      "chilled_air",
+                      "electricity",
+                      "natural_gas"])
+
 class ComponentBase(object):
     __metaclass__ = abc.ABCMeta
     def __init__(self, **kwargs):
@@ -73,9 +82,11 @@ class ComponentBase(object):
         This is used by the model validator to determine if the configured network is valid.
 
         This function must return a string that names it's input type.
-        e.g. "chilledwater"
+        e.g. "chilled_water"
 
         If the component has no input return None.
+
+        If the component has more than one output return a list of names.
 
         This is used during validation of the model after/during configuration.
         """
@@ -90,17 +101,19 @@ class ComponentBase(object):
         This is used by the model validator to determine if the configured network is valid.
 
         This function must return a string that names it's output type.
-        e.g. "chilledwater"
+        e.g. "chilled_water"
 
         If the component has no output return None.
+
+        If the component has more than one output return a list of names.
 
         This is used during validation of the model after/during configuration.
         """
         return None
 
     def get_output(self):
-        """Gets the current output value for this component. Returns None by default."""
-        return None
+        """Gets the current output values for this component in the form of a dictionary. Returns an empty dictionary."""
+        return {}
 
     @abc.abstractmethod
     def get_optimization_parameters(self):

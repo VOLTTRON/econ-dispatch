@@ -55,3 +55,21 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
+from econ_dispatch.component_models import ComponentBase
+
+class Component(ComponentBase):
+    def __init__(self, input_type="heat", efficiency=10.00):
+        super(Component, self).__init__(efficiency=efficiency)
+        self.input_type = input_type
+
+    def get_output_metadata(self):
+        return "chilled_water"
+
+    def get_input_metadata(self):
+        return  self.input_type
+
+    def get_optimization_parameters(self):
+        return {"efficiency":self.efficiency}
+
+    def update_parameters(self, efficiency=10.00):
+        self.efficiency = efficiency

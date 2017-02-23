@@ -62,10 +62,10 @@ class Component(ComponentBase):
         super(Component, self).__init__(efficiency=efficiency)
 
     def get_output_metadata(self):
-        return "electricity"
+        return "electricity", "waste_heat"
 
     def get_input_metadata(self):
-        return "natgas"
+        return "natural_gas"
 
     def get_optimization_parameters(self):
         return {"efficiency":self.efficiency}

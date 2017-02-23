@@ -55,3 +55,17 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
+from econ_dispatch.component_models import ComponentBase
+
+class Component(ComponentBase):
+    def __init__(self, current_output=10.00):
+        super(Component, self).__init__(efficiency=current_output)
+
+    def get_output_metadata(self):
+        return "electricity"
+
+    def get_optimization_parameters(self):
+        return {"current_output":self.current_output}
+
+    def update_parameters(self, current_output=10.00):
+        self.efficiency = current_output
