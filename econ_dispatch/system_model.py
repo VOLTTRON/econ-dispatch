@@ -55,8 +55,35 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
+import logging
+_log = logging.getLogger(__name__)
+
 import networkx as nx
 
 class SystemModel(object):
     def __init__(self):
-        self.component_graph = nx.Graph()
+        self.component_graph = nx.DiGraph()
+
+    def add_component(self, component):
+        self.component_graph.add_node(component.name, instance=component)
+
+    def add_connection(self, output_component, input_component, io_type=None):
+        output_types = output_component.get_output_metadata()
+        input_types = input_component.get_input_metadata()
+
+        _log.debug("Output types: {}".format(output_types))
+        _log.debug("Input types: {}".format(input_types))
+
+        real_io_types = []
+        if io_type is not None:
+            real_io_types = [io_type]
+        else:
+            real_io_types = [x for x in output_types if x in input_types]
+
+        for real_io_type in real_io_types:
+            self.component_graph.add_edge(output_component.name, input_component.name, io_type=real_io_type)
+
+        return len(real_io_types)
+
+
+

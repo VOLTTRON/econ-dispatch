@@ -63,25 +63,26 @@ _componentList = [name for _, name, _ in pkgutil.iter_modules(__path__)]
 
 _componentDict = {}
 
-valid_io_types = set(["heated_water",
-                      "heated_air",
-                      "waste_heat",
-                      "heat",
-                      "chilled_water",
-                      "chilled_air",
-                      "electricity",
-                      "natural_gas"])
+valid_io_types = set([u"heated_water",
+                      u"heated_air",
+                      u"waste_heat",
+                      u"heat",
+                      u"chilled_water",
+                      u"chilled_air",
+                      u"electricity",
+                      u"natural_gas"])
 
 class ComponentBase(object):
     __metaclass__ = abc.ABCMeta
-    def __init__(self, **kwargs):
+    def __init__(self, name="MISSING_NAME", **kwargs):
         self.update_parameters(**kwargs)
+        self.name = name
 
     def get_input_metadata(self):
         """Must return a string describing the required input for this component.
         This is used by the model validator to determine if the configured network is valid.
 
-        This function must return a string that names it's input type.
+        This function must return a list of strings that names it's input type.
         e.g. "chilled_water"
 
         If the component has no input return None.
@@ -90,7 +91,7 @@ class ComponentBase(object):
 
         This is used during validation of the model after/during configuration.
         """
-        return None
+        return []
 
     def set_input_value(self, value):
         """Sets the current input value for this component. Does nothing by default."""
@@ -100,7 +101,7 @@ class ComponentBase(object):
         """Must return a string describing the output for this component.
         This is used by the model validator to determine if the configured network is valid.
 
-        This function must return a string that names it's output type.
+        This function must return a list of strings that names it's output type.
         e.g. "chilled_water"
 
         If the component has no output return None.
@@ -109,7 +110,7 @@ class ComponentBase(object):
 
         This is used during validation of the model after/during configuration.
         """
-        return None
+        return []
 
     def get_output(self):
         """Gets the current output values for this component in the form of a dictionary. Returns an empty dictionary."""
@@ -126,6 +127,9 @@ class ComponentBase(object):
         """Update the internal parameters of the component based on the input values.
         As the model must be aware of component types the format can be whatever the component wants."""
         pass
+
+    def __str__(self):
+        return '"Component: ' + self.name + '"'
 
 for componentName in _componentList:
     try:

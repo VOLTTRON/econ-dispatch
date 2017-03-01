@@ -58,12 +58,12 @@
 from econ_dispatch.component_models import ComponentBase
 
 class Component(ComponentBase):
-    def __init__(self, input_type="heat", efficiency=10.00):
-        super(Component, self).__init__(efficiency=efficiency)
-        self.input_type = input_type
+    def __init__(self, input_type=u"heat", efficiency=10.00, **kwargs):
+        super(Component, self).__init__(efficiency=efficiency, **kwargs)
+        self.input_type = input_type if isinstance(input_type, list) else [input_type]
 
     def get_output_metadata(self):
-        return "chilled_water"
+        return [u"chilled_water"]
 
     def get_input_metadata(self):
         return  self.input_type

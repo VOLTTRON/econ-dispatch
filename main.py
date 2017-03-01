@@ -55,20 +55,27 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
-from econ_dispatch.component_models import ComponentBase
+import argparse
+import json
+from parse_config import parse_config
+import networkx
 
-class Component(ComponentBase):
-    def __init__(self, efficiency=10.00, **kwargs):
-        super(Component, self).__init__(efficiency=efficiency, **kwargs)
+import logging
 
-    def get_output_metadata(self):
-        return [u"chilled_water"]
+logging.basicConfig(level=logging.DEBUG)
 
-    def get_input_metadata(self):
-        return  [u"electricity"]
+def main(config_file):
+    config = json.loads(config_file.read())
+    model = parse_config(config)
 
-    def get_optimization_parameters(self):
-        return {"efficiency":self.efficiency}
+    print model
+    print len(model.component_graph)
 
-    def update_parameters(self, efficiency=10.00):
-        self.efficiency = efficiency
+    #networkx.drawing.nx_pydot.write_dot(model.component_graph, config_file.name + ".dot")
+    networkx.drawing.draw(model.component_graph)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config", type=argparse.FileType("r"), help="Configuration file to load")
+    args = parser.parse_args()
+    main(args.config)

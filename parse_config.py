@@ -55,3 +55,58 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
+from econ_dispatch.system_model import SystemModel
+from econ_dispatch.component_models import get_algorithm_class
+import logging
+_log = logging.getLogger(__name__)
+
+def parse_config(config):
+    _log.debug("Starting parse_config")
+    model = SystemModel()
+
+    components = config["components"]
+    connections = config["connections"]
+
+    name_map = {}
+
+    for component_dict in components:
+        klass_name = component_dict.pop("type")
+        klass = get_algorithm_class(klass_name)
+
+        if klass is None:
+            _log.error("No component of type: "+klass_name)
+            continue
+
+        try:
+            component = klass(**component_dict)
+        except Exception as e:
+            _log.error("Error creating component: "+str(e))
+            continue
+
+        name_map[component.name] = component
+        model.add_component(component)
+
+    for output_component_name, input_component_name in connections:
+        try:
+            output_component = name_map[output_component_name]
+        except KeyError:
+            _log.error("Failure to find output component: "+output_component_name)
+            continue
+
+        try:
+            input_component = name_map[input_component_name]
+        except KeyError:
+            _log.error("Failure to find input component: "+output_component_name)
+            continue
+
+        _log.debug("Adding connection: {} -> {}".format(output_component.name, input_component.name))
+
+        if not model.add_connection(output_component, input_component):
+            _log.error("No compatible outputs/inputs")
+
+    return model
+
+
+
+
+
