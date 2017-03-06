@@ -73,7 +73,7 @@ class WeatherPrediction(object):
 
     def get_temp_data(self):
         if self.use_historical_data:
-            results = self.get_hisotrical_data(self.current_hour)
+            results = self.get_historical_data(self.current_hour)
             self.current_hour += 1
         else:
             results = self.get_live_data()
@@ -99,7 +99,7 @@ class WeatherPrediction(object):
         return results
 
 
-    def get_hisotrical_data(self, hour):
+    def get_historical_data(self, hour):
         return history[hour:hour+24]
 
 
