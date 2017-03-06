@@ -63,11 +63,26 @@ import networkx as nx
 class SystemModel(object):
     def __init__(self):
         self.component_graph = nx.DiGraph()
+        self.instance_map = {}
 
-    def add_component(self, component):
-        self.component_graph.add_node(component.name, instance=component)
+    def add_component(self, component, type_name):
+        self.component_graph.add_node(component.name, type = type_name)
+        self.instance_map[component.name] = component
 
-    def add_connection(self, output_component, input_component, io_type=None):
+    def add_connection(self, output_component_name, input_component_name, io_type=None):
+        try:
+            output_component = self.instance_map[output_component_name]
+        except KeyError:
+            _log.error("No component named {}".format(output_component_name))
+            raise
+
+        try:
+            input_component = self.instance_map[input_component_name]
+        except KeyError:
+            _log.error("No component named {}".format(output_component_name))
+            raise
+
+
         output_types = output_component.get_output_metadata()
         input_types = input_component.get_input_metadata()
 
@@ -81,9 +96,11 @@ class SystemModel(object):
             real_io_types = [x for x in output_types if x in input_types]
 
         for real_io_type in real_io_types:
-            self.component_graph.add_edge(output_component.name, input_component.name, io_type=real_io_type)
+            self.component_graph.add_edge(output_component.name, input_component.name, label=real_io_type)
 
         return len(real_io_types)
+
+
 
 
 

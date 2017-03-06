@@ -67,8 +67,6 @@ def parse_config(config):
     components = config["components"]
     connections = config["connections"]
 
-    name_map = {}
-
     for component_dict in components:
         klass_name = component_dict.pop("type")
         klass = get_algorithm_class(klass_name)
@@ -83,26 +81,18 @@ def parse_config(config):
             _log.error("Error creating component: "+str(e))
             continue
 
-        name_map[component.name] = component
-        model.add_component(component)
+        model.add_component(component, klass_name)
 
     for output_component_name, input_component_name in connections:
-        try:
-            output_component = name_map[output_component_name]
-        except KeyError:
-            _log.error("Failure to find output component: "+output_component_name)
-            continue
+
+        _log.debug("Adding connection: {} -> {}".format(output_component_name, input_component_name))
 
         try:
-            input_component = name_map[input_component_name]
-        except KeyError:
-            _log.error("Failure to find input component: "+output_component_name)
-            continue
+            if not model.add_connection(output_component_name, input_component_name):
+                _log.error("No compatible outputs/inputs")
+        except Exception as e:
+            _log.error("Error adding connection: " + str(e))
 
-        _log.debug("Adding connection: {} -> {}".format(output_component.name, input_component.name))
-
-        if not model.add_connection(output_component, input_component):
-            _log.error("No compatible outputs/inputs")
 
     return model
 

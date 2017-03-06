@@ -71,8 +71,9 @@ def main(config_file):
     print model
     print len(model.component_graph)
 
-    #networkx.drawing.nx_pydot.write_dot(model.component_graph, config_file.name + ".dot")
-    networkx.drawing.draw(model.component_graph)
+    networkx.drawing.nx_pydot.write_dot(model.component_graph, config_file.name + ".dot")
+    #networkx.drawing.draw_networkx(model.component_graph)
+    #networkx.write_graphml(model.component_graph, config_file.name + ".graphml")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
