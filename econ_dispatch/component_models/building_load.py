@@ -58,14 +58,15 @@
 from econ_dispatch.component_models import ComponentBase
 
 class Component(ComponentBase):
-    def __init__(self, current_load=0, **kwargs):
-        super(Component, self).__init__(current_load=current_load, **kwargs)
+    def __init__(self, current_load=0, load_type="heated_air", **kwargs):
+        super(Component, self).__init__(current_load=current_load, load_type=load_type, **kwargs)
 
     def get_input_metadata(self):
-        return [u"electricity"]
+        return [u"heated_air", u"cooled_air"]
 
     def get_optimization_parameters(self):
-        return {"current_load":self.current_load}
+        return {"heat_load":self.heat_load, "cool_load":self.cool_load}
 
-    def update_parameters(self, current_load=10.00):
-        self.current_load = current_load
+    def update_parameters(self, **kwargs):
+        #Update the state of the prediction.
+        pass

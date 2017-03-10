@@ -2,3 +2,5 @@ networkx
 pydotplus
 requests
 python-dateutil
+numpy
+pandas

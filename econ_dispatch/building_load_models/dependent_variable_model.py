@@ -55,18 +55,32 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
-from econ_dispatch.component_models import ComponentBase
+import pandas as pd
 
-class Component(ComponentBase):
-    def __init__(self, current_load=0, load_type="heated_air", **kwargs):
-        super(Component, self).__init__(current_load=current_load, load_type=load_type, **kwargs)
+class Model(object):
+    def __init__(self, training_csv, time_stamp_column, time_diff_tolerance, dependent_variables=[], independent_variables_tolerances={}):
+        self.data_frame = pd.read_csv(training_csv, parse_dates=[time_stamp_column])
+        self.time_stamp_column = time_stamp_column
+        self.time_diff_tolerance = time_diff_tolerance
+        self.dependent_variables = dependent_variables
+        self.independent_variables_tolerances = independent_variables_tolerances
 
-    def get_input_metadata(self):
-        return [u"heated_air", u"cooled_air"]
+    def derive_dependent_variables(self, now, independent_variable_values={}):
+        day_of_week = now.weekday()
+        hour_of_day = now.hour
 
-    def get_optimization_parameters(self):
-        return {"current_load":self.current_load, "load_type":self.load_type}
+        df = self.data_frame
+        tolerances = self.independent_variables_tolerances
 
-    def update_parameters(self, current_load=10.00, load_type="heated_air"):
-        self.current_load = current_load
-        self.load_type=load_type
+        filter = (  (df[self.time_stamp_column].dt.weekday == day_of_week)
+                  & (df[self.time_stamp_column].dt.hour <= hour_of_day + self.time_diff_tolerance)
+                  & (df[self.time_stamp_column].dt.hour >= hour_of_day - self.time_diff_tolerance))
+
+        for variable, value in independent_variable_values.iteritems():
+            tolerance = tolerances.get(variable, 0.0)
+            filter &= (df[variable] >= value-tolerance) & (df[variable] <= value+tolerance)
+
+        filtered_data = df[filter]
+        result = {dep: filtered_data[dep].mean() for dep in self.dependent_variables}
+
+        return result
