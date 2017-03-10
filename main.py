@@ -55,3 +55,28 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
+import argparse
+import json
+from parse_config import parse_config
+import networkx
+
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+
+def main(config_file):
+    config = json.loads(config_file.read())
+    model = parse_config(config)
+
+    print model
+    print len(model.component_graph)
+
+    networkx.drawing.nx_pydot.write_dot(model.component_graph, config_file.name + ".dot")
+    #networkx.drawing.draw_networkx(model.component_graph)
+    #networkx.write_graphml(model.component_graph, config_file.name + ".graphml")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config", type=argparse.FileType("r"), help="Configuration file to load")
+    args = parser.parse_args()
+    main(args.config)

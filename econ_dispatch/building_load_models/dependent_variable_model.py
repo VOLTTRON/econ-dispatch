@@ -55,3 +55,32 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
+import pandas as pd
+
+class Model(object):
+    def __init__(self, training_csv, time_stamp_column, time_diff_tolerance, dependent_variables=[], independent_variables_tolerances={}):
+        self.data_frame = pd.read_csv(training_csv, parse_dates=[time_stamp_column])
+        self.time_stamp_column = time_stamp_column
+        self.time_diff_tolerance = time_diff_tolerance
+        self.dependent_variables = dependent_variables
+        self.independent_variables_tolerances = independent_variables_tolerances
+
+    def derive_dependent_variables(self, now, independent_variable_values={}):
+        day_of_week = now.weekday()
+        hour_of_day = now.hour
+
+        df = self.data_frame
+        tolerances = self.independent_variables_tolerances
+
+        filter = (  (df[self.time_stamp_column].dt.weekday == day_of_week)
+                  & (df[self.time_stamp_column].dt.hour <= hour_of_day + self.time_diff_tolerance)
+                  & (df[self.time_stamp_column].dt.hour >= hour_of_day - self.time_diff_tolerance))
+
+        for variable, value in independent_variable_values.iteritems():
+            tolerance = tolerances.get(variable, 0.0)
+            filter &= (df[variable] >= value-tolerance) & (df[variable] <= value+tolerance)
+
+        filtered_data = df[filter]
+        result = {dep: filtered_data[dep].mean() for dep in self.dependent_variables}
+
+        return result

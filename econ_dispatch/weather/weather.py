@@ -55,3 +55,51 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
+import requests
+from dateutil.parser import parse
+import logging
+_log = logging.getLogger(__name__)
+from .history import history
+
+live_url_template = "http://api.wunderground.com/api/{key}/hourly10day/q/{state}/{city}.json"
+
+class WeatherPrediction(object):
+    def __init__(self, city, state, key, use_historical_data=False, starting_hour=0):
+        self.city = city
+        self.state = state
+        self.key = key
+        self.starting_hour = self.current_hour = starting_hour
+        self.use_historical_data = use_historical_data
+
+    def get_temp_data(self):
+        if self.use_historical_data:
+            results = self.get_historical_data(self.current_hour)
+            self.current_hour += 1
+        else:
+            results = self.get_live_data()
+
+        return results
+
+    def get_live_data(self):
+        url = live_url_template.format(key=self.key, state=self.state, city=self.city)
+        r = requests.get(url)
+        try:
+            r.raise_for_status()
+            parsed_json = r.json()
+        except (requests.exceptions.HTTPError, ValueError) as e:
+            _log.error("Error retrieving weather data: " + str(e))
+            return []
+
+        results = []
+        records = parsed_json["hourly_forecast"]
+        for rec in records:
+            ts = parse(rec["FCTTIME"]["pretty"])
+            temp = float(rec["temp"]["english"])
+            results.append((ts,temp))
+        return results
+
+
+    def get_historical_data(self, hour):
+        return history[hour:hour+24]
+
+
