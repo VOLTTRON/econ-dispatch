@@ -60,25 +60,42 @@ from dateutil.parser import parse
 import logging
 _log = logging.getLogger(__name__)
 from .history import history
+import pandas as pd
+import datetime as dt
 
 live_url_template = "http://api.wunderground.com/api/{key}/hourly10day/q/{state}/{city}.json"
 
+keys = {"tempm": ["temp", "metric"], "tempi": ["temp", "english"],
+        "hum": ["humidity"],
+        "wspdm": ["wspd", "metric"], "wspdi": ["wspd", "english"],
+        "wdird": ["wdir", "degrees"]}
+
 class WeatherPrediction(object):
-    def __init__(self, city, state, key, use_historical_data=False, starting_hour=0):
+    def __init__(self, city, state, key, historical_data=None, historical_data_time_column="timestamp"):
         self.city = city
         self.state = state
         self.key = key
-        self.starting_hour = self.current_hour = starting_hour
-        self.use_historical_data = use_historical_data
 
-    def get_temp_data(self):
+        self.setup_historical_data(historical_data, historical_data_time_column)
+
+    def get_weather_data(self, now):
         if self.use_historical_data:
-            results = self.get_historical_data(self.current_hour)
-            self.current_hour += 1
+            results = self.get_historical_data(now)
         else:
             results = self.get_live_data()
 
         return results
+
+    def setup_historical_data(self, csv_file, historical_data_time_column):
+        self.use_historical_data = csv_file is None
+        if csv_file is None:
+            return
+
+        self.historical_data = pd.read_csv(csv_file, parse_dates=[historical_data_time_column])
+
+        self.history_year = self.historical_data[historical_data_time_column][0].year
+
+        self.time_column = historical_data_time_column
 
     def get_live_data(self):
         url = live_url_template.format(key=self.key, state=self.state, city=self.city)
@@ -92,14 +109,43 @@ class WeatherPrediction(object):
 
         results = []
         records = parsed_json["hourly_forecast"]
-        for rec in records:
-            ts = parse(rec["FCTTIME"]["pretty"])
-            temp = float(rec["temp"]["english"])
-            results.append((ts,temp))
+        for rec in records[:24]:
+            result = {"timestamp": parse(rec["FCTTIME"]["pretty"])}
+            result.update(self.get_wu_forcast_from_record(rec))
+            results.append(result)
         return results
 
+    def get_wu_forcast_from_record(self, record):
+        results = {}
 
-    def get_historical_data(self, hour):
-        return history[hour:hour+24]
+        for key, path in keys.iteritems():
+            value = record
+            for step in path:
+                value = value[step]
+
+            value = float(value)
+
+            results[key] = value
+
+        return results
+
+    def get_historical_data(self, now):
+        now = now.replace(year=self.history_year)
+        current_time_stamp = now + dt.timedelta(hours=1)
+
+        results = []
+        for _ in xrange(24):
+            results.append(self.get_historical_hour(current_time_stamp))
+            current_time_stamp += dt.timedelta(hours=1)
+
+        return results
+
+    def get_historical_hour(self, now):
+        #Index of the closest timestamp.
+        index = abs(self.historical_data[self.time_column] - now).idxmin()
+        #Return the row as a dict.
+        return dict(self.historical_data.iloc[index])
+
+
 
 
