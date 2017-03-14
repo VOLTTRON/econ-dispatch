@@ -100,13 +100,13 @@ class Component(ComponentBase):
         return ""
 
     def get_optimization_parameters(self):
-        FuelFlow, ExhaustFlow, ExhaustTemperature, NetEfficiency = FuelCell_Operate(Coef)
+        FuelFlow, ExhaustFlow, ExhaustTemperature, NetEfficiency = self.FuelCell_Operate(Coef)
         return {}
 
     def update_parameters(self):
         pass
 
-    def FuelCell_Operate(Coef):
+    def FuelCell_Operate(self, Coef):
         if self.fuel_type == "CH4":
             n = 8 # number of electrons per molecule (assuming conversion to H2)
             LHV = 50144 # Lower heating value of CH4 in kJ/g
