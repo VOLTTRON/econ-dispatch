@@ -55,3 +55,22 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
+from econ_dispatch.component_models import ComponentBase
+
+class Component(ComponentBase):
+    def __init__(self, input_type=u"hot_water", output_type=u"hot_air", efficiency=10.00, **kwargs):
+        super(Component, self).__init__(efficiency=efficiency, **kwargs)
+        self.input_type = input_type if isinstance(input_type, list) else [input_type]
+        self.output_type = output_type if isinstance(output_type, list) else [output_type]
+
+    def get_output_metadata(self):
+        return self.output_type
+
+    def get_input_metadata(self):
+        return  self.input_type
+
+    def get_optimization_parameters(self):
+        return {"efficiency":self.efficiency}
+
+    def update_parameters(self, efficiency=10.00):
+        self.efficiency = efficiency

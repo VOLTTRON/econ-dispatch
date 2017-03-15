@@ -78,8 +78,8 @@ Coef.FlowOut = np.array([-65.85, 164.5])
 
 
 class Component(ComponentBase):
-    def __init__(self, efficiency=10.00):
-        super(Component, self).__init__(efficiency=efficiency)
+    def __init__(self, **kwargs):
+        super(Component, self).__init__(**kwargs)
         with open('CapstoneTurndownData.json', 'r') as f:
             capstone_turndown_data = json.load(f)
 
@@ -91,10 +91,10 @@ class Component(ComponentBase):
         Coef = self.GasTurbine_Calibrate(Coef, Time, self.Pdemand, self.Temperature, FuelFlow, AirFlow, [])
 
     def get_output_metadata(self):
-        return "electricity"
+        return [u"electricity", u"waste_heat"]
 
     def get_input_metadata(self):
-        return "natgas"
+        return [u"natural_gas"]
 
     def get_optimization_parameters(self):
         AirFlow, FuelFlow, Tout, Efficiency = self.GasTurbine_Operate(self.Pdemand, self.Temperature, 0, Coef)

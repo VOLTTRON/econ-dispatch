@@ -55,51 +55,96 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
+import requests
+from dateutil.parser import parse
 import logging
 _log = logging.getLogger(__name__)
+from .history import history
+import pandas as pd
+import datetime as dt
 
-import networkx as nx
+live_url_template = "http://api.wunderground.com/api/{key}/hourly10day/q/{state}/{city}.json"
 
-class SystemModel(object):
-    def __init__(self):
-        self.component_graph = nx.DiGraph()
-        self.instance_map = {}
+keys = {"tempm": ["temp", "metric"], "tempi": ["temp", "english"],
+        "hum": ["humidity"],
+        "wspdm": ["wspd", "metric"], "wspdi": ["wspd", "english"],
+        "wdird": ["wdir", "degrees"]}
 
-    def add_component(self, component, type_name):
-        self.component_graph.add_node(component.name, type = type_name)
-        self.instance_map[component.name] = component
+class WeatherPrediction(object):
+    def __init__(self, city, state, key, historical_data=None, historical_data_time_column="timestamp"):
+        self.city = city
+        self.state = state
+        self.key = key
 
-    def add_connection(self, output_component_name, input_component_name, io_type=None):
-        try:
-            output_component = self.instance_map[output_component_name]
-        except KeyError:
-            _log.error("No component named {}".format(output_component_name))
-            raise
+        self.setup_historical_data(historical_data, historical_data_time_column)
 
-        try:
-            input_component = self.instance_map[input_component_name]
-        except KeyError:
-            _log.error("No component named {}".format(output_component_name))
-            raise
-
-
-        output_types = output_component.get_output_metadata()
-        input_types = input_component.get_input_metadata()
-
-        _log.debug("Output types: {}".format(output_types))
-        _log.debug("Input types: {}".format(input_types))
-
-        real_io_types = []
-        if io_type is not None:
-            real_io_types = [io_type]
+    def get_weather_data(self, now):
+        if self.use_historical_data:
+            results = self.get_historical_data(now)
         else:
-            real_io_types = [x for x in output_types if x in input_types]
+            results = self.get_live_data()
 
-        for real_io_type in real_io_types:
-            self.component_graph.add_edge(output_component.name, input_component.name, label=real_io_type)
+        return results
 
-        return len(real_io_types)
+    def setup_historical_data(self, csv_file, historical_data_time_column):
+        self.use_historical_data = csv_file is None
+        if csv_file is None:
+            return
 
+        self.historical_data = pd.read_csv(csv_file, parse_dates=[historical_data_time_column])
+
+        self.history_year = self.historical_data[historical_data_time_column][0].year
+
+        self.time_column = historical_data_time_column
+
+    def get_live_data(self):
+        url = live_url_template.format(key=self.key, state=self.state, city=self.city)
+        r = requests.get(url)
+        try:
+            r.raise_for_status()
+            parsed_json = r.json()
+        except (requests.exceptions.HTTPError, ValueError) as e:
+            _log.error("Error retrieving weather data: " + str(e))
+            return []
+
+        results = []
+        records = parsed_json["hourly_forecast"]
+        for rec in records[:24]:
+            result = {"timestamp": parse(rec["FCTTIME"]["pretty"])}
+            result.update(self.get_wu_forcast_from_record(rec))
+            results.append(result)
+        return results
+
+    def get_wu_forcast_from_record(self, record):
+        results = {}
+
+        for key, path in keys.iteritems():
+            value = record
+            for step in path:
+                value = value[step]
+
+            value = float(value)
+
+            results[key] = value
+
+        return results
+
+    def get_historical_data(self, now):
+        now = now.replace(year=self.history_year)
+        current_time_stamp = now + dt.timedelta(hours=1)
+
+        results = []
+        for _ in xrange(24):
+            results.append(self.get_historical_hour(current_time_stamp))
+            current_time_stamp += dt.timedelta(hours=1)
+
+        return results
+
+    def get_historical_hour(self, now):
+        #Index of the closest timestamp.
+        index = abs(self.historical_data[self.time_column] - now).idxmin()
+        #Return the row as a dict.
+        return dict(self.historical_data.iloc[index])
 
 
 

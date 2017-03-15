@@ -55,17 +55,48 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
-from econ_dispatch.component_models import ComponentBase
+from econ_dispatch.system_model import SystemModel
+from econ_dispatch.component_models import get_algorithm_class
+import logging
+_log = logging.getLogger(__name__)
 
-class Component(ComponentBase):
-    def __init__(self, current_load=10.00):
-        super(Component, self).__init__(current_load=current_load)
+def parse_config(config):
+    _log.debug("Starting parse_config")
+    model = SystemModel()
 
-    def get_input_metadata(self):
-        return "heat"
+    components = config["components"]
+    connections = config["connections"]
 
-    def get_optimization_parameters(self):
-        return {"current_load":self.current_load}
+    for component_dict in components:
+        klass_name = component_dict.pop("type")
+        klass = get_algorithm_class(klass_name)
 
-    def update_parameters(self, current_load=10.00):
-        self.current_load = current_load
+        if klass is None:
+            _log.error("No component of type: "+klass_name)
+            continue
+
+        try:
+            component = klass(**component_dict)
+        except Exception as e:
+            _log.error("Error creating component: "+str(e))
+            continue
+
+        model.add_component(component, klass_name)
+
+    for output_component_name, input_component_name in connections:
+
+        _log.debug("Adding connection: {} -> {}".format(output_component_name, input_component_name))
+
+        try:
+            if not model.add_connection(output_component_name, input_component_name):
+                _log.error("No compatible outputs/inputs")
+        except Exception as e:
+            _log.error("Error adding connection: " + str(e))
+
+
+    return model
+
+
+
+
+
