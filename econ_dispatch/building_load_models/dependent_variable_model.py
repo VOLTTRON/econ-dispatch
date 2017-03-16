@@ -56,28 +56,33 @@
 # }}}
 
 import pandas as pd
+from econ_dispatch.building_load_models import BuildingModelBase
 
-class Model(object):
-    def __init__(self, training_csv, time_stamp_column, time_diff_tolerance, dependent_variables=[], independent_variables_tolerances={}):
+class Model(BuildingModelBase):
+    def __init__(self, training_csv=None, time_stamp_column="timestamp",
+                 time_diff_tolerance=1.0, dependent_variables=[],
+                 independent_variable_tolerances={}):
         self.data_frame = pd.read_csv(training_csv, parse_dates=[time_stamp_column])
         self.time_stamp_column = time_stamp_column
         self.time_diff_tolerance = time_diff_tolerance
         self.dependent_variables = dependent_variables
-        self.independent_variables_tolerances = independent_variables_tolerances
+        self.independent_variable_tolerances = independent_variable_tolerances
 
-    def derive_dependent_variables(self, now, independent_variable_values={}):
+    def derive_variables(self, now, independent_variable_values={}):
         day_of_week = now.weekday()
         hour_of_day = now.hour
 
         df = self.data_frame
-        tolerances = self.independent_variables_tolerances
+        tolerances = self.independent_variable_tolerances
 
         filter = (  (df[self.time_stamp_column].dt.weekday == day_of_week)
                   & (df[self.time_stamp_column].dt.hour <= hour_of_day + self.time_diff_tolerance)
                   & (df[self.time_stamp_column].dt.hour >= hour_of_day - self.time_diff_tolerance))
 
         for variable, value in independent_variable_values.iteritems():
-            tolerance = tolerances.get(variable, 0.0)
+            tolerance = tolerances.get(variable, None)
+            if tolerance is None:
+                continue
             filter &= (df[variable] >= value-tolerance) & (df[variable] <= value+tolerance)
 
         filtered_data = df[filter]
