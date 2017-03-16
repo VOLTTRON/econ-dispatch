@@ -60,6 +60,10 @@ import json
 from parse_config import parse_config
 import networkx
 
+from pprint import pprint
+
+import datetime as dt
+
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -69,11 +73,17 @@ def main(config_file):
     model = parse_config(config)
 
     print model
-    print len(model.component_graph)
 
     networkx.drawing.nx_pydot.write_dot(model.component_graph, config_file.name + ".dot")
-    #networkx.drawing.draw_networkx(model.component_graph)
-    #networkx.write_graphml(model.component_graph, config_file.name + ".graphml")
+    now = dt.datetime(2013, 1,2,13,40)
+    model.building_load_model.update_parameters(now)
+
+    print "Heat"
+    pprint(model.building_load_model.heat_loads)
+    print "Cool"
+    pprint(model.building_load_model.cool_loads)
+    print "Elec"
+    pprint(model.building_load_model.elec_loads)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

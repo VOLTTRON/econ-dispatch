@@ -65,13 +65,15 @@ import datetime as dt
 
 live_url_template = "http://api.wunderground.com/api/{key}/hourly10day/q/{state}/{city}.json"
 
+#Because WU API naming conventions are inconsistent we have to map the names from the live data
+#to the names of the historical data.
 keys = {"tempm": ["temp", "metric"], "tempi": ["temp", "english"],
         "hum": ["humidity"],
         "wspdm": ["wspd", "metric"], "wspdi": ["wspd", "english"],
         "wdird": ["wdir", "degrees"]}
 
 class WeatherPrediction(object):
-    def __init__(self, city, state, key, historical_data=None, historical_data_time_column="timestamp"):
+    def __init__(self, city=None, state=None, key=None, historical_data=None, historical_data_time_column="timestamp"):
         self.city = city
         self.state = state
         self.key = key
@@ -79,6 +81,7 @@ class WeatherPrediction(object):
         self.setup_historical_data(historical_data, historical_data_time_column)
 
     def get_weather_data(self, now):
+        #Returns the next 24 hours of weather data, predicted or historical.
         if self.use_historical_data:
             results = self.get_historical_data(now)
         else:
@@ -87,7 +90,7 @@ class WeatherPrediction(object):
         return results
 
     def setup_historical_data(self, csv_file, historical_data_time_column):
-        self.use_historical_data = csv_file is None
+        self.use_historical_data = csv_file is not None
         if csv_file is None:
             return
 
@@ -111,11 +114,11 @@ class WeatherPrediction(object):
         records = parsed_json["hourly_forecast"]
         for rec in records[:24]:
             result = {"timestamp": parse(rec["FCTTIME"]["pretty"])}
-            result.update(self.get_wu_forcast_from_record(rec))
+            result.update(self.get_wu_forecast_from_record(rec))
             results.append(result)
         return results
 
-    def get_wu_forcast_from_record(self, record):
+    def get_wu_forecast_from_record(self, record):
         results = {}
 
         for key, path in keys.iteritems():
@@ -131,12 +134,11 @@ class WeatherPrediction(object):
 
     def get_historical_data(self, now):
         now = now.replace(year=self.history_year)
-        current_time_stamp = now + dt.timedelta(hours=1)
 
         results = []
         for _ in xrange(24):
-            results.append(self.get_historical_hour(current_time_stamp))
-            current_time_stamp += dt.timedelta(hours=1)
+            results.append(self.get_historical_hour(now))
+            now += dt.timedelta(hours=1)
 
         return results
 

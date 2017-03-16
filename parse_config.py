@@ -62,7 +62,14 @@ _log = logging.getLogger(__name__)
 
 def parse_config(config):
     _log.debug("Starting parse_config")
-    model = SystemModel()
+
+    building_load_config = config["building_load"]
+
+    building_klass = get_algorithm_class("building_load")
+
+    building_load_model = building_klass(name=u"building_load", **building_load_config)
+
+    model = SystemModel(building_load_model)
 
     components = config["components"]
     connections = config["connections"]
@@ -78,7 +85,7 @@ def parse_config(config):
         try:
             component = klass(**component_dict)
         except Exception as e:
-            _log.error("Error creating component: "+str(e))
+            _log.exception("Error creating component " + klass_name)
             continue
 
         model.add_component(component, klass_name)
