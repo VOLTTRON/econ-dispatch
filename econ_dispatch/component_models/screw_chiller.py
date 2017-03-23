@@ -60,100 +60,99 @@ import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
 
-DEFAULT_QBP = 55
+DEFAULT_TCHO = 42
+DEFAULT_TCDI = 75
+DEFAULT_QCH_KW = 656.09
 
 class Component(ComponentBase):
-    def __init__(self, cost=0.07):
+    def __init__(self):
         super(Component, self).__init__()
+        # Chilled water temperature setpoint outlet from chiller
+        Tcho = DEFAULT_TCHO
 
-        # Building heating load assigned to Boiler
-        self.Qbp = 55
+        # Condenser water temperature inlet temperature to chiller from tower in F
+        # Note that this fixed value of 75F is a placeholder.  We will ultimately
+        # need a means of forecasting the condenser water inlet temperature.
+        Tcdi = DEFAULT_TCDI
 
-        # Boiler Nameplate parameters (User Inputs)
-        self.Qbprated = 60 #mmBtu/hr
-        self.Gbprated = 90 # mmBtu/hr
-
-        # NG heat Content 950 Btu/ft3 is assumed
-        self.HC = 0.03355 
-
-        GasInputSubmetering = True #Is metering of gas input to the boilers available? If not, we can't build a regression, and instead will rely on default boiler part load efficiency curves
-        if GasInputSubmetering:
-            # ********* 5-degree polynomial model coefficients from training*****
-            self.polynomial_coeffs = train()
-        else:
-            # Use part load curve for 'atmospheric' boiler from http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.553.4931&rep=rep1&type=pdf
-            self.polynomial_coeffs = (0.6978, 3.3745, -15.632, 32.772, -31.45, 11.268)
+        # building cooling load ASSIGNED TO THIS CHILLER in kW
+        Qch_kW = DEFAULT_QCH_KW
 
     def get_output_metadata(self):
-        return [u"heated_water"]
+        return ""
 
     def get_input_metadata(self):
-        return [u"natural_gas"]
+        return ""
 
     def get_optimization_parameters(self):
         predict()
         return {}
 
-    def update_parameters(self, Qbp=DEFAULT_QBP):
-        self.Qbp = Qbp
+    def update_parameters(self, Tcho=DEFAULT_TCHO,
+                          Tcdi=DEFAULT_TCDI,
+                          Qch_kW=DEFAULT_QCH_KW):
+        self.Tcho = Tcho
+        self.Tcdi = Tcdi
+        self.Qch_kW = Qch_kW
 
     def predict():
-        a0, a1, a2, a3, a4, a5 = self.polynomial_coeffs
-        if Qbp > self.Qbprated:
-            Qbp = self.Qbprated
-        else:
-            Qbp = self.Qbp
+        # Regression models were built separately (Training Module) and
+        # therefore regression coefficients are available. Also, forecasted values
+        # for Chiller cooling output were estimated from building load predictions.
+        # This code is meant to be used for 24 hours ahead predictions.
+        # The code creates an excel file and writes
+        # the results on it along with time stamps
 
-        xbp = Qbp / self.Qbprated # part load ratio
-        ybp = a0 + a1*xbp + a2*(xbp)**2 + a3*(xbp)**3 + a4*(xbp)**4 + a5*(xbp)**5# relative efficiency (multiplier to ratred efficiency)
-        Gbp = (Qbp * self.Gbprated) / (ybp * self.Qbprated)# boiler gas heat input in mmBtu
-        FC = Gbp / self.HC #fuel consumption in cubic meters per hour
+        # Gordon-Ng model coefficients
+        a0, a1, a2, a3 = train()
+
+        Tcho_K = (self.Tcho - 32) / 1.8 + 273.15#Converting F to Kelvin
+        Tcdi_K = (self.Tcdi - 32) / 1.8 + 273.15#Converting F to Kelvin
+        Qch_kW = self.Qch_kW
+
+        COP = ((Tcho_K / Tcdi_K) - a3 * (Qch_kW / Tcdi_K)) / ((a0 + (a1 * (Tcho_K / Qch_kW)) + a2 * ((Tcdi_K - Tcho_K) / (Tcdi_K * Qch_kW)) + 1) - ((Tcho_K / Tcdi_K) - a3 * (Qch_kW / Tcdi_K)))
+        P_Ch_In = Qch_kW / COP #Chiller Electric Power Input in kW
+
 
     def train():
-        # This module reads the historical data on boiler heat output and
-        # gas heat input both in mmBTU/hr then, converts
+        # This module reads the historical data on temperatures (in Fahrenheit), inlet power to the
+        # chiller (in kW) and outlet cooling load (in cooling ton) then, converts
         # the data to proper units which then will be used for model training. At
         # the end, regression coefficients will be written to a file
 
-        with open("Boiler-Historical-Data.json", 'r') as f:
+        with open('CH-Screw-Historical-Data.json', 'r') as f:
             historical_data = json.load(f)
 
-        # boiler gas input in mmBTU
-        # Note from Nick Fernandez: Most sites will not have metering for gas inlet
-        # to the boiler.  I'm creating a second option to use a defualt boiler
-        # curve
-        Gbp = historical_data["boiler_gas_input"]
+        Tcho = historical_data["Tcho(F)"]# chilled water supply temperature in F
+        Tcdi = historical_data["Tcdi(F)"]# condenser water temperature (outlet from heat rejection and inlet to chiller) in F
+        Qch = historical_data["Qch(tons)"]# chiller cooling output in Tons of cooling
+        P = historical_data["P(kW)"]# chiller power input in kW
 
-        # boiler heat output in mmBTU
-        Qbp = historical_data["boiler_heat_output"]
-
-        i = len(Gbp)
+        i = len(Tcho)
         U = np.ones(i)
 
-        # ****** Static Inputs (Rating Condition + Natural Gas Heat Content *******
-        Qbprated = 60 #boiler heat output at rated condition - user input (mmBtu)
-        Gbprated = 90 #boiler gas heat input at rated condition - user input (mmBtu)
-        #**************************************************************************
-
-        xbp = np.zeros(i)
-        xbp2 = np.zeros(i)
-        xbp3 = np.zeros(i)
-        xbp4 = np.zeros(i)
-        xbp5 = np.zeros(i)
-        ybp = np.zeros(i)
+        COP = np.zeros(i) # Chiller COP
+        x1 = np.zeros(i)
+        x2 = np.zeros(i)
+        x3 = np.zeros(i)
+        y = np.zeros(i)
 
         for a in range(i):
-            xbp[a] = Qbp[a] / Qbprated
-            xbp2[a] = xbp[a]**2
-            xbp3[a] = xbp[a]**3
-            xbp4[a] = xbp[a]**4
-            xbp5[a] = xbp[a]**5
-            ybp[a] = (Qbp[a] / Gbp[a]) / (float(Qbprated) / float(Gbprated))
+            Tcho[a] = (Tcho[a]-32)/1.8+273.15#Converting F to Kelvin
+            Tcdi[a] = (Tcdi[a]-32)/1.8+273.15#Converting F to Kelvin
+            Qch[a] = Qch[a]*12000/3412 # converting tons to kW
+            COP[a] = Qch[a]/P[a]
+
+        for a in range(i):
+            x1[a] = Tcho[a] / Qch[a]
+            x2[a] = (Tcdi[a] - Tcho[a]) / (Tcdi[a] * Qch[a])
+            x3[a] = (((1 / COP[a]) + 1) * Qch[a]) / Tcdi[a]
+            y[a] = ((((1 / COP[a]) + 1) * Tcho[a]) / Tcdi[a]) - 1
+
 
         #*******Multiple Linear Regression***********
-        XX = np.column_stack((U, xbp, xbp2, xbp3, xbp4, xbp5))#matrix of predictors
-        AA, resid, rank, s = np.linalg.lstsq(XX, ybp)
+        XX = np.column_stack((U,x1,x2,x3))#matrix of predictors
+        AA, resid, rank, s = np.linalg.lstsq(XX, y)
         #********************************************
 
         return AA
-
