@@ -72,6 +72,11 @@ class BuildingModelBase(object):
         """Get the predicted load values based on the independent variables."""
         pass
 
+    @abc.abstractmethod
+    def add_training_data(self, now, variable_values={}):
+        """Update the training data with the last hour."""
+        pass
+
 for model_name in _modelList:
     try:
         module = __import__(model_name,globals(),locals(),['Model'], 1)
