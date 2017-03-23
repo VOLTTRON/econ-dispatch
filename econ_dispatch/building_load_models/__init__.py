@@ -55,3 +55,38 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
+import abc
+import logging
+import pkgutil
+
+_modelList = [name for _, name, _ in pkgutil.iter_modules(__path__)]
+
+_modelDict = {}
+
+
+class BuildingModelBase(object):
+    __metaclass__ = abc.ABCMeta
+
+    @abc.abstractmethod
+    def derive_variables(self, now, independent_variable_values={}):
+        """Get the predicted load values based on the independent variables."""
+        pass
+
+for model_name in _modelList:
+    try:
+        module = __import__(model_name,globals(),locals(),['Model'], 1)
+        klass = module.Model
+    except Exception as e:
+        logging.error('Module {name} cannot be imported. Reason: {ex}'.format(name=model_name, ex=e))
+        continue
+
+    #Validation of Algorithm class
+
+    if not issubclass(klass, BuildingModelBase):
+        logging.warning('The implementation of {name} does not inherit from econ_dispatch.building_load_models.BuildingModelBase.'.format(name=componentName))
+
+    _modelDict[model_name] = klass
+
+
+def get_model_class(name):
+    return _modelDict.get(name)

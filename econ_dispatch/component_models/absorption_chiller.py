@@ -90,10 +90,10 @@ class Component(ComponentBase):
         self.a0, self.a1 = train()
 
     def get_output_metadata(self):
-        return ""
+        return [u"chilled_water"]
 
     def get_input_metadata(self):
-        return ""
+        return [u"heat"]
 
     def get_optimization_parameters(self):
         Qch = self.predict()
@@ -166,3 +166,4 @@ class Component(ComponentBase):
         AA, resid, rank, s = np.linalg.lstsq(XX, y)
 
         return AA
+

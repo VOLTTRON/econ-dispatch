@@ -54,3 +54,61 @@
 # operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
 # }}}
+
+import logging
+_log = logging.getLogger(__name__)
+
+import networkx as nx
+
+class SystemModel(object):
+    def __init__(self, building_load_model):
+        self.component_graph = nx.MultiDiGraph()
+        self.instance_map = {}
+
+        self.add_component(building_load_model, "building_load")
+        self.building_load_model = building_load_model
+
+    def add_component(self, component, type_name):
+        self.component_graph.add_node(component.name, type = type_name)
+
+        if component.name in self.instance_map:
+            _log.warning("Duplicate component names: " + component.name)
+
+        self.instance_map[component.name] = component
+
+    def add_connection(self, output_component_name, input_component_name, io_type=None):
+        try:
+            output_component = self.instance_map[output_component_name]
+        except KeyError:
+            _log.error("No component named {}".format(output_component_name))
+            raise
+
+        try:
+            input_component = self.instance_map[input_component_name]
+        except KeyError:
+            _log.error("No component named {}".format(input_component_name))
+            raise
+
+
+        output_types = output_component.get_output_metadata()
+        input_types = input_component.get_input_metadata()
+
+        _log.debug("Output types: {}".format(output_types))
+        _log.debug("Input types: {}".format(input_types))
+
+        real_io_types = []
+        if io_type is not None:
+            real_io_types = [io_type]
+        else:
+            real_io_types = [x for x in output_types if x in input_types]
+
+        for real_io_type in real_io_types:
+            _log.debug("Adding connection for io type: "+real_io_type)
+            self.component_graph.add_edge(output_component.name, input_component.name, label=real_io_type)
+
+        return len(real_io_types)
+
+
+
+
+

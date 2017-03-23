@@ -55,3 +55,47 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
+from econ_dispatch.component_models import ComponentBase
+from econ_dispatch.building_load_models import get_model_class
+from econ_dispatch.weather.weather import WeatherPrediction
+import datetime as dt
+
+class Component(ComponentBase):
+    def __init__(self, building_model_type="", building_model_settings={}, weather_model_settings={}, **kwargs):
+        super(Component, self).__init__(**kwargs)
+        model_class = get_model_class(building_model_type)
+        self.building_model = model_class(dependent_variables=["heat_load", "cool_load", "elec_load"],
+                                          **building_model_settings)
+        self.weather = WeatherPrediction(**weather_model_settings)
+
+        self.heat_loads = [0.0] * 24
+        self.cool_loads = [0.0] * 24
+        self.elec_loads = [0.0] * 24
+
+    def get_input_metadata(self):
+        return [u"heated_air", u"cooled_air", u"electricity"]
+
+    def get_optimization_parameters(self):
+        return {"heat_load":self.heat_loads, "cool_load":self.cool_loads, "elec_load":self.elec_loads}
+
+    def update_parameters(self, timestamp=None, **kwargs):
+        #Skip this if we are setting our initial state.
+        if timestamp is None:
+            return
+        #Update the state of the prediction.
+        timestamp += dt.timedelta(hours = 1)
+        weather_records = self.weather.get_weather_data(timestamp)
+
+        self.heat_loads = hl = []
+        self.cool_loads = cl = []
+        self.elec_loads = el = []
+
+        for wr in weather_records:
+            bl = self.building_model.derive_variables(timestamp, wr)
+            hl.append(bl["heat_load"])
+            cl.append(bl["cool_load"])
+            el.append(bl["elec_load"])
+            timestamp += dt.timedelta(hours=1)
+
+
+

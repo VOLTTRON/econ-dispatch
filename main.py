@@ -55,3 +55,38 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
+import argparse
+import json
+from parse_config import parse_config
+import networkx
+
+from pprint import pprint
+
+import datetime as dt
+
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+
+def main(config_file):
+    config = json.loads(config_file.read())
+    model = parse_config(config)
+
+    print model
+
+    networkx.drawing.nx_pydot.write_dot(model.component_graph, config_file.name + ".dot")
+    now = dt.datetime(2013, 1,2,13,40)
+    model.building_load_model.update_parameters(now)
+
+    print "Heat"
+    pprint(model.building_load_model.heat_loads)
+    print "Cool"
+    pprint(model.building_load_model.cool_loads)
+    print "Elec"
+    pprint(model.building_load_model.elec_loads)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config", type=argparse.FileType("r"), help="Configuration file to load")
+    args = parser.parse_args()
+    main(args.config)

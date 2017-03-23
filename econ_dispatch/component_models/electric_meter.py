@@ -58,14 +58,14 @@
 from econ_dispatch.component_models import ComponentBase
 
 class Component(ComponentBase):
-    def __init__(self, cost=0.07):
-        super(Component, self).__init__(cost=cost)
+    def __init__(self, cost=0.07, **kwargs):
+        super(Component, self).__init__(cost=cost, **kwargs)
 
     def get_output_metadata(self):
-        return "electricity"
+        return [u"electricity"]
 
     def get_input_metadata(self):
-        return "electricity"
+        return [u"electricity"]
 
     def get_optimization_parameters(self):
         return {"cost":self.cost}

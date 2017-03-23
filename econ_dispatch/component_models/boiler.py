@@ -85,10 +85,10 @@ class Component(ComponentBase):
             self.polynomial_coeffs = (0.6978, 3.3745, -15.632, 32.772, -31.45, 11.268)
 
     def get_output_metadata(self):
-        return ""
+        return [u"heated_water"]
 
     def get_input_metadata(self):
-        return ""
+        return [u"natural_gas"]
 
     def get_optimization_parameters(self):
         predict()
@@ -156,3 +156,4 @@ class Component(ComponentBase):
         #********************************************
 
         return AA
+
