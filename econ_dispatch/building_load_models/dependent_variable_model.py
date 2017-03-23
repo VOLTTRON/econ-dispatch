@@ -89,3 +89,7 @@ class Model(BuildingModelBase):
         result = {dep: filtered_data[dep].mean() for dep in self.dependent_variables}
 
         return result
+
+    def add_training_data(self, now, variable_values={}):
+        """Do nothing for now."""
+        pass

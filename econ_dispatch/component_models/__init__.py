@@ -123,7 +123,7 @@ class ComponentBase(object):
         pass
 
     @abc.abstractmethod
-    def update_parameters(self, **kwargs):
+    def update_parameters(self, timestamp=None, **kwargs):
         """Update the internal parameters of the component based on the input values.
         As the model must be aware of component types the format can be whatever the component wants."""
         pass

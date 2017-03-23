@@ -108,6 +108,34 @@ class SystemModel(object):
 
         return len(real_io_types)
 
+    def get_predicted_building_loads(self):
+        #Loads were updated previously when we updated all components
+        parameters = self.building_load_model.get_optimization_parameters()
+        return parameters
+
+    def update_components(self, now, inputs):
+        for component in self.instance_map.itervalues():
+            component.update_parameters(now, **inputs)
+
+    def run_general_optimizer(self, predicted_loads):
+        pass
+
+    def run_component_optimizer(self, component_loads):
+        pass
+
+    def get_commands(self):
+        return {}
+
+    def run(self, now, inputs):
+        self.update_components(now, inputs)
+        predicted_building_loads = self.get_predicted_building_loads()
+        component_loads = self.run_general_optimizer(predicted_building_loads)
+        self.run_component_optimizer(component_loads)
+        commands = self.get_commands()
+
+        return commands
+
+
 
 
 

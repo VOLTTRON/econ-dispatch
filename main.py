@@ -57,7 +57,7 @@
 
 import argparse
 import json
-from parse_config import parse_config
+from econ_dispatch.application import Application
 import networkx
 
 from pprint import pprint
@@ -70,20 +70,21 @@ logging.basicConfig(level=logging.DEBUG)
 
 def main(config_file):
     config = json.loads(config_file.read())
-    model = parse_config(config)
+    application = Application(model_config=config)
 
-    print model
+    print application.model
 
-    networkx.drawing.nx_pydot.write_dot(model.component_graph, config_file.name + ".dot")
+    networkx.drawing.nx_pydot.write_dot(application.model.component_graph, config_file.name + ".dot")
     now = dt.datetime(2013, 1,2,13,40)
-    model.building_load_model.update_parameters(now)
+
+    application.run(now, {})
 
     print "Heat"
-    pprint(model.building_load_model.heat_loads)
+    pprint(application.model.building_load_model.heat_loads)
     print "Cool"
-    pprint(model.building_load_model.cool_loads)
+    pprint(application.model.building_load_model.cool_loads)
     print "Elec"
-    pprint(model.building_load_model.elec_loads)
+    pprint(application.model.building_load_model.elec_loads)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
