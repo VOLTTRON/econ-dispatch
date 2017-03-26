@@ -157,7 +157,12 @@ class Component(ComponentBase):
         T_hw = TrainingData['T_HW'].values
     
         # Hot water outlet temperature from regeneration coil [C]
-        T_hw_out = TrainingData['T_HW_out'].values    
+        T_hw_out = TrainingData['T_HW_out'].values
+
+        # Fan status (1=ON, 0=OFF)
+        Fan = TrainingData['FanStatus'].values
+
+        Rows = len(T_hw_out)
     
         h_OA_fan = []
     
@@ -167,7 +172,7 @@ class Component(ComponentBase):
         for i in range(0, Rows):
             if Fan[i] > 0 and Vlv[i] > 0:
                 h_OAx = HAPropsSI('H', 'T', (T_OA[i]+273.15), 'P', 101325, 'R', RH_OA[i]/100); #calculate outdoor air enthalpy
-                hf_OA_fan.append(h_OAx)
+                h_OA_fan.append(h_OAx)
                 delta_T.append(T_hw[i] - T_hw_out[i])
     
         #single variabel regression based on outdoor air enthalpy
