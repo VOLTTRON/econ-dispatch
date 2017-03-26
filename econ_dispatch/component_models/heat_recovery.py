@@ -57,8 +57,8 @@
 
 import math
 
-from scipy import stats
 import pandas as pd
+import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
 
@@ -143,7 +143,11 @@ class Component(ComponentBase):
 
         x = Proportional
         y = Output
-        slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
+
+        bias = np.ones(len(x))
+        xs = np.column_stack((bias, x))
+        (intercept, slope), resid, rank, s = np.linalg.lstsq(xs, y)
+
         return intercept, slope
 
     def HeatRecoveryWaterOut():
