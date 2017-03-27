@@ -59,14 +59,15 @@ import json
 import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
+from econ_dispatch.utils import least_squares_regression
 
 DEFAULT_TCHO = 42
 DEFAULT_TCDI = 75
 DEFAULT_QCH_KW = 656.09
 
 class Component(ComponentBase):
-    def __init__(self):
-        super(Component, self).__init__()
+    def __init__(self, **kwargs):
+        super(Component, self).__init__(**kwargs)
         # Chilled water temperature setpoint outlet from chiller
         Tcho = DEFAULT_TCHO
 
@@ -85,7 +86,7 @@ class Component(ComponentBase):
         return ""
 
     def get_optimization_parameters(self):
-        predict()
+        self.predict()
         return {}
 
     def update_parameters(self, Tcho=DEFAULT_TCHO,
@@ -95,7 +96,7 @@ class Component(ComponentBase):
         self.Tcdi = Tcdi
         self.Qch_kW = Qch_kW
 
-    def predict():
+    def predict(self):
         # Regression models were built separately (Training Module) and
         # therefore regression coefficients are available. Also, forecasted values
         # for Chiller cooling output were estimated from building load predictions.
@@ -104,7 +105,7 @@ class Component(ComponentBase):
         # the results on it along with time stamps
 
         # Gordon-Ng model coefficients
-        a0, a1, a2, a3 = train()
+        a0, a1, a2, a3 = self.train()
 
         Tcho_K = (self.Tcho - 32) / 1.8 + 273.15#Converting F to Kelvin
         Tcdi_K = (self.Tcdi - 32) / 1.8 + 273.15#Converting F to Kelvin
@@ -114,7 +115,7 @@ class Component(ComponentBase):
         P_Ch_In = Qch_kW / COP #Chiller Electric Power Input in kW
 
 
-    def train():
+    def train(self):
         # This module reads the historical data on temperatures (in Fahrenheit), inlet power to the
         # chiller (in kW) and outlet cooling load (in cooling ton) then, converts
         # the data to proper units which then will be used for model training. At

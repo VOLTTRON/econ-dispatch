@@ -72,8 +72,8 @@ DEFAULT_QIN = 8.68
 
 
 class Component(ComponentBase):
-    def __init__(self):
-        super(Component, self).__init__()
+    def __init__(self, **kwargs):
+        super(Component, self).__init__(**kwargs)
         #Chilled water temperature setpoint outlet from absorption chiller
         self.Tcho = DEFAULT_TCHO
 
@@ -87,7 +87,7 @@ class Component(ComponentBase):
         self.Qin = DEFAULT_QIN
 
         # Gordon-Ng model coefficients
-        self.a0, self.a1 = train()
+        self.a0, self.a1 = self.train()
 
     def get_output_metadata(self):
         return [u"chilled_water"]
@@ -109,7 +109,7 @@ class Component(ComponentBase):
         self.Tgeni = Tgeni
         self.Qin = Qin
 
-    def predict():
+    def predict(self):
         # Regression models were built separately (Training Module) and
         # therefore regression coefficients are available. Heat input to the chiller generator
         # is assumed to be known and this model predicts the chiller cooling output.
@@ -126,7 +126,7 @@ class Component(ComponentBase):
         Qch = Qch / 3.517 #Converting kW to cooling ton
         return Qch
 
-    def train():
+    def train(self):
         # This module reads the historical data on temperatures (in Fahrenheit), inlet heat to the
         # chiller (in mmBTU/hr) and outlet cooling load (in cooling ton) then, converts
         # the data to proper units which then will be used for model training. At

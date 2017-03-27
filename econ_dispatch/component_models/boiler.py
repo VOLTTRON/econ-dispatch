@@ -63,8 +63,8 @@ from econ_dispatch.component_models import ComponentBase
 DEFAULT_QBP = 55
 
 class Component(ComponentBase):
-    def __init__(self, cost=0.07):
-        super(Component, self).__init__()
+    def __init__(self, **kwargs):
+        super(Component, self).__init__(**kwargs)
 
         # Building heating load assigned to Boiler
         self.Qbp = 55
@@ -79,7 +79,7 @@ class Component(ComponentBase):
         GasInputSubmetering = True #Is metering of gas input to the boilers available? If not, we can't build a regression, and instead will rely on default boiler part load efficiency curves
         if GasInputSubmetering:
             # ********* 5-degree polynomial model coefficients from training*****
-            self.polynomial_coeffs = train()
+            self.polynomial_coeffs = self.train()
         else:
             # Use part load curve for 'atmospheric' boiler from http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.553.4931&rep=rep1&type=pdf
             self.polynomial_coeffs = (0.6978, 3.3745, -15.632, 32.772, -31.45, 11.268)
@@ -91,13 +91,13 @@ class Component(ComponentBase):
         return [u"natural_gas"]
 
     def get_optimization_parameters(self):
-        predict()
+        self.predict()
         return {}
 
     def update_parameters(self, Qbp=DEFAULT_QBP):
         self.Qbp = Qbp
 
-    def predict():
+    def predict(self):
         a0, a1, a2, a3, a4, a5 = self.polynomial_coeffs
         if Qbp > self.Qbprated:
             Qbp = self.Qbprated
@@ -109,7 +109,7 @@ class Component(ComponentBase):
         Gbp = (Qbp * self.Gbprated) / (ybp * self.Qbprated)# boiler gas heat input in mmBtu
         FC = Gbp / self.HC #fuel consumption in cubic meters per hour
 
-    def train():
+    def train(self):
         # This module reads the historical data on boiler heat output and
         # gas heat input both in mmBTU/hr then, converts
         # the data to proper units which then will be used for model training. At
