@@ -58,7 +58,6 @@
 import pandas as pd
 import numpy as np
 from CoolProp.HumidAirProp import HAPropsSI
-import statsmodels.api as sm
 
 from econ_dispatch.component_models import ComponentBase
 
@@ -157,7 +156,12 @@ class Component(ComponentBase):
         T_hw = TrainingData['T_HW'].values
     
         # Hot water outlet temperature from regeneration coil [C]
-        T_hw_out = TrainingData['T_HW_out'].values    
+        T_hw_out = TrainingData['T_HW_out'].values
+
+        # Fan status (1=ON, 0=OFF)
+        Fan = TrainingData['FanStatus'].values
+
+        Rows = len(T_hw_out)
     
         h_OA_fan = []
     
@@ -167,23 +171,15 @@ class Component(ComponentBase):
         for i in range(0, Rows):
             if Fan[i] > 0 and Vlv[i] > 0:
                 h_OAx = HAPropsSI('H', 'T', (T_OA[i]+273.15), 'P', 101325, 'R', RH_OA[i]/100); #calculate outdoor air enthalpy
-                hf_OA_fan.append(h_OAx)
+                h_OA_fan.append(h_OAx)
                 delta_T.append(T_hw[i] - T_hw_out[i])
     
         #single variabel regression based on outdoor air enthalpy
-        RegressionArray = [h_OA_fan]
-        x = RegressionArray
         y = delta_T
-    
-        ones = np.ones(len(x[0]))
-        X = sm.add_constant(np.column_stack((x[0], ones)))
-    
-        for ele in x[1:]:
-            X = sm.add_constant(np.column_stack((ele, X)))
-    
-        results = sm.OLS(y, X).fit()
-    
-        Coefficients = results.params
+        ones = np.ones(len(h_OA_fan))
+        X = np.column_stack((h_OA_fan, ones))
+        Coefficients, resid, rank, s = np.linalg.lstsq(X, y)
+
         return Coefficients
     
     def getDesiccantCoeffs(TrainingData, h_oa_min):
@@ -240,17 +236,11 @@ class Component(ComponentBase):
                     CFM_OA_fan.append(CFM_OA[i])
     
         # regression variables are hot water inlet temperature, outdoor air enthalpy, outdoor air enthalpy squared and CFM of outdoor air
-        RegressionArray = [T_HW_fan, h_OA_fan, h_OA2_fan, CFM_OA_fan]
-        x = RegressionArray
         y = delta_h
-    
-        ones = np.ones(len(x[0]))
-        X = sm.add_constant(np.column_stack((x[0], ones)))
-        for ele in x[1:]:
-            X = sm.add_constant(np.column_stack((ele, X)))
-        results = sm.OLS(y, X).fit()
-    
-        Coefficients = results.params
+        ones = np.ones(len(T_HW_fan))
+        X = np.column_stack((CFM_OA_fan, h_OA2_fan, h_OA_fan, T_HW_fan, ones))
+        Coefficients, resid, rank, s = np.linalg.lstsq(X, y)
+
         return Coefficients
 
 
@@ -275,8 +265,8 @@ class Component(ComponentBase):
         if w_oa_curr < w_oa_min or self.fan_status == 0: 
             deltaEnthalpy = 0
         # Useful enthalpy reduction should be limited by enthalpy of the supply air at saturation for the cooling coil in dehumidification mode
-        elif deltaEnthalpy < (min_h - h_oa_curr):
-            deltaEnthalpy = min_h - h_oa_curr
+        elif deltaEnthalpy < (h_oa_min - h_oa_curr):
+            deltaEnthalpy = h_oa_min - h_oa_curr
         
         
         # density of outdoor air in kg/m3 as a function of outdoor air temperature in degrees C

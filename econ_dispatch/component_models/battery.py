@@ -56,7 +56,7 @@
 # }}}
 
 import pandas as pd
-from scipy import stats
+import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
 
@@ -245,7 +245,10 @@ class Component(ComponentBase):
     
         x = Slope_RI
         y = ChargeEff
-        slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
+
+        xs = np.column_stack((np.ones(len(x)), x))
+        (intercept, slope), resid, rank, s = np.linalg.lstsq(xs, y)
+
         return intercept, slope
     
     def GetDisChargingParameters(self):
@@ -278,7 +281,9 @@ class Component(ComponentBase):
             Y.append((CurrSOC[i] - self.PrevSOC[i]) * self.capacity / ((CurrTime[i] - PrevTime[i]) * 24) / (CurrentI[i] * CurrentI[i]))
             X.append(CurrPower[i] / (CurrentI[i] * CurrentI[i]))
     
-        slope, intercept, r_value, p_value, std_err = stats.linregress(X, Y)
+        xs = np.column_stack((np.ones(len(X)), X))
+        (intercept, slope), resid, rank, s = np.linalg.lstsq(xs, Y)
+
         IR_discharge = (0 - intercept)
         InvEFFDischarge = 1 / slope
         return IR_discharge, InvEFFDischarge
@@ -305,7 +310,9 @@ class Component(ComponentBase):
         for i in range(0, Rows - 1):
             Y.append((CurrSOC[i] - self.PrevSOC[i]) / ((CurrTime[i] - PrevTime[i]) * 24))
             X.append(CurrSOC[i])
+
+        xs = np.column_stack((np.ones(len(X)), X))
+        (intercept, slope), resid, rank, s = np.linalg.lstsq(xs, Y)
     
-        slope, intercept, r_value, p_value, std_err = stats.linregress(X,Y)
         return slope, intercept
     

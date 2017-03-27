@@ -5,11 +5,115 @@ import sqlite3
 import pandas as pd
 import numpy as np
 import math
-import matplotlib.pyplot as plt
 import numpy.matlib
 import CoolProp
 from CoolProp.HumidAirProp import HAPropsSI
-import statsmodels.api as sm
+
+
+def getDesiccantCoeffs(TrainingData,h_oa_min):
+
+    #This function is used by th Desiccant Wheel program and uses historical trend data on outdoor and conditioned air temperuatures and relative humidities, outdoor air flow rates, fan status and outdoor air temperature
+    # A regression dequation is built to predict the drop in enthalpy of the supply air acrsoss the desiccant coil as a function of outdoor air enthalpy, outdoor enthalpy squared, hot water temperature and CFM of outdoor air
+
+    #timestamp
+    Time = TrainingData['Date/Time'].values
+
+    # Outdoor air temperature sensor; convert to degrees C
+    T_OA = TrainingData['T_OA'].values
+
+    # Outdoor air relative humudity (fraction)
+    RH_OA = TrainingData['RH_OA'].values
+
+    # Conditioned temperature of supply air at the outlet of the heat recovery coil
+    T_CA = TrainingData['T_CA'].values
+    
+    # Volumetric flow rate of outdor air in cubic feet per minute (cfm)
+    CFM_OA = TrainingData['CFM_OA'].values
+
+    # Conditioned relative humidity of supply air at the outlet of the heat recovery coil
+    RH_CA = TrainingData['RH_CA'].values
+
+    # hot water inlet temperature to regeneration coil
+    T_hw = TrainingData['T_HW'].values
+
+    # Fan status (1=ON, 0=OFF)
+    Fan = TrainingData['FanStatus'].values
+
+    Rows = len(Time)
+
+    h_OA = []
+    h_CA = []
+    delta_h = []
+    h_OA_fan = []
+    h_OA2_fan = []
+    T_HW_fan = []
+    CFM_OA_fan = []
+
+    for i in range(0, Rows):
+        if Fan[i] > 0:
+            h_OAx = HAPropsSI('H','T', (T_OA[i]+273.15), 'P', 101325, 'R', RH_OA[i]/100) #calculate outdoor air enthalpy
+            if  h_OAx > h_oa_min:
+                h_OA.append(h_OAx)
+                h_CAx = HAPropsSI('H', 'T', (T_CA[i]+273.15), 'P', 101325, 'R', RH_CA[i]/100)
+                h_CA.append(h_CAx)
+                delta_h.append(h_CAx-h_OAx)
+                h_OA_fan.append(h_OAx)
+                h_OA2_fan.append(pow(h_OAx, 2))
+                T_HW_fan.append(T_hw[i])
+                CFM_OA_fan.append(CFM_OA[i])
+
+
+    y = delta_h
+    ones = np.ones(len(T_HW_fan))
+    X = np.column_stack((CFM_OA_fan, h_OA2_fan, h_OA_fan, T_HW_fan, ones))
+    Coefficients, resid, rank, s = np.linalg.lstsq(X, y)
+
+    return Coefficients
+
+
+def getTrainingMFR(TrainingData):
+    #This function is used by the Desiccant Wheel program to estimate the delta T across the regeneration coil for the purpose of calculating the hot water mass flow rate in the regeneration coil
+    # This funciton is used only when historical data for the regneration coil outlet tempreature is available.
+
+    # Outdoor air temperature sensor; convert to degrees C
+    T_OA = TrainingData['T_OA'].values
+
+    # Outdoor air relative humudity (fraction)
+    RH_OA = TrainingData['RH_OA'].values
+
+    # regeneration coil valve command (fraction)
+    Vlv = TrainingData['Regen_Valve'].values
+
+    # Hot water inlet temperature to regeneration coil [C]
+    T_hw = TrainingData['T_HW'].values
+
+    # Hot water outlet temperature from regeneration coil [C]
+    T_hw_out = TrainingData['T_HW_out'].values
+
+    # Fan status (1=ON, 0=OFF)
+    Fan = TrainingData['FanStatus'].values
+
+    Rows = len(T_hw_out)
+
+    h_OA_fan = []
+
+    # hot water temperature drop across regneration coil [C]
+    delta_T = []
+
+    for i in range(0, Rows):
+        if Fan[i] > 0 and Vlv[i] > 0:
+            h_OAx = HAPropsSI('H', 'T', (T_OA[i]+273.15), 'P', 101325, 'R', RH_OA[i]/100); #calculate outdoor air enthalpy
+            h_OA_fan.append(h_OAx)
+            delta_T.append(T_hw[i] - T_hw_out[i])
+
+    #single variabel regression based on outdoor air enthalpy
+    y = delta_T
+    ones = np.ones(len(h_OA_fan))
+    X = np.column_stack((h_OA_fan, ones))
+    Coefficients, resid, rank, s = np.linalg.lstsq(X, y)
+
+    return Coefficients
+
 
 GetTraining = True
 
@@ -46,7 +150,7 @@ T_HW = 46.1
 
 
 if GetTraining:
-    TrainingData = pd.read_csv('C:\Users\d3x836\Desktop\PNNL-Nick Fernandez\GMLC\SampleDesiccant.csv', header=0)
+    TrainingData = pd.read_csv('SampleDesiccant.csv', header=0)
     w_oa_min = HAPropsSI('W', 'T', (11.67+273.15), 'P', 101325, 'R', 1) #This is an estimate of the minimum humidy ratio down to which dehumidifcation is useful in relieving cooling coil latent cooling loads.  The assumed humidity conditions are saturation (100% RH) at 53 degrees F, which is a typical cooling coil setpoint for dehumidification
     h_oa_min = HAPropsSI('H', 'T', (11.67+273.15), 'P', 101325, 'R', 1) #corresponding minimum enthalpy
     print h_oa_min
@@ -76,9 +180,10 @@ deltaEnthalpy = Coefs[4] + T_HW * Coefs[3] + h_oa_curr * Coefs[2] + pow(h_oa_cur
 # No useful enthalpy reduction if outdoor air humidity ratio is already below saturated conditions at the cooling coil outlet temperature used for dehumidification
 if w_oa_curr < w_oa_min or Fan_Status == 0: 
     deltaEnthalpy = 0
+
 # Useful enthalpy reduction should be limited by enthalpy of the supply air at saturation for the cooling coil in dehumidification mode
-elif deltaEnthalpy < (min_h - h_oa_curr):
-    deltaEnthalpy = min_h - h_oa_curr
+elif deltaEnthalpy < (h_oa_min - h_oa_curr):
+    deltaEnthalpy = h_oa_min - h_oa_curr
 
 
 # density of outdoor air in kg/m3 as a function of outdoor air temperature in degrees C
