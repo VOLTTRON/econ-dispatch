@@ -66,8 +66,8 @@ DEFAULT_T_CHWBLDGRETURN = 14
 
 
 class Component(ComponentBase):
-    def __init__(self):
-        super(Component, self).__init__()
+    def __init__(self, **kwargs):
+        super(Component, self).__init__(**kwargs)
 
         # Tank Volume in L
         self.tank_volume = 37800.0

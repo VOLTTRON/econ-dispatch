@@ -65,9 +65,9 @@ DEFAULT_CAPACITY = 150.0
 DEFAULT_ELEC_IN = 10.0
 
 class Component(ComponentBase):
-    def __init__(self):
-        super(Component, self).__init__()
-        inverter_curve = pd.read_csv('C:\Users\d3x836\Desktop\PNNL-Nick Fernandez\GMLC\InverterCurve.csv', header=0)
+    def __init__(self, **kwargs):
+        super(Component, self).__init__(**kwargs)
+        inverter_curve = pd.read_csv('InverterCurve.csv', header=0)
         self.PLF = inverter_curve['PLF'].values
         self.efficiency = inverter_curve['Efficiency'].values
 

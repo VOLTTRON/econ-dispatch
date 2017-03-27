@@ -75,8 +75,8 @@ DEFAULT_IDLE_B = -0.00024
 
 
 class Component(ComponentBase):
-    def __init__(self):
-        super(Component, self).__init__()
+    def __init__(self, **kwargs):
+        super(Component, self).__init__(**kwargs)
         #Battery Storage Capacity in W-h
         self.capacity = DEFAULT_CAPACITY
 
@@ -214,7 +214,7 @@ class Component(ComponentBase):
         return SOC, InputPower
     
     def GetChargingParameters(self):
-        TrainingData = pd.read_csv('C:\Users\d3x836\Desktop\PNNL-Nick Fernandez\GMLC\BatteryCharging.csv', header=0)
+        TrainingData = pd.read_csv('BatteryCharging.csv', header=0)
         Time = TrainingData['Time'].values
         Current = TrainingData['I'].values
         PowerIn = TrainingData['Po'].values
@@ -252,7 +252,7 @@ class Component(ComponentBase):
         return intercept, slope
     
     def GetDisChargingParameters(self):
-        TrainingData = pd.read_csv('C:\Users\d3x836\Desktop\PNNL-Nick Fernandez\GMLC\BatteryDisCharging.csv', header=0)
+        TrainingData = pd.read_csv('BatteryDisCharging.csv', header=0)
         Time = TrainingData['Time'].values
         Current = TrainingData['I'].values
         PowerIn = TrainingData['Po'].values
@@ -289,7 +289,7 @@ class Component(ComponentBase):
         return IR_discharge, InvEFFDischarge
     
     def GetIdleParameters(self):
-        TrainingData = pd.read_csv('C:\Users\d3x836\Desktop\PNNL-Nick Fernandez\GMLC\BatteryIdle.csv', header=0)
+        TrainingData = pd.read_csv('BatteryIdle.csv', header=0)
         Time = TrainingData['Time'].values
         SOC = TrainingData['SOC'].values
         Rows = len(Time)

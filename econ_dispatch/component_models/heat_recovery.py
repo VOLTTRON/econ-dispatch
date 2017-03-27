@@ -70,8 +70,8 @@ DEFAULT_PRIME_MOVER_SPEED = 0.75
 
 
 class Component(ComponentBase):
-    def __init__(self):
-        super(Component, self).__init__()
+    def __init__(self, **kwargs):
+        super(Component, self).__init__(**kwargs)
         # kg/s
         self.MFR_ex = DEFAULT_MFR_EX
 
@@ -132,7 +132,7 @@ class Component(ComponentBase):
         self.prime_mover_current_speed = prime_mover_current_speed
 
     def GetRegressionHeatRecovery():
-        TrainingData = pd.read_csv('C:\Users\d3x836\Desktop\PNNL-Nick Fernandez\GMLC\MicroturbineData.csv',  header=0)
+        TrainingData = pd.read_csv('MicroturbineData.csv',  header=0)
         Twi = TrainingData['T_wi'].values
         Two = TrainingData['T_wo'].values
         Texi = TrainingData['self.T_ex_i'].values

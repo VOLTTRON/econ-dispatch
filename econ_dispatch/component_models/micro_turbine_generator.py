@@ -58,6 +58,7 @@
 
 import json
 from math import ceil, isnan
+import os
 import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
@@ -79,8 +80,10 @@ Coef.FlowOut = np.array([-65.85, 164.5])
 
 class Component(ComponentBase):
     def __init__(self, **kwargs):
+        global Coef
         super(Component, self).__init__(**kwargs)
-        with open('CapstoneTurndownData.json', 'r') as f:
+        training_data = os.path.join(os.path.dirname(__file__), 'CapstoneTurndownData.json')
+        with open(training_data, 'r') as f:
             capstone_turndown_data = json.load(f)
 
         self.Pdemand = np.array(capstone_turndown_data['Pdemand'])
@@ -100,7 +103,7 @@ class Component(ComponentBase):
         AirFlow, FuelFlow, Tout, Efficiency = self.GasTurbine_Operate(self.Pdemand, self.Temperature, 0, Coef)
         return {"efficiency":Efficiency}
 
-    def update_parameters(self):
+    def update_parameters(self, timestamp=None, **kwargs):
         pass
 
     def GasTurbine_Operate(self, Power, Tin, NetHours, Coef):
