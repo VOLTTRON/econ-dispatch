@@ -103,7 +103,7 @@ class Component(ComponentBase):
         FuelFlow, ExhaustFlow, ExhaustTemperature, NetEfficiency = self.FuelCell_Operate(Coef)
         return {}
 
-    def update_parameters(self):
+    def update_parameters(self, **kwargs):
         pass
 
     def FuelCell_Operate(self, Coef):

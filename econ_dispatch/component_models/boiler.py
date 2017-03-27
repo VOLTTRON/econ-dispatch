@@ -56,6 +56,7 @@
 # }}}
 
 import json
+import os
 import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
@@ -115,7 +116,8 @@ class Component(ComponentBase):
         # the data to proper units which then will be used for model training. At
         # the end, regression coefficients will be written to a file
 
-        with open("Boiler-Historical-Data.json", 'r') as f:
+        data_file = os.path.join(os.path.dirname(__file__), 'Boiler-Historical-Data.json')
+        with open(data_file, 'r') as f:
             historical_data = json.load(f)
 
         # boiler gas input in mmBTU
