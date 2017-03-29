@@ -55,6 +55,10 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+
 import argparse
 import json
 from econ_dispatch.application import Application
@@ -64,9 +68,7 @@ from pprint import pprint
 
 import datetime as dt
 
-import logging
 
-logging.basicConfig(level=logging.DEBUG)
 
 def main(config_file):
     config = json.loads(config_file.read())
