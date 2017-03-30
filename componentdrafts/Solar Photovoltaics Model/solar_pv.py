@@ -121,16 +121,14 @@ def predict():
         omega[a] = (t_sol[a] - 12) * 15
         omega[a] = omega[a] * (pi / 180)
         cos_theta_s[a] = cos(_lambda) * cos(delta[a]) * cos(omega[a]) + sin(_lambda) * sin(delta[a]) # thetas is zenith angle of sun
+        sin_theta_s = sin(pi/2-acos(cos_theta_s[a]))
         cos_theta_s[a] = abs(cos_theta_s[a])
 
         # Sunrise and sunset solar angle for horizontal surfaces
-        cos_omega_S[a] = -tan(_lambda) * tan(delta[a]) # sunrise and sunset hour angle
-        omegaS[a] = acos(cos_omega_S[a])
-        daylightindicator[a] = omegaS[a] - abs(omega[a]) # negative values indicate hours before sunrise or after sunset
-        cos_omegaS_prime[a] = -tan(_lambda - theta_p) * tan(delta[a])#sunrise and sunset solar angle for tilted surface with zero zenith angle
-        omegaSprime[a] = acos(cos_omegaS_prime[a])
-        daylightindicatorT[a] = omegaSprime[a] - abs(omega[a])# negative values indicate hours before sunrise or after sunset over the panel surface
-        DI[a] = 1 + (floor(daylightindicatorT[a] / 1000))
+        if sin_theta_s<0:
+            DI[a]=0
+        else:
+            DI[a]=1
 
         # **************************************
         theta_s[a] = acos(cos_theta_s[a]) #thetas will be in radian
