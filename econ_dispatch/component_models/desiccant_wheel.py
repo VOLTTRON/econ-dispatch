@@ -55,6 +55,7 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
+import os
 import pandas as pd
 import numpy as np
 from CoolProp.HumidAirProp import HAPropsSI
@@ -79,7 +80,7 @@ class Component(ComponentBase):
         # An optional input is the hot water outlet temperature from the regeneration coil.
         # This data is used only in a training function to provide a better estimate of the detla_T in the coil, compared to default assumption of 5 degrees C.
         # This training also requires an input of the hot water coil valve command, which is used as a filter of the data for building the regression
-        T_HW_out_available = True
+        self.T_HW_out_available = True
         
         ### DEFAULT ASSUMPTIONS
         # Electric power in Watts consumed to run desiccant system, typically including desiccant wheel motor and heat recovery wheel motor
@@ -106,14 +107,15 @@ class Component(ComponentBase):
         
         
         if GetTraining:
-            TrainingData = pd.read_csv('SampleDesiccant.csv', header=0)
-            w_oa_min = HAPropsSI('W', 'T', (11.67+273.15), 'P', 101325, 'R', 1) #This is an estimate of the minimum humidy ratio down to which dehumidifcation is useful in relieving cooling coil latent cooling loads.  The assumed humidity conditions are saturation (100% RH) at 53 degrees F, which is a typical cooling coil setpoint for dehumidification
-            h_oa_min = HAPropsSI('H', 'T', (11.67+273.15), 'P', 101325, 'R', 1) #corresponding minimum enthalpy
-            print h_oa_min
-            self.Coefs = self.getDesiccantCoeffs(TrainingData, h_oa_min) # regression is a funciton of MODEL variables, rather than AHU system variables, since the AHU system is not modeled.  specific regression variables are outdoor air enthalpy, outdoor air enthalpy squared, hot water inlet temperature, and outdoor air CFM (which may be a constant value when the fan is on)
+            data_file = os.path.join(os.path.dirname(__file__), 'SampleDesiccant.csv')
+            TrainingData = pd.read_csv(data_file, header=0)
+            self.w_oa_min = HAPropsSI('W', 'T', (11.67+273.15), 'P', 101325, 'R', 1) #This is an estimate of the minimum humidy ratio down to which dehumidifcation is useful in relieving cooling coil latent cooling loads.  The assumed humidity conditions are saturation (100% RH) at 53 degrees F, which is a typical cooling coil setpoint for dehumidification
+            self.h_oa_min = HAPropsSI('H', 'T', (11.67+273.15), 'P', 101325, 'R', 1) #corresponding minimum enthalpy
+            print self.h_oa_min
+            self.Coefs = self.getDesiccantCoeffs(TrainingData) # regression is a funciton of MODEL variables, rather than AHU system variables, since the AHU system is not modeled.  specific regression variables are outdoor air enthalpy, outdoor air enthalpy squared, hot water inlet temperature, and outdoor air CFM (which may be a constant value when the fan is on)
         
             # If hot water outlet temperature from regeneration coil is available, use historical data on hot water coil inlet and outlet temperatures along with valve command to build regression.
-            if T_HW_out_available:
+            if self.T_HW_out_available:
                 self.Coefs2 = self.getTrainingMFR(TrainingData)
     
     def get_output_metadata(self):
@@ -186,7 +188,7 @@ class Component(ComponentBase):
 
         return Coefficients
     
-    def getDesiccantCoeffs(self, TrainingData, h_oa_min):
+    def getDesiccantCoeffs(self, TrainingData):
     
         #This function is used by th Desiccant Wheel program and uses historical trend data on outdoor and conditioned air temperuatures and relative humidities, outdoor air flow rates, fan status and outdoor air temperature
         # A regression dequation is built to predict the drop in enthalpy of the supply air acrsoss the desiccant coil as a function of outdoor air enthalpy, outdoor enthalpy squared, hot water temperature and CFM of outdoor air
@@ -229,7 +231,7 @@ class Component(ComponentBase):
         for i in range(0, Rows):
             if Fan[i] > 0:
                 h_OAx = HAPropsSI('H','T', (T_OA[i]+273.15), 'P', 101325, 'R', RH_OA[i]/100) #calculate outdoor air enthalpy
-                if  h_OAx > h_oa_min:
+                if  h_OAx > self.h_oa_min:
                     h_OA.append(h_OAx)
                     h_CAx = HAPropsSI('H', 'T', (T_CA[i]+273.15), 'P', 101325, 'R', RH_CA[i]/100)
                     h_CA.append(h_CAx)
@@ -256,7 +258,7 @@ class Component(ComponentBase):
         w_oa_curr = HAPropsSI('W', 'T', (self.T_OA + 273.15), 'P', 101325, 'R', self.RH_OA)
         
         # If hot water outlet temperature from regeneration coil is available, get estimate of delta T as a funciton of outdoor air enthalpy.
-        if T_HW_out_available:
+        if self.T_HW_out_available:
             self.deltaT_RegenCoil = self.Coefs2[0] * h_oa_curr + self.Coefs2[1]
         
         # Thermal COP is the reduction in cooling load divided by the heat input to the desiccant wheel. The regression equation here is based on Figure 6 in http://www.nrel.gov/docs/fy05osti/36974.pdf
@@ -266,11 +268,11 @@ class Component(ComponentBase):
         deltaEnthalpy = self.Coefs[4] + self.T_HW * self.Coefs[3] + h_oa_curr * self.Coefs[2] + pow(h_oa_curr,2) * self.Coefs[1] + self.cfm_OA * self.Coefs[0]
         
         # No useful enthalpy reduction if outdoor air humidity ratio is already below saturated conditions at the cooling coil outlet temperature used for dehumidification
-        if w_oa_curr < w_oa_min or self.fan_status == 0: 
+        if w_oa_curr < self.w_oa_min or self.fan_status == 0: 
             deltaEnthalpy = 0
         # Useful enthalpy reduction should be limited by enthalpy of the supply air at saturation for the cooling coil in dehumidification mode
-        elif deltaEnthalpy < (h_oa_min - h_oa_curr):
-            deltaEnthalpy = h_oa_min - h_oa_curr
+        elif deltaEnthalpy < (self.h_oa_min - h_oa_curr):
+            deltaEnthalpy = self.h_oa_min - h_oa_curr
         
         
         # density of outdoor air in kg/m3 as a function of outdoor air temperature in degrees C
