@@ -55,41 +55,49 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
+
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
 
-import argparse
-import json
-from econ_dispatch.application import Application
-import networkx
+_log = logging.getLogger(__name__)
 
+import argparse
+import csv
+import json
+from ast import literal_eval
+from econ_dispatch.component_models import get_algorithm_class
 from pprint import pprint
 
-import datetime as dt
+def main(component_name, csv_input_file, component_config_file=None):
+    input_csv = csv.DictReader(csv_input_file)
+    klass = get_algorithm_class(component_name)
+
+    kwargs = {}
+    if component_config_file is not None:
+        kwargs = json.loads(component_config_file.read())
+
+    component = klass(**kwargs)
+
+    for record in input_csv:
+        parsed_record = {key:literal_eval(value) for key,value in record.iteritems()}
+        component.update_parameters(**parsed_record)
+        opt_params = component.get_optimization_parameters()
+        print "Input:"
+        pprint(parsed_record)
+        print
+        print "Output:"
+        pprint(opt_params)
+        print
 
 
 
-def main(config_file):
-    config = json.loads(config_file.read())
-    application = Application(model_config=config)
-
-    print application.model
-
-    networkx.drawing.nx_pydot.write_dot(application.model.component_graph, config_file.name + ".dot")
-    now = dt.datetime(2013, 1,2,13,40)
-
-    application.run(now, {})
-
-    print "Heat"
-    pprint(application.model.building_load_model.heat_loads)
-    print "Cool"
-    pprint(application.model.building_load_model.cool_loads)
-    print "Elec"
-    pprint(application.model.building_load_model.elec_loads)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("config", type=argparse.FileType("r"), help="Configuration file to load")
+    parser.add_argument("component", help="Name of the component to test.")
+    parser.add_argument("csv", type=argparse.FileType("rb"), help="CSV input file to load")
+    parser.add_argument("--config-file", type=argparse.FileType("r"), help="Component configuration in JSON format")
     args = parser.parse_args()
-    main(args.config)
+    print args
+    main(args.component, args.csv, args.config_file)

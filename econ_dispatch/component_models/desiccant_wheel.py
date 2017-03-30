@@ -110,11 +110,11 @@ class Component(ComponentBase):
             w_oa_min = HAPropsSI('W', 'T', (11.67+273.15), 'P', 101325, 'R', 1) #This is an estimate of the minimum humidy ratio down to which dehumidifcation is useful in relieving cooling coil latent cooling loads.  The assumed humidity conditions are saturation (100% RH) at 53 degrees F, which is a typical cooling coil setpoint for dehumidification
             h_oa_min = HAPropsSI('H', 'T', (11.67+273.15), 'P', 101325, 'R', 1) #corresponding minimum enthalpy
             print h_oa_min
-            self.Coefs = getDesiccantCoeffs(TrainingData, h_oa_min) # regression is a funciton of MODEL variables, rather than AHU system variables, since the AHU system is not modeled.  specific regression variables are outdoor air enthalpy, outdoor air enthalpy squared, hot water inlet temperature, and outdoor air CFM (which may be a constant value when the fan is on)
+            self.Coefs = self.getDesiccantCoeffs(TrainingData, h_oa_min) # regression is a funciton of MODEL variables, rather than AHU system variables, since the AHU system is not modeled.  specific regression variables are outdoor air enthalpy, outdoor air enthalpy squared, hot water inlet temperature, and outdoor air CFM (which may be a constant value when the fan is on)
         
             # If hot water outlet temperature from regeneration coil is available, use historical data on hot water coil inlet and outlet temperatures along with valve command to build regression.
             if T_HW_out_available:
-                self.Coefs2 = getTrainingMFR(TrainingData)
+                self.Coefs2 = self.getTrainingMFR(TrainingData)
     
     def get_output_metadata(self):
         return ""
@@ -124,7 +124,11 @@ class Component(ComponentBase):
 
     def get_optimization_parameters(self):
         Q_Cool_Out, Q_HW_In, Q_Elec_In, MFR_HW_In, T_HW_Out = self.predict()
-        return {}
+        return {"Q_Cool_Out":Q_Cool_Out,
+                "Q_HW_In":Q_HW_In,
+                "Q_Elec_In":Q_Elec_In,
+                "MFR_HW_In":MFR_HW_In,
+                "T_HW_Out":T_HW_Out}
 
     def update_parameters(self,
                           cfm_OA=DEFAULT_CFM_OA,
@@ -139,7 +143,7 @@ class Component(ComponentBase):
         self.RH_OA = RH_OA
         self.T_HW = T_HW
 
-    def getTrainingMFR(TrainingData):
+    def getTrainingMFR(self, TrainingData):
         #This function is used by the Desiccant Wheel program to estimate the delta T across the regeneration coil for the purpose of calculating the hot water mass flow rate in the regeneration coil
         # This funciton is used only when historical data for the regneration coil outlet tempreature is available.
     
@@ -182,7 +186,7 @@ class Component(ComponentBase):
 
         return Coefficients
     
-    def getDesiccantCoeffs(TrainingData, h_oa_min):
+    def getDesiccantCoeffs(self, TrainingData, h_oa_min):
     
         #This function is used by th Desiccant Wheel program and uses historical trend data on outdoor and conditioned air temperuatures and relative humidities, outdoor air flow rates, fan status and outdoor air temperature
         # A regression dequation is built to predict the drop in enthalpy of the supply air acrsoss the desiccant coil as a function of outdoor air enthalpy, outdoor enthalpy squared, hot water temperature and CFM of outdoor air
@@ -244,7 +248,7 @@ class Component(ComponentBase):
         return Coefficients
 
 
-    def predict():
+    def predict(self):
         # outdoor air enthalpy in current timestep
         h_oa_curr = HAPropsSI('H', 'T', (self.T_OA + 273.15), 'P', 101325, 'R', self.RH_OA)
         
