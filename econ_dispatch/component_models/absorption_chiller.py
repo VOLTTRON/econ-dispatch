@@ -98,7 +98,7 @@ class Component(ComponentBase):
 
     def get_optimization_parameters(self):
         Qch = self.predict()
-        return {}
+        return {"Qch":Qch}
 
     def update_parameters(self,
                           Tcho=DEFAULT_TCHO,

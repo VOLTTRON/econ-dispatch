@@ -100,7 +100,7 @@ class Component(ComponentBase):
 
     def predict(self):
         a0, a1, a2, a3, a4, a5 = self.polynomial_coeffs
-        if Qbp > self.Qbprated:
+        if self.Qbp > self.Qbprated:
             Qbp = self.Qbprated
         else:
             Qbp = self.Qbp

@@ -108,7 +108,7 @@ class Component(ComponentBase):
         Nodes = [15, 14, 13, 12, 11, 10, 9, 8, 7, 6]
 
         for i in range(1,2):
-            Nodes = getNodeTemperatures(Nodes)
+            Nodes = self.getNodeTemperatures(Nodes)
             print Nodes
 
     def get_output_metadata(self):
