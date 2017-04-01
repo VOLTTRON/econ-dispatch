@@ -56,6 +56,7 @@
 # }}}
 
 import json
+import os
 import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
@@ -120,8 +121,9 @@ class Component(ComponentBase):
         # chiller (in kW) and outlet cooling load (in cooling ton) then, converts
         # the data to proper units which then will be used for model training. At
         # the end, regression coefficients will be written to a file
-        
-        with open('CH-Cent-IGV-Historical-Data.json', 'r') as f:
+
+        data_file = os.path.join(os.path.dirname(__file__), 'CH-Cent-IGV-Historical-Data.json')        
+        with open(data_file, 'r') as f:
             historical_data = json.load(f)
     
         Tcho = historical_data["Tcho(F)"]# chilled water supply temperature in F

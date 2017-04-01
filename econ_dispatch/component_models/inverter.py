@@ -55,6 +55,7 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
+import os
 import pandas as pd
 import numpy as np
 
@@ -67,7 +68,9 @@ DEFAULT_ELEC_IN = 10.0
 class Component(ComponentBase):
     def __init__(self, **kwargs):
         super(Component, self).__init__(**kwargs)
-        inverter_curve = pd.read_csv('InverterCurve.csv', header=0)
+
+        data_file = os.path.join(os.path.dirname(__file__), 'InverterCurve.csv')
+        inverter_curve = pd.read_csv(data_file, header=0)
         self.PLF = inverter_curve['PLF'].values
         self.efficiency = inverter_curve['Efficiency'].values
 
