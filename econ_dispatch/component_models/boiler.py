@@ -60,6 +60,7 @@ import os
 import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
+from econ_dispatch.utils import least_squares_regression
 
 DEFAULT_QBP = 55
 
@@ -130,7 +131,6 @@ class Component(ComponentBase):
         Qbp = historical_data["boiler_heat_output"]
 
         i = len(Gbp)
-        U = np.ones(i)
 
         # ****** Static Inputs (Rating Condition + Natural Gas Heat Content *******
         Qbprated = 60 #boiler heat output at rated condition - user input (mmBtu)
@@ -152,10 +152,6 @@ class Component(ComponentBase):
             xbp5[a] = xbp[a]**5
             ybp[a] = (Qbp[a] / Gbp[a]) / (float(Qbprated) / float(Gbprated))
 
-        #*******Multiple Linear Regression***********
-        XX = np.column_stack((U, xbp, xbp2, xbp3, xbp4, xbp5))#matrix of predictors
-        AA, resid, rank, s = np.linalg.lstsq(XX, ybp)
-        #********************************************
-
+        AA = least_squares_regression(ybp, xbp, xbp2, xbp3, xbp4, xbp5)
         return AA
 

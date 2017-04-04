@@ -62,6 +62,7 @@ import pandas as pd
 import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
+from econ_dispatch.utils import least_squares_regression
 
 DEFAULT_MFR_EX = 2
 DEFAULT_MFR_WATER = 15
@@ -149,10 +150,7 @@ class Component(ComponentBase):
         x = Proportional
         y = Output
 
-        bias = np.ones(len(x))
-        xs = np.column_stack((bias, x))
-        (intercept, slope), resid, rank, s = np.linalg.lstsq(xs, y)
-
+        intercept, slope = least_squares_regression(y, x)
         return intercept, slope
 
     def HeatRecoveryWaterOut(self):

@@ -60,6 +60,7 @@ import os
 import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
+from econ_dispatch.utils import least_squares_regression
 
 
 DEFAULT_TCHO = 47
@@ -132,7 +133,6 @@ class Component(ComponentBase):
         P = historical_data["P(kW)"]# chiller power input in kW
     
         i = len(Tcho)
-        U = np.ones(i)
         
         # *********************************
         
@@ -153,12 +153,8 @@ class Component(ComponentBase):
             x2[a] = (Tcdi[a] - Tcho[a]) / (Tcdi[a] * Qch[a])
             x3[a] = (((1 / COP[a]) + 1) * Qch[a]) / Tcdi[a]
             y[a] = ((((1 / COP[a]) + 1) * Tcho[a]) / Tcdi[a]) - 1
-            
-        
-        #*******Multiple Linear Regression***********
-        XX = np.column_stack((U,x1,x2,x3))#matrix of predictors 
-        AA, resid, rank, s = np.linalg.lstsq(XX, y)
-        #********************************************
-    
+
+        AA = least_squares_regression(y, x1, x2, x3)
+
         return AA
     

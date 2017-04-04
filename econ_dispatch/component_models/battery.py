@@ -60,6 +60,7 @@ import pandas as pd
 import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
+from econ_dispatch.utils import least_squares_regression
 
 DEFAULT_CAPACITY = 24000
 DEFAULT_INPUT_POWER_REQUEST = -3000
@@ -117,7 +118,7 @@ class Component(ComponentBase):
 
         RunTrainingCharge = True
         RunTrainingDisCharge = True
-        RunTrainingIdle = False
+        RunTrainingIdle = True
 
         if RunTrainingCharge:
             C = self.GetChargingParameters()
@@ -248,9 +249,7 @@ class Component(ComponentBase):
         x = Slope_RI
         y = ChargeEff
 
-        xs = np.column_stack((np.ones(len(x)), x))
-        (intercept, slope), resid, rank, s = np.linalg.lstsq(xs, y)
-
+        intercept, slope = least_squares_regression(y, x)
         return intercept, slope
     
     def GetDisChargingParameters(self):
@@ -284,9 +283,8 @@ class Component(ComponentBase):
             Y.append((CurrSOC[i] - self.PrevSOC[i]) * self.capacity / ((CurrTime[i] - PrevTime[i]) * 24) / (CurrentI[i] * CurrentI[i]))
             X.append(CurrPower[i] / (CurrentI[i] * CurrentI[i]))
     
-        xs = np.column_stack((np.ones(len(X)), X))
-        (intercept, slope), resid, rank, s = np.linalg.lstsq(xs, Y)
-
+        intercept, slope = least_squares_regression(Y, X)
+    
         IR_discharge = (0 - intercept)
         InvEFFDischarge = 1 / slope
         return IR_discharge, InvEFFDischarge
@@ -315,8 +313,7 @@ class Component(ComponentBase):
             Y.append((CurrSOC[i] - self.PrevSOC[i]) / ((CurrTime[i] - PrevTime[i]) * 24))
             X.append(CurrSOC[i])
 
-        xs = np.column_stack((np.ones(len(X)), X))
-        (intercept, slope), resid, rank, s = np.linalg.lstsq(xs, Y)
+        intercept, slope = least_squares_regression(Y, X)
     
         return slope, intercept
     

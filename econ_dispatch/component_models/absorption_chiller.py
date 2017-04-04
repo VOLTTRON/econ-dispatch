@@ -60,6 +60,7 @@ import os
 import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
+from econ_dispatch.utils import least_squares_regression
 
 
 def fahrenheit_to_kelvin(t):
@@ -143,7 +144,6 @@ class Component(ComponentBase):
         Qch = historical_data["Qch(tons)"]# chiller cooling output in cooling Tons
         Qin = historical_data["Qin(MMBtu/h)"]# chiller heat input in mmBTU/hr
         i = len(Tcho)
-        U = np.ones(i)
 
         # *********************************
 
@@ -163,9 +163,7 @@ class Component(ComponentBase):
             x1[a] = float(Tcdi[a]) / float(Tgeni[a])
             y[a] = ((Tgeni[a] - Tcdi[a]) / float((Tgeni[a] * COP[a])) - ((Tgeni[a] - Tcho[a]) / float(Tcho[a]))) * Qch[a]
 
-        # Multiple Linear Regression
-        XX = np.column_stack((U, x1))
-        AA, resid, rank, s = np.linalg.lstsq(XX, y)
+        AA = least_squares_regression(y, x1)        
 
         return AA
 
