@@ -61,6 +61,7 @@ import numpy as np
 from CoolProp.HumidAirProp import HAPropsSI
 
 from econ_dispatch.component_models import ComponentBase
+from econ_dispatch.utils import least_squares_regression
 
 # specific heat of water in J/g-C
 CP_WATER = 4.186
@@ -182,10 +183,9 @@ class Component(ComponentBase):
     
         #single variabel regression based on outdoor air enthalpy
         y = delta_T
-        ones = np.ones(len(h_OA_fan))
-        X = np.column_stack((h_OA_fan, ones))
-        Coefficients, resid, rank, s = np.linalg.lstsq(X, y)
 
+        Coefficients = least_squares_regression(inputs=h_OA_fan, output=y)
+        
         return Coefficients
     
     def getDesiccantCoeffs(self, TrainingData):
@@ -243,9 +243,9 @@ class Component(ComponentBase):
     
         # regression variables are hot water inlet temperature, outdoor air enthalpy, outdoor air enthalpy squared and CFM of outdoor air
         y = delta_h
-        ones = np.ones(len(T_HW_fan))
-        X = np.column_stack((CFM_OA_fan, h_OA2_fan, h_OA_fan, T_HW_fan, ones))
-        Coefficients, resid, rank, s = np.linalg.lstsq(X, y)
+
+        regression_columns = CFM_OA_fan, h_OA2_fan, h_OA_fan, T_HW_fan
+        Coefficients = least_squares_regression(inputs=regression_columns, output=y)
 
         return Coefficients
 
@@ -259,13 +259,13 @@ class Component(ComponentBase):
         
         # If hot water outlet temperature from regeneration coil is available, get estimate of delta T as a funciton of outdoor air enthalpy.
         if self.T_HW_out_available:
-            self.deltaT_RegenCoil = self.Coefs2[0] * h_oa_curr + self.Coefs2[1]
+            self.deltaT_RegenCoil = self.Coefs2[0] + h_oa_curr * self.Coefs2[1]
         
         # Thermal COP is the reduction in cooling load divided by the heat input to the desiccant wheel. The regression equation here is based on Figure 6 in http://www.nrel.gov/docs/fy05osti/36974.pdf
         COP_thermal = 0.2482 + 4.171529 * w_oa_curr - 0.00019 * self.T_OA + 0.000115 * pow(self.T_OA, 2)
         
         # Calculate the change in enthalpy from the outdoor air to the conditioned air stream, prior to mixing box (or cooling coil if it is a 100% OA unit)
-        deltaEnthalpy = self.Coefs[4] + self.T_HW * self.Coefs[3] + h_oa_curr * self.Coefs[2] + pow(h_oa_curr,2) * self.Coefs[1] + self.cfm_OA * self.Coefs[0]
+        deltaEnthalpy = self.Coefs[0] + self.T_HW * self.Coefs[4] + h_oa_curr * self.Coefs[3] + pow(h_oa_curr,2) * self.Coefs[2] + self.cfm_OA * self.Coefs[1]
         
         # No useful enthalpy reduction if outdoor air humidity ratio is already below saturated conditions at the cooling coil outlet temperature used for dehumidification
         if w_oa_curr < self.w_oa_min or self.fan_status == 0: 

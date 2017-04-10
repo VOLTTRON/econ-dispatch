@@ -60,7 +60,7 @@ import os
 import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
-
+from econ_dispatch.utils import least_squares_regression
 
 DEFAULT_TCHO = 44
 DEFAULT_TCDI = 75
@@ -164,11 +164,9 @@ class Component(ComponentBase):
             x3[a] = (Tcdi[a] - Tcho[a]) / (Tcdi[a] * Qch[a])
             x4[a] = (((1 / COP[a]) + 1) * Qch[a]) / Tcdi[a]
             y[a] = ((((1 / COP[a]) + 1) * Tcho[a]) / Tcdi[a]) - 1
-    
-        #*******Multiple Linear Regression***********
-        XX = np.column_stack((U,x1,x2,x3,x4))#matrix of predictors
-        AA, resid, rank, s = np.linalg.lstsq(XX, y)
-        #********************************************
+
+        regression_columns = x1, x2, x3, x4
+        AA = least_squares_regression(inputs=regression_columns, output=y)
     
         return Qchmax, AA
     
