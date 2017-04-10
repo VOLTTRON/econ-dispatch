@@ -132,7 +132,6 @@ class Component(ComponentBase):
         P = historical_data["P(kW)"]# chiller power input in kW
 
         i = len(Tcho)
-        U = np.ones(i)
 
         COP = np.zeros(i) # Chiller COP
         x1 = np.zeros(i)
@@ -152,10 +151,6 @@ class Component(ComponentBase):
             x3[a] = (((1 / COP[a]) + 1) * Qch[a]) / Tcdi[a]
             y[a] = ((((1 / COP[a]) + 1) * Tcho[a]) / Tcdi[a]) - 1
 
-
-        #*******Multiple Linear Regression***********
-        XX = np.column_stack((U,x1,x2,x3))#matrix of predictors
-        AA, resid, rank, s = np.linalg.lstsq(XX, y)
-        #********************************************
+        AA = least_squares_regression(inputs=(x1, x2, x3), output=y)
 
         return AA
