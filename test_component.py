@@ -69,6 +69,8 @@ from ast import literal_eval
 from econ_dispatch.component_models import get_algorithm_class
 from pprint import pprint
 
+from dateutil.parser import parse
+
 def main(component_name, csv_input_file, component_config_file=None):
     input_csv = csv.DictReader(csv_input_file)
     klass = get_algorithm_class(component_name)
@@ -80,7 +82,10 @@ def main(component_name, csv_input_file, component_config_file=None):
     component = klass(**kwargs)
 
     for record in input_csv:
-        parsed_record = {key:literal_eval(value) for key,value in record.iteritems()}
+        parsed_record = {}
+        if "timestamp" in record:
+            parsed_record["timestamp"] = parse(record.pop("timestamp"))
+        parsed_record.update((key,literal_eval(value)) for key,value in record.iteritems())
         component.update_parameters(**parsed_record)
         opt_params = component.get_optimization_parameters()
         print "Input:"
@@ -99,5 +104,4 @@ if __name__ == "__main__":
     parser.add_argument("csv", type=argparse.FileType("rb"), help="CSV input file to load")
     parser.add_argument("--config-file", type=argparse.FileType("r"), help="Component configuration in JSON format")
     args = parser.parse_args()
-    print args
     main(args.component, args.csv, args.config_file)
