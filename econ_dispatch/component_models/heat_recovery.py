@@ -56,6 +56,7 @@
 # }}}
 
 import math
+import os
 
 import pandas as pd
 import numpy as np
@@ -106,7 +107,7 @@ class Component(ComponentBase):
         #Training data may only need to be used periodically to find regression coefficients,  which can thereafter be re-used
         NeedRegressionCoefficients = True
         if NeedRegressionCoefficients and self.eff_calculation_method == 3:
-            self.C = GetRegressionHeatRecovery()
+            self.C = self.GetRegressionHeatRecovery()
 
     def get_output_metadata(self):
         return ""
@@ -115,9 +116,12 @@ class Component(ComponentBase):
         return ""
 
     def get_optimization_parameters(self):
-        water_out_temp = HeatRecoveryWaterOut()
-        heat_recovered = GetHeatRecovered(water_out_temp)
-        return {}
+        water_out_temp = self.HeatRecoveryWaterOut()
+        heat_recovered = self.GetHeatRecovered(water_out_temp)
+        return {
+            "water_out_temp": water_out_temp,
+            "heat_recovered": heat_recovered
+        }
 
     def update_parameters(self,
                           MFR_ex=DEFAULT_MFR_EX,
@@ -131,13 +135,14 @@ class Component(ComponentBase):
         self.T_water_i = T_water_i
         self.prime_mover_current_speed = prime_mover_current_speed
 
-    def GetRegressionHeatRecovery():
-        TrainingData = pd.read_csv('MicroturbineData.csv',  header=0)
+    def GetRegressionHeatRecovery(self):
+        data_file = os.path.join(os.path.dirname(__file__), 'MicroturbineData.csv')
+        TrainingData = pd.read_csv(data_file,  header=0)
         Twi = TrainingData['T_wi'].values
         Two = TrainingData['T_wo'].values
-        Texi = TrainingData['self.T_ex_i'].values
+        Texi = TrainingData['T_ex_i'].values
         Speed = TrainingData['Speed'].values
-        MFRw = TrainingData['self.MFR_water'].values
+        MFRw = TrainingData['MFR_water'].values
         Proportional = Speed / MFRw * (Texi - Twi)
         Output = Two - Twi
 
@@ -150,7 +155,7 @@ class Component(ComponentBase):
 
         return intercept, slope
 
-    def HeatRecoveryWaterOut():
+    def HeatRecoveryWaterOut(self):
 
         if self.prime_mover_fluid == 'FlueGas':
             cp_ex = 1002 #j/kg-K
@@ -192,7 +197,7 @@ class Component(ComponentBase):
 
         return T_water_o
 
-    def GetHeatRecovered(water_out_temp):
+    def GetHeatRecovered(self, water_out_temp):
         if self.hot_water_loop_fluid == 'Water':
             cp_water = 4186 #j/kg-K
         elif self.hot_water_loop_fluid == 'GlycolWater30':

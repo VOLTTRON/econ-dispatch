@@ -55,6 +55,7 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
+import os
 import pandas as pd
 import numpy as np
 
@@ -119,17 +120,17 @@ class Component(ComponentBase):
         RunTrainingIdle = False
 
         if RunTrainingCharge:
-            C = self.GetChargingParameters(self.capacity)
+            C = self.GetChargingParameters()
             self.InvEFF_Charge = C[0]
-            self.self.IR_Charge = C[1]
+            self.IR_Charge = C[1]
 
         if RunTrainingDisCharge:
-            C = self.GetDisChargingParameters(self.capacity)
+            C = self.GetDisChargingParameters()
             self.IR_DisCharge = C[0]
             self.InvEFF_DisCharge = C[1]
 
         if RunTrainingIdle:
-            C = self.GetIdleParameters(self.capacity)
+            C = self.GetIdleParameters()
             self.Idle_A = C[1]
             self.Idle_B = C[0]
 
@@ -141,7 +142,7 @@ class Component(ComponentBase):
 
     def get_optimization_parameters(self):
         NewSOC, InputPower = self.getUpdatedSOC()
-        return {}
+        return {"SOC": NewSOC, "InputPower": InputPower}
 
     def update_parameters(self,
                           capacity=DEFAULT_CAPACITY,
@@ -214,7 +215,8 @@ class Component(ComponentBase):
         return SOC, InputPower
     
     def GetChargingParameters(self):
-        TrainingData = pd.read_csv('BatteryCharging.csv', header=0)
+        data_file = os.path.join(os.path.dirname(__file__), 'BatteryCharging.csv')
+        TrainingData = pd.read_csv(data_file, header=0)
         Time = TrainingData['Time'].values
         Current = TrainingData['I'].values
         PowerIn = TrainingData['Po'].values
@@ -252,7 +254,8 @@ class Component(ComponentBase):
         return intercept, slope
     
     def GetDisChargingParameters(self):
-        TrainingData = pd.read_csv('BatteryDisCharging.csv', header=0)
+        data_file = os.path.join(os.path.dirname(__file__), 'BatteryDisCharging.csv')
+        TrainingData = pd.read_csv(data_file, header=0)
         Time = TrainingData['Time'].values
         Current = TrainingData['I'].values
         PowerIn = TrainingData['Po'].values
@@ -289,7 +292,8 @@ class Component(ComponentBase):
         return IR_discharge, InvEFFDischarge
     
     def GetIdleParameters(self):
-        TrainingData = pd.read_csv('BatteryIdle.csv', header=0)
+        data_file = os.path.join(os.path.dirname(__file__), 'BatteryIdle.csv')
+        TrainingData = pd.read_csv(data_file, header=0)
         Time = TrainingData['Time'].values
         SOC = TrainingData['SOC'].values
         Rows = len(Time)
