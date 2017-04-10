@@ -165,7 +165,8 @@ class Component(ComponentBase):
             x4[a] = (((1 / COP[a]) + 1) * Qch[a]) / Tcdi[a]
             y[a] = ((((1 / COP[a]) + 1) * Tcho[a]) / Tcdi[a]) - 1
 
-        AA = least_squares_regression(y, x1, x2, x3, x4)
+        regression_columns = x1, x2, x3, x4
+        AA = least_squares_regression(inputs=regression_columns, output=y)
     
         return Qchmax, AA
     

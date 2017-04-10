@@ -151,6 +151,6 @@ class Component(ComponentBase):
             x3[a] = (((1 / COP[a]) + 1) * Qch[a]) / Tcdi[a]
             y[a] = ((((1 / COP[a]) + 1) * Tcho[a]) / Tcdi[a]) - 1
 
-        AA = least_squares_regression(y, x1, x2, x3)
+        AA = least_squares_regression(inputs=(x1, x2, x3), output=y)
 
         return AA

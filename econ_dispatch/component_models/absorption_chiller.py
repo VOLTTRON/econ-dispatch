@@ -123,7 +123,7 @@ class Component(ComponentBase):
         Tcdi = fahrenheit_to_kelvin(self.Tcdi)
         Tgeni = fahrenheit_to_kelvin(self.Tgeni)
         Qin = 293.1 * self.Qin #Converting mmBTU/hr to kW
-        
+
         Qch = (Qin * ((Tgeni - Tcdi) / Tgeni) - self.a0 - self.a1 * (Tcdi / Tgeni)) / ((Tgeni - Tcho) / Tcho)
         Qch = Qch / 3.517 #Converting kW to cooling ton
         return Qch
@@ -163,7 +163,6 @@ class Component(ComponentBase):
             x1[a] = float(Tcdi[a]) / float(Tgeni[a])
             y[a] = ((Tgeni[a] - Tcdi[a]) / float((Tgeni[a] * COP[a])) - ((Tgeni[a] - Tcho[a]) / float(Tcho[a]))) * Qch[a]
 
-        AA = least_squares_regression(y, x1)        
+        AA = least_squares_regression(inputs=x1, output=y)
 
         return AA
-

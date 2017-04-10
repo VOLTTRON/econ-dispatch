@@ -150,7 +150,7 @@ class Component(ComponentBase):
         x = Proportional
         y = Output
 
-        intercept, slope = least_squares_regression(y, x)
+        intercept, slope = least_squares_regression(inputs=x, output=y)
         return intercept, slope
 
     def HeatRecoveryWaterOut(self):

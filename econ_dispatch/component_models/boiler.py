@@ -76,7 +76,7 @@ class Component(ComponentBase):
         self.Gbprated = 90 # mmBtu/hr
 
         # NG heat Content 950 Btu/ft3 is assumed
-        self.HC = 0.03355 
+        self.HC = 0.03355
 
         GasInputSubmetering = True #Is metering of gas input to the boilers available? If not, we can't build a regression, and instead will rely on default boiler part load efficiency curves
         if GasInputSubmetering:
@@ -152,6 +152,6 @@ class Component(ComponentBase):
             xbp5[a] = xbp[a]**5
             ybp[a] = (Qbp[a] / Gbp[a]) / (float(Qbprated) / float(Gbprated))
 
-        AA = least_squares_regression(ybp, xbp, xbp2, xbp3, xbp4, xbp5)
+        regression_columns = xbp, xbp2, xbp3, xbp4, xbp5
+        AA = least_squares_regression(inputs=regression_columns, output=ybp)
         return AA
-

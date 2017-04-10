@@ -249,7 +249,7 @@ class Component(ComponentBase):
         x = Slope_RI
         y = ChargeEff
 
-        intercept, slope = least_squares_regression(y, x)
+        intercept, slope = least_squares_regression(inputs=x, output=y)
         return intercept, slope
     
     def GetDisChargingParameters(self):
@@ -283,7 +283,7 @@ class Component(ComponentBase):
             Y.append((CurrSOC[i] - self.PrevSOC[i]) * self.capacity / ((CurrTime[i] - PrevTime[i]) * 24) / (CurrentI[i] * CurrentI[i]))
             X.append(CurrPower[i] / (CurrentI[i] * CurrentI[i]))
     
-        intercept, slope = least_squares_regression(Y, X)
+        intercept, slope = least_squares_regression(inputs=X, output=Y)
     
         IR_discharge = (0 - intercept)
         InvEFFDischarge = 1 / slope
@@ -313,7 +313,7 @@ class Component(ComponentBase):
             Y.append((CurrSOC[i] - self.PrevSOC[i]) / ((CurrTime[i] - PrevTime[i]) * 24))
             X.append(CurrSOC[i])
 
-        intercept, slope = least_squares_regression(Y, X)
+        intercept, slope = least_squares_regression(inputs=X, output=Y)
     
         return slope, intercept
     

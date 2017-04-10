@@ -184,7 +184,7 @@ class Component(ComponentBase):
         #single variabel regression based on outdoor air enthalpy
         y = delta_T
 
-        Coefficients = least_squares_regression(y, h_OA_fan)
+        Coefficients = least_squares_regression(inputs=h_OA_fan, output=y)
         
         return Coefficients
     
@@ -244,7 +244,8 @@ class Component(ComponentBase):
         # regression variables are hot water inlet temperature, outdoor air enthalpy, outdoor air enthalpy squared and CFM of outdoor air
         y = delta_h
 
-        Coefficients = least_squares_regression(y, CFM_OA_fan, h_OA2_fan, h_OA_fan, T_HW_fan)
+        regression_columns = CFM_OA_fan, h_OA2_fan, h_OA_fan, T_HW_fan
+        Coefficients = least_squares_regression(inputs=regression_columns, output=y)
 
         return Coefficients
 
