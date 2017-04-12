@@ -73,7 +73,7 @@ DEFAULT_RH_OA = 0.6
 DEFAULT_T_HW = 46.1
 
 class Component(ComponentBase):
-    def __init__(self, **kwargs):
+    def __init__(self, training_data_file=None, **kwargs):
         super(Component, self).__init__(**kwargs)
 
         GetTraining = True
@@ -108,8 +108,8 @@ class Component(ComponentBase):
         
         
         if GetTraining:
-            data_file = os.path.join(os.path.dirname(__file__), 'SampleDesiccant.csv')
-            TrainingData = pd.read_csv(data_file, header=0)
+            # data_file = os.path.join(os.path.dirname(__file__), 'SampleDesiccant.csv')
+            TrainingData = pd.read_csv(training_data_file, header=0)
             self.w_oa_min = HAPropsSI('W', 'T', (11.67+273.15), 'P', 101325, 'R', 1) #This is an estimate of the minimum humidy ratio down to which dehumidifcation is useful in relieving cooling coil latent cooling loads.  The assumed humidity conditions are saturation (100% RH) at 53 degrees F, which is a typical cooling coil setpoint for dehumidification
             self.h_oa_min = HAPropsSI('H', 'T', (11.67+273.15), 'P', 101325, 'R', 1) #corresponding minimum enthalpy
             print self.h_oa_min

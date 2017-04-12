@@ -65,7 +65,7 @@ from econ_dispatch.utils import least_squares_regression
 DEFAULT_QBP = 55
 
 class Component(ComponentBase):
-    def __init__(self, **kwargs):
+    def __init__(self, history_data_file=None, **kwargs):
         super(Component, self).__init__(**kwargs)
 
         # Building heating load assigned to Boiler
@@ -81,7 +81,7 @@ class Component(ComponentBase):
         GasInputSubmetering = True #Is metering of gas input to the boilers available? If not, we can't build a regression, and instead will rely on default boiler part load efficiency curves
         if GasInputSubmetering:
             # ********* 5-degree polynomial model coefficients from training*****
-            self.polynomial_coeffs = self.train()
+            self.polynomial_coeffs = self.train(history_data_file)
         else:
             # Use part load curve for 'atmospheric' boiler from http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.553.4931&rep=rep1&type=pdf
             self.polynomial_coeffs = (0.6978, 3.3745, -15.632, 32.772, -31.45, 11.268)
@@ -111,14 +111,14 @@ class Component(ComponentBase):
         Gbp = (Qbp * self.Gbprated) / (ybp * self.Qbprated)# boiler gas heat input in mmBtu
         FC = Gbp / self.HC #fuel consumption in cubic meters per hour
 
-    def train(self):
+    def train(self, history_data_file):
         # This module reads the historical data on boiler heat output and
         # gas heat input both in mmBTU/hr then, converts
         # the data to proper units which then will be used for model training. At
         # the end, regression coefficients will be written to a file
 
-        data_file = os.path.join(os.path.dirname(__file__), 'Boiler-Historical-Data.json')
-        with open(data_file, 'r') as f:
+        # data_file = os.path.join(os.path.dirname(__file__), 'Boiler-Historical-Data.json')
+        with open(history_data_file, 'r') as f:
             historical_data = json.load(f)
 
         # boiler gas input in mmBTU

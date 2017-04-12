@@ -68,7 +68,7 @@ DEFAULT_QCH_KW = 1758.5
 
 
 class Component(ComponentBase):
-    def __init__(self, **kwargs):
+    def __init__(self, history_data_file=None, **kwargs):
         super(Component, self).__init__(**kwargs)
         # Regression models were built separately (Training Module) and
         # therefore regression coefficients are available. Also, forecasted values
@@ -87,6 +87,8 @@ class Component(ComponentBase):
 
         # building cooling load ASSIGNED TO THIS CHILLER in kW
         self.Qch_kW = DEFAULT_QCH_KW
+
+        self.history_data_file = history_data_file
 
     def get_output_metadata(self):
         return ""
@@ -124,8 +126,8 @@ class Component(ComponentBase):
         # the data to proper units which then will be used for model training. At
         # the end, regression coefficients will be written to an excel file
 
-        data_file = os.path.join(os.path.dirname(__file__), 'CH-Cent-VSD-Historical-Data.json')
-        with open(data_file, 'r') as f:
+        # data_file = os.path.join(os.path.dirname(__file__), 'CH-Cent-VSD-Historical-Data.json')
+        with open(self.history_data_file, 'r') as f:
             historical_data = json.load(f)
     
         Tcho = historical_data["Tcho(F)"]# chilled water supply temperature in F

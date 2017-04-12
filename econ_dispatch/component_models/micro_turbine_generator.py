@@ -79,11 +79,12 @@ Coef.FlowOut = np.array([-65.85, 164.5])
 
 
 class Component(ComponentBase):
-    def __init__(self, **kwargs):
+    def __init__(self, training_data_file=None, **kwargs):
         global Coef
         super(Component, self).__init__(**kwargs)
-        training_data = os.path.join(os.path.dirname(__file__), 'CapstoneTurndownData.json')
-        with open(training_data, 'r') as f:
+
+        # training_data = os.path.join(os.path.dirname(__file__), 'CapstoneTurndownData.json')
+        with open(training_data_file, 'r') as f:
             capstone_turndown_data = json.load(f)
 
         self.Pdemand = np.array(capstone_turndown_data['Pdemand'])

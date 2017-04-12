@@ -72,7 +72,7 @@ DEFAULT_PRIME_MOVER_SPEED = 0.75
 
 
 class Component(ComponentBase):
-    def __init__(self, **kwargs):
+    def __init__(self, training_data_file=None, **kwargs):
         super(Component, self).__init__(**kwargs)
         # kg/s
         self.MFR_ex = DEFAULT_MFR_EX
@@ -108,7 +108,7 @@ class Component(ComponentBase):
         #Training data may only need to be used periodically to find regression coefficients,  which can thereafter be re-used
         NeedRegressionCoefficients = True
         if NeedRegressionCoefficients and self.eff_calculation_method == 3:
-            self.C = self.GetRegressionHeatRecovery()
+            self.C = self.GetRegressionHeatRecovery(training_data_file)
 
     def get_output_metadata(self):
         return ""
@@ -136,9 +136,9 @@ class Component(ComponentBase):
         self.T_water_i = T_water_i
         self.prime_mover_current_speed = prime_mover_current_speed
 
-    def GetRegressionHeatRecovery(self):
-        data_file = os.path.join(os.path.dirname(__file__), 'MicroturbineData.csv')
-        TrainingData = pd.read_csv(data_file,  header=0)
+    def GetRegressionHeatRecovery(self, training_data_file):
+        # data_file = os.path.join(os.path.dirname(__file__), 'MicroturbineData.csv')
+        TrainingData = pd.read_csv(training_data_file,  header=0)
         Twi = TrainingData['T_wi'].values
         Two = TrainingData['T_wo'].values
         Texi = TrainingData['T_ex_i'].values

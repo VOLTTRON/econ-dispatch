@@ -65,8 +65,17 @@ from econ_dispatch.component_models import ComponentBase
 
 
 class Component(ComponentBase):
-    def __init__(self, current_output=10.00, **kwargs):
+    def __init__(self,
+                 dynamic_data_file=None,
+                 history_data_file=None,
+                 static_data_file=None,
+                 current_output=10.00,
+                 **kwargs):
         super(Component, self).__init__(current_output=current_output, **kwargs)
+
+        self.dynamic_data_file = dynamic_data_file
+        self.history_data_file = history_data_file
+        self.static_data_file = static_data_file
 
     def get_output_metadata(self):
         return [u"electricity"]
@@ -88,8 +97,8 @@ class Component(ComponentBase):
         # time stamps
     
         # ******** Reading Forecasted Solar and Ambient Temperatures ************
-        data_file = os.path.join(os.path.dirname(__file__), 'solar_pv_dynamic_inputs.json')
-        with open(data_file, 'r') as f:
+        # data_file = os.path.join(os.path.dirname(__file__), 'solar_pv_dynamic_inputs.json')
+        with open(self.dynamic_data_file, 'r') as f:
             dynamic_inputs = json.load(f)
 
         ITf = dynamic_inputs["ITf"] # Forecasted Total solar irradiance on tilted plane or POA irradiance, [W/m2]
@@ -226,8 +235,8 @@ class Component(ComponentBase):
         # ketta using time stamps of the historical data and fit the power prediction model.
         # At the end, regression coefficients will be written to a file.
 
-        data_file = os.path.join(os.path.dirname(__file__), 'solar_pv_historical_data.json')
-        with open(data_file, 'r') as f:
+        # data_file = os.path.join(os.path.dirname(__file__), 'solar_pv_historical_data.json')
+        with open(self.history_data_file, 'r') as f:
             historical_data = json.load(f)
         
         P   = historical_data["power_output"] # PV power generation in Watts
@@ -237,8 +246,8 @@ class Component(ComponentBase):
         raw = historical_data["date"] # Dates as an array of strings
         i = len(Ta)
 
-        data_file = os.path.join(os.path.dirname(__file__), 'solar_pv_static_inputs.json')
-        with open(data_file, 'r') as f:
+        # data_file = os.path.join(os.path.dirname(__file__), 'solar_pv_static_inputs.json')
+        with open(self.static_data_file, 'r') as f:
             static_inputs = json.load(f)
     
         # ******** PV Mount *******
