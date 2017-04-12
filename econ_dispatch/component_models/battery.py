@@ -77,7 +77,11 @@ DEFAULT_IDLE_B = -0.00024
 
 
 class Component(ComponentBase):
-    def __init__(self, **kwargs):
+    def __init__(self,
+                 charging_training_file=None,
+                 discharging_training_file=None,
+                 idle_training_file=None,
+                 **kwargs):
         super(Component, self).__init__(**kwargs)
         #Battery Storage Capacity in W-h
         self.capacity = DEFAULT_CAPACITY
@@ -121,17 +125,17 @@ class Component(ComponentBase):
         RunTrainingIdle = True
 
         if RunTrainingCharge:
-            C = self.GetChargingParameters()
+            C = self.GetChargingParameters(charging_training_file)
             self.InvEFF_Charge = C[0]
             self.IR_Charge = C[1]
 
         if RunTrainingDisCharge:
-            C = self.GetDisChargingParameters()
+            C = self.GetDisChargingParameters(discharging_training_file)
             self.IR_DisCharge = C[0]
             self.InvEFF_DisCharge = C[1]
 
         if RunTrainingIdle:
-            C = self.GetIdleParameters()
+            C = self.GetIdleParameters(idle_training_file)
             self.Idle_A = C[1]
             self.Idle_B = C[0]
 
@@ -215,9 +219,9 @@ class Component(ComponentBase):
         
         return SOC, InputPower
     
-    def GetChargingParameters(self):
-        data_file = os.path.join(os.path.dirname(__file__), 'BatteryCharging.csv')
-        TrainingData = pd.read_csv(data_file, header=0)
+    def GetChargingParameters(self, charging_training_file):
+        # data_file = os.path.join(os.path.dirname(__file__), 'BatteryCharging.csv')
+        TrainingData = pd.read_csv(charging_training_file, header=0)
         Time = TrainingData['Time'].values
         Current = TrainingData['I'].values
         PowerIn = TrainingData['Po'].values
@@ -252,9 +256,9 @@ class Component(ComponentBase):
         intercept, slope = least_squares_regression(inputs=x, output=y)
         return intercept, slope
     
-    def GetDisChargingParameters(self):
-        data_file = os.path.join(os.path.dirname(__file__), 'BatteryDisCharging.csv')
-        TrainingData = pd.read_csv(data_file, header=0)
+    def GetDisChargingParameters(self, discharging_training_file):
+        # data_file = os.path.join(os.path.dirname(__file__), 'BatteryDisCharging.csv')
+        TrainingData = pd.read_csv(discharging_training_file, header=0)
         Time = TrainingData['Time'].values
         Current = TrainingData['I'].values
         PowerIn = TrainingData['Po'].values
@@ -289,9 +293,9 @@ class Component(ComponentBase):
         InvEFFDischarge = 1 / slope
         return IR_discharge, InvEFFDischarge
     
-    def GetIdleParameters(self):
-        data_file = os.path.join(os.path.dirname(__file__), 'BatteryIdle.csv')
-        TrainingData = pd.read_csv(data_file, header=0)
+    def GetIdleParameters(self, idle_training_file):
+        # data_file = os.path.join(os.path.dirname(__file__), 'BatteryIdle.csv')
+        TrainingData = pd.read_csv(idle_training_file, header=0)
         Time = TrainingData['Time'].values
         SOC = TrainingData['SOC'].values
         Rows = len(Time)
