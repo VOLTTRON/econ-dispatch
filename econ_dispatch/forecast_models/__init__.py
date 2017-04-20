@@ -58,13 +58,14 @@
 import abc
 import logging
 import pkgutil
+import pandas as pd
 
 _modelList = [name for _, name, _ in pkgutil.iter_modules(__path__)]
 
 _modelDict = {}
 
 
-class BuildingModelBase(object):
+class ForecastModelBase(object):
     __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
@@ -77,21 +78,35 @@ class BuildingModelBase(object):
         """Update the training data with the last hour."""
         pass
 
-for model_name in _modelList:
-    try:
-        module = __import__(model_name,globals(),locals(),['Model'], 1)
-        klass = module.Model
-    except Exception as e:
-        logging.error('Module {name} cannot be imported. Reason: {ex}'.format(name=model_name, ex=e))
-        continue
+class HistoryModelBase(ForecastModelBase):
+    def __init__(self, history_data_file=None, historical_data_time_column="timestamp"):
+        self.setup_historical_data(history_data_file, historical_data_time_column)
 
-    #Validation of Algorithm class
+    def derive_variables(self, now, independent_variable_values={}):
+        now = now.replace(year=self.history_year)
+        return self.get_historical_hour(now)
 
-    if not issubclass(klass, BuildingModelBase):
-        logging.warning('The implementation of {name} does not inherit from econ_dispatch.building_load_models.BuildingModelBase.'.format(name=componentName))
+    def add_training_data(self, now, variable_values={}):
+        """Update the training data with the last hour."""
+        pass
 
-    _modelDict[model_name] = klass
+    def setup_historical_data(self, csv_file, historical_data_time_column):
+        self.time_column = historical_data_time_column
+
+        self.historical_data = pd.read_csv(csv_file, parse_dates=[self.time_column])
+
+        self.history_year = self.historical_data[self.time_column][0].year
+
+    def get_historical_hour(self, now):
+        #Index of the closest timestamp.
+        index = abs(self.historical_data[self.time_column] - now).idxmin()
+        #Return the row as a dict.
+        return dict(self.historical_data.iloc[index])
 
 
-def get_model_class(name):
-    return _modelDict.get(name)
+def get_forecast_model_class(name, type, **kwargs):
+    module_name = name + "." + type
+    module = __import__(module_name, globals(), locals(), ['Model'], 1)
+    klass = module.Model
+    return klass(**kwargs)
+

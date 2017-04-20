@@ -56,16 +56,16 @@
 # }}}
 
 import pandas as pd
-from econ_dispatch.building_load_models import BuildingModelBase
+from econ_dispatch.forecast_models import ForecastModelBase
 
-class Model(BuildingModelBase):
+class Model(ForecastModelBase):
     def __init__(self, training_csv=None, time_stamp_column="timestamp",
                  time_diff_tolerance=1.0, dependent_variables=[],
                  independent_variable_tolerances={}):
         self.data_frame = pd.read_csv(training_csv, parse_dates=[time_stamp_column])
         self.time_stamp_column = time_stamp_column
         self.time_diff_tolerance = time_diff_tolerance
-        self.dependent_variables = dependent_variables
+        self.dependent_variables = [str(d) for d in dependent_variables]
         self.independent_variable_tolerances = independent_variable_tolerances
 
     def derive_variables(self, now, independent_variable_values={}):

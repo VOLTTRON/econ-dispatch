@@ -64,8 +64,6 @@ import json
 from econ_dispatch.application import Application
 import networkx
 
-from pprint import pprint
-
 import datetime as dt
 
 
@@ -77,16 +75,14 @@ def main(config_file):
     print application.model
 
     networkx.drawing.nx_pydot.write_dot(application.model.component_graph, config_file.name + ".dot")
-    now = dt.datetime(2013, 1,2,13,40)
+    now = dt.datetime(2017, 12, 29)
+    end = dt.datetime(2017, 12, 30)
+    time_step = dt.timedelta(hours=1)
 
-    application.run(now, {})
-
-    print "Heat"
-    pprint(application.model.building_load_model.heat_loads)
-    print "Cool"
-    pprint(application.model.building_load_model.cool_loads)
-    print "Elec"
-    pprint(application.model.building_load_model.elec_loads)
+    while now < end:
+        print now
+        application.run(now, {})
+        now += time_step
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

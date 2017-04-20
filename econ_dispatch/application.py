@@ -56,7 +56,8 @@
 # }}}
 
 from system_model import SystemModel
-from econ_dispatch.component_models import get_algorithm_class
+from econ_dispatch.component_models import get_component_class
+from econ_dispatch.forecast_models import get_forecast_model_class
 from collections import OrderedDict, defaultdict
 import logging
 _log = logging.getLogger(__name__)
@@ -97,45 +98,55 @@ class Results(object):
 def build_model_from_config(config):
     _log.debug("Starting parse_config")
 
-    building_load_config = config["building_load"]
+    weather_config = config["weather"]
 
-    building_klass = get_algorithm_class("building_load")
+    weather_type = weather_config["type"]
 
-    building_load_model = building_klass(name=u"building_load", **building_load_config)
+    module = __import__("weather."+weather_type, globals(), locals(), ['Weather'], 1)
+    klass = module.Weather
 
-    model = SystemModel(building_load_model)
+    weather_model = klass(**weather_config["settings"])
 
+    system_model = SystemModel(weather_model)
+
+    forecast_model_configs = config["forecast_models"]
     components = config["components"]
     connections = config["connections"]
 
+    for name, config in forecast_model_configs.iteritems():
+        model_type = config["type"]
+        forecast_model = get_forecast_model_class(name, model_type, **config["settings"])
+        system_model.add_forecast_model(forecast_model, name)
+
     for component_dict in components:
-        klass_name = component_dict.pop("type")
-        klass = get_algorithm_class(klass_name)
+        klass_name = component_dict["type"]
+        component_name = component_dict["name"]
+        klass = get_component_class(klass_name)
 
         if klass is None:
             _log.error("No component of type: "+klass_name)
             continue
 
         try:
-            component = klass(**component_dict)
+            component = klass(name=component_name, **component_dict.get("settings", {}))
         except Exception as e:
             _log.exception("Error creating component " + klass_name)
             continue
 
-        model.add_component(component, klass_name)
+        system_model.add_component(component, klass_name)
 
     for output_component_name, input_component_name in connections:
 
         _log.debug("Adding connection: {} -> {}".format(output_component_name, input_component_name))
 
         try:
-            if not model.add_connection(output_component_name, input_component_name):
+            if not system_model.add_connection(output_component_name, input_component_name):
                 _log.error("No compatible outputs/inputs")
         except Exception as e:
             _log.error("Error adding connection: " + str(e))
 
 
-    return model
+    return system_model
 
 class Application(object):
     def __init__(self, model_config={}, **kwargs):
