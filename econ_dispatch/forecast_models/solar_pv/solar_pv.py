@@ -61,17 +61,17 @@ import numpy as np
 
 from math import pi, sin, cos, tan, acos, asin, floor
 
-from econ_dispatch.component_models import ComponentBase
+from econ_dispatch.forecast_models import ForecastModelBase
 
 
-class Component(ComponentBase):
+class Model(ForecastModelBase):
     def __init__(self,
                  dynamic_data_file=None,
                  history_data_file=None,
                  static_data_file=None,
                  current_output=10.00,
                  **kwargs):
-        super(Component, self).__init__(current_output=current_output, **kwargs)
+        super(Model, self).__init__(current_output=current_output, **kwargs)
 
         self.dynamic_data_file = dynamic_data_file
         self.history_data_file = history_data_file

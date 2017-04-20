@@ -60,13 +60,19 @@ _log = logging.getLogger(__name__)
 
 import networkx as nx
 
+from pprint import pprint
+
 class SystemModel(object):
-    def __init__(self, building_load_model):
+    def __init__(self, weather_model):
         self.component_graph = nx.MultiDiGraph()
         self.instance_map = {}
 
-        self.add_component(building_load_model, "building_load")
-        self.building_load_model = building_load_model
+        self.forecast_models = {}
+
+        self.weather_model = weather_model
+
+    def add_forecast_model(self, model, name):
+        self.forecast_models[name] = model
 
     def add_component(self, component, type_name):
         self.component_graph.add_node(component.name, type = type_name)
@@ -108,28 +114,39 @@ class SystemModel(object):
 
         return len(real_io_types)
 
-    def get_predicted_building_loads(self):
+    def get_forecasts(self, now):
+        weather_forecasts = self.weather_model.get_weather_forecast(now)
         #Loads were updated previously when we updated all components
-        parameters = self.building_load_model.get_optimization_parameters()
-        return parameters
+        forecasts = []
+
+        for weather_forecast in weather_forecasts:
+            timestamp = weather_forecast.pop("timestamp")
+            record = {}
+            for name, model in self.forecast_models.iteritems():
+                record.update(model.derive_variables(timestamp, weather_forecast))
+
+            forecasts.append(record)
+
+        return forecasts
+
 
     def update_components(self, now, inputs):
         for component in self.instance_map.itervalues():
             component.update_parameters(now, **inputs)
 
     def run_general_optimizer(self, predicted_loads):
-        pass
+        pprint(predicted_loads)
 
     def run_component_optimizer(self, component_loads):
-        pass
+        pprint(component_loads)
 
     def get_commands(self):
         return {}
 
     def run(self, now, inputs):
+        forecasts = self.get_forecasts(now)
         self.update_components(now, inputs)
-        predicted_building_loads = self.get_predicted_building_loads()
-        component_loads = self.run_general_optimizer(predicted_building_loads)
+        component_loads = self.run_general_optimizer(forecasts)
         self.run_component_optimizer(component_loads)
         commands = self.get_commands()
 

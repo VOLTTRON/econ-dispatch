@@ -59,7 +59,6 @@ import requests
 from dateutil.parser import parse
 import logging
 _log = logging.getLogger(__name__)
-from .history import history
 import pandas as pd
 import datetime as dt
 
@@ -72,33 +71,16 @@ keys = {"tempm": ["temp", "metric"], "tempi": ["temp", "english"],
         "wspdm": ["wspd", "metric"], "wspdi": ["wspd", "english"],
         "wdird": ["wdir", "degrees"]}
 
-class WeatherPrediction(object):
-    def __init__(self, city=None, state=None, key=None, historical_data=None, historical_data_time_column="timestamp"):
+class Weather(object):
+    def __init__(self, city=None, state=None, key=None):
         self.city = city
         self.state = state
         self.key = key
 
-        self.setup_historical_data(historical_data, historical_data_time_column)
-
-    def get_weather_data(self, now):
-        #Returns the next 24 hours of weather data, predicted or historical.
-        if self.use_historical_data:
-            results = self.get_historical_data(now)
-        else:
-            results = self.get_live_data()
+    def get_weather_forecast(self, now):
+        results = self.get_live_data()
 
         return results
-
-    def setup_historical_data(self, csv_file, historical_data_time_column):
-        self.use_historical_data = csv_file is not None
-        if csv_file is None:
-            return
-
-        self.historical_data = pd.read_csv(csv_file, parse_dates=[historical_data_time_column])
-
-        self.history_year = self.historical_data[historical_data_time_column][0].year
-
-        self.time_column = historical_data_time_column
 
     def get_live_data(self):
         url = live_url_template.format(key=self.key, state=self.state, city=self.city)
@@ -131,22 +113,6 @@ class WeatherPrediction(object):
             results[key] = value
 
         return results
-
-    def get_historical_data(self, now):
-        now = now.replace(year=self.history_year)
-
-        results = []
-        for _ in xrange(24):
-            results.append(self.get_historical_hour(now))
-            now += dt.timedelta(hours=1)
-
-        return results
-
-    def get_historical_hour(self, now):
-        #Index of the closest timestamp.
-        index = abs(self.historical_data[self.time_column] - now).idxmin()
-        #Return the row as a dict.
-        return dict(self.historical_data.iloc[index])
 
 
 

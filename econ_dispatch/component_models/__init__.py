@@ -147,5 +147,5 @@ for componentName in _componentList:
     _componentDict[componentName] = klass
 
 
-def get_algorithm_class(name):
+def get_component_class(name):
     return _componentDict.get(name)

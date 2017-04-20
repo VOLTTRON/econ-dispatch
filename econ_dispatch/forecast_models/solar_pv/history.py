@@ -55,38 +55,7 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
-from dateutil.parser import parse
-import logging
-_log = logging.getLogger(__name__)
-import pandas as pd
-import datetime as dt
-
-time_step = dt.timedelta(hours=1)
-
 from econ_dispatch.forecast_models import HistoryModelBase
 
-class Weather(HistoryModelBase):
-
-    def get_weather_forecast(self, now):
-        results = self.get_historical_data(now)
-
-        return results
-
-    def get_historical_data(self, now):
-        now += time_step
-        now = now.replace(year=self.history_year)
-
-        results = []
-        for _ in xrange(24):
-            record = self.get_historical_hour(now)
-            record[self.time_column] = now
-            results.append(record)
-            now += time_step
-            now = now.replace(year=self.history_year)
-
-        return results
-
-
-
-
-
+class Model(HistoryModelBase):
+    pass
