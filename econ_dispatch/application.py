@@ -58,6 +58,7 @@
 from system_model import SystemModel
 from econ_dispatch.component_models import get_component_class
 from econ_dispatch.forecast_models import get_forecast_model_class
+from econ_dispatch.optimizer import get_optimization_function
 from collections import OrderedDict, defaultdict
 import logging
 _log = logging.getLogger(__name__)
@@ -107,15 +108,17 @@ def build_model_from_config(config):
 
     weather_model = klass(**weather_config["settings"])
 
-    system_model = SystemModel(weather_model)
+    opt_func = get_optimization_function(config["optimizer"])
+
+    system_model = SystemModel(opt_func, weather_model)
 
     forecast_model_configs = config["forecast_models"]
     components = config["components"]
     connections = config["connections"]
 
-    for name, config in forecast_model_configs.iteritems():
-        model_type = config["type"]
-        forecast_model = get_forecast_model_class(name, model_type, **config["settings"])
+    for name, config_dict in forecast_model_configs.iteritems():
+        model_type = config_dict["type"]
+        forecast_model = get_forecast_model_class(name, model_type, **config_dict.get("settings",{}))
         system_model.add_forecast_model(forecast_model, name)
 
     for component_dict in components:

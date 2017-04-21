@@ -55,39 +55,44 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
-import logging
+import numpy as np
+import pandas as pd
+from econ_dispatch.optimizer.use_case_1 import optimize
+# data = xlsread('Hospital Modeled Data.xlsx')
+data = pd.read_csv("./hospital_modeled_data.csv", parse_dates=["Date/Time"])
 
-logging.basicConfig(level=logging.DEBUG)
+# 6/26 both cooling and heating
+range_low = 4226
+range_high = 4250
 
-import argparse
-import json
-from econ_dispatch.application import Application
-import networkx
+E_PV = np.zeros(24)     #kW
+E_load = data['Building Electric Load'].values[range_low:range_high] #kW
 
-import datetime as dt
+Q_loadheat = data['Building Heating Load'].values[range_low:range_high]
+Q_loadheat /= 293.1  # kW -> mmBtu/hr
 
+Q_loadcool = data['Building Cooling Load'].values[range_low:range_high]
+Q_loadcool /= 293.1  # kW -> mmBtu/hr
 
+# get the price info
+lambda_gas = 7.614 * np.ones(24)   #$/mmBtu
+lambda_elec_fromgrid = 0.1 * np.ones(24)  #$/kWh
+lambda_elec_togrid = 0.1 * np.ones(24)  #$/kWh
 
-def main(config_file):
-    config = json.loads(config_file.read())
-    application = Application(model_config=config)
+forecast = []
 
-    print application.model
+for h in range(3):
+    record = {"elec_load": E_load[h],
+              "heat_load": Q_loadheat[h],
+              "cool_load": Q_loadcool[h],
+              "solar_kW": 0,
+              "natural_gas_cost": 7.614,
+              "electricity_cost": 0.1,
+              }
 
-    networkx.drawing.nx_pydot.write_dot(application.model.component_graph, config_file.name + ".dot")
-    now = dt.datetime(2017, 12, 29)
-    # end = dt.datetime(2017, 12, 30)
-    # time_step = dt.timedelta(hours=1)
-    #
-    # while now < end:
-    #     print now
-    #     application.run(now, {})
-    #     now += time_step
+    forecast.append(record)
 
-    application.run(now, {})
+results = optimize(forecast)
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("config", type=argparse.FileType("r"), help="Configuration file to load")
-    args = parser.parse_args()
-    main(args.config)
+for result_key in sorted(results.keys()):
+    print "{} = = {}".format(result_key, results[result_key])

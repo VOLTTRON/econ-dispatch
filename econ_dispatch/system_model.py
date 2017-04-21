@@ -63,12 +63,13 @@ import networkx as nx
 from pprint import pprint
 
 class SystemModel(object):
-    def __init__(self, weather_model):
+    def __init__(self, optimizer, weather_model):
         self.component_graph = nx.MultiDiGraph()
         self.instance_map = {}
 
         self.forecast_models = {}
 
+        self.optimizer = optimizer
         self.weather_model = weather_model
 
     def add_forecast_model(self, model, name):
@@ -136,6 +137,7 @@ class SystemModel(object):
 
     def run_general_optimizer(self, predicted_loads):
         pprint(predicted_loads)
+        return self.optimizer(predicted_loads)
 
     def run_component_optimizer(self, component_loads):
         pprint(component_loads)
