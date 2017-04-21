@@ -55,39 +55,7 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
-import logging
-
-logging.basicConfig(level=logging.DEBUG)
-
-import argparse
-import json
-from econ_dispatch.application import Application
-import networkx
-
-import datetime as dt
-
-
-
-def main(config_file):
-    config = json.loads(config_file.read())
-    application = Application(model_config=config)
-
-    print application.model
-
-    networkx.drawing.nx_pydot.write_dot(application.model.component_graph, config_file.name + ".dot")
-    now = dt.datetime(2017, 12, 29)
-    # end = dt.datetime(2017, 12, 30)
-    # time_step = dt.timedelta(hours=1)
-    #
-    # while now < end:
-    #     print now
-    #     application.run(now, {})
-    #     now += time_step
-
-    application.run(now, {})
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("config", type=argparse.FileType("r"), help="Configuration file to load")
-    args = parser.parse_args()
-    main(args.config)
+def get_optimization_function(name):
+    module = __import__(name, globals(), locals(), ['optimize'], 1)
+    method = module.optimize
+    return method
