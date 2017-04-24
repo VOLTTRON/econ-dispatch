@@ -68,7 +68,7 @@ def binary_var(name):
 def optimize(forecast):
     # get the model parameters and bounds for variables
     # load FuelCellPara.mat
-    m_Turbine = [553388.269906111, 7708.80111175251]
+    m_Turbine = [0.553388269906111, 0.00770880111175251]
     xmax_Turbine = 408.200000000000
     xmin_Turbine = 20.5100000000000
 
@@ -84,10 +84,9 @@ def optimize(forecast):
     xmin_ChillerIGV = 0.155991129307404
 
     # load AbsChillerPara.mat
-    m_AbsChiller = [-2.52950291035601, 0.968303153696845]
-    xmax_AbsChiller = 12.3352985329239
+    m_AbsChiller = [1.42355081496335, 0.426344465964358]
+    xmax_AbsChiller = 7.91954964176049
     xmin_AbsChiller = 6.55162743091095
-
 
 
     # component capacity
@@ -202,7 +201,7 @@ def optimize(forecast):
         ]
 
         # electric energy balance
-        label = "ElecBalacnce{}".format(hour)
+        label = "ElecBalance{}".format(hour)
         exp = E_turbineelec + E_gridelec
         for e_chill in E_chillerelec:
             exp = exp - e_chill
