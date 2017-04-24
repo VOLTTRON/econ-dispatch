@@ -65,7 +65,7 @@ from pulp import LpVariable
 def binary_var(name):
     return LpVariable(name, 0, 1, pulp.LpInteger)
 
-def optimize(forecast):
+def optimize(forecast, write_lp=False):
     # get the model parameters and bounds for variables
     # load FuelCellPara.mat
     m_Turbine = [553388.269906111, 7708.80111175251]
@@ -357,7 +357,8 @@ def optimize(forecast):
         print str(c)
         prob += c
 
-    prob.writeLP("TEST.lp")
+    if write_lp:
+        prob.writeLP("TEST.lp")
     prob.solve()
 
     print pulp.LpStatus[prob.status]

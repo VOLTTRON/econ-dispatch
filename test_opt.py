@@ -58,6 +58,7 @@
 import numpy as np
 import pandas as pd
 from econ_dispatch.optimizer.use_case_1 import optimize
+from econ_dispatch.utils import natural_keys, OptimizerCSVOutput
 # data = xlsread('Hospital Modeled Data.xlsx')
 data = pd.read_csv("./hospital_modeled_data.csv", parse_dates=["Date/Time"])
 
@@ -94,5 +95,11 @@ for h in range(3):
 
 results = optimize(forecast)
 
-for result_key in sorted(results.keys()):
+for result_key in sorted(results.keys(), key=natural_keys):
     print "{} = = {}".format(result_key, results[result_key])
+
+csv_out = OptimizerCSVOutput("hospital_modeled_data_output.csv")
+
+csv_out.writerow(results)
+
+csv_out.close()

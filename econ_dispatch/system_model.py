@@ -63,7 +63,7 @@ import networkx as nx
 from pprint import pprint
 
 class SystemModel(object):
-    def __init__(self, optimizer, weather_model):
+    def __init__(self, optimizer, weather_model, optimizer_debug_csv=None):
         self.component_graph = nx.MultiDiGraph()
         self.instance_map = {}
 
@@ -71,6 +71,8 @@ class SystemModel(object):
 
         self.optimizer = optimizer
         self.weather_model = weather_model
+
+        self.optimizer_debug_csv = optimizer_debug_csv
 
     def add_forecast_model(self, model, name):
         self.forecast_models[name] = model
@@ -137,7 +139,13 @@ class SystemModel(object):
 
     def run_general_optimizer(self, predicted_loads):
         pprint(predicted_loads)
-        return self.optimizer(predicted_loads)
+        results = self.optimizer(predicted_loads)
+
+        if self.optimizer_debug_csv is not None:
+            self.optimizer_debug_csv.writerow(results)
+
+        return results
+
 
     def run_component_optimizer(self, component_loads):
         pprint(component_loads)

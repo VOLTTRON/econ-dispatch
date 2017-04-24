@@ -59,6 +59,7 @@ from system_model import SystemModel
 from econ_dispatch.component_models import get_component_class
 from econ_dispatch.forecast_models import get_forecast_model_class
 from econ_dispatch.optimizer import get_optimization_function
+from econ_dispatch.utils import OptimizerCSVOutput
 from collections import OrderedDict, defaultdict
 import logging
 _log = logging.getLogger(__name__)
@@ -110,7 +111,12 @@ def build_model_from_config(config):
 
     opt_func = get_optimization_function(config["optimizer"])
 
-    system_model = SystemModel(opt_func, weather_model)
+    optimizer_csv = None
+    optimizer_csv_filename = config.get("optimizer_debug")
+    if optimizer_csv_filename is not None:
+        optimizer_csv = OptimizerCSVOutput(optimizer_csv_filename)
+
+    system_model = SystemModel(opt_func, weather_model, optimizer_debug_csv=optimizer_csv)
 
     forecast_model_configs = config["forecast_models"]
     components = config["components"]
