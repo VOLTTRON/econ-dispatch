@@ -1,5 +1,7 @@
 import numpy as np
 import random
+import csv
+import re
 
 
 def least_squares_regression(inputs=None, output=None):
@@ -18,6 +20,39 @@ def least_squares_regression(inputs=None, output=None):
 
     return solution
 
+def atoi(text):
+    return int(text) if text.isdigit() else text
+
+def natural_keys(text):
+    '''
+    alist.sort(key=natural_keys) sorts in human order
+    http://nedbatchelder.com/blog/200712/human_sorting.html
+
+    Found here: http://stackoverflow.com/questions/5967500/how-to-correctly-sort-a-string-with-a-number-inside#5967539
+    '''
+    return [ atoi(c) for c in re.split('(\d+)', text) ]
+
+class OptimizerCSVOutput(object):
+    def __init__(self, file_name):
+        self.file_name = file_name
+        self.file = open(file_name, "wb")
+        self.csv_file = None
+
+    def writerow(self, row):
+        if self.csv_file is None:
+            keys = row.keys()
+            keys.sort(key=natural_keys)
+            self.csv_file = csv.DictWriter(self.file, keys)
+            self.csv_file.writeheader()
+
+        self.csv_file.writerow(row)
+
+    def writerows(self, rows):
+        for row in rows:
+            self.writerow(row)
+
+    def close(self):
+        self.file.close()
 
 def _test_regression():
     def one_input(x):
