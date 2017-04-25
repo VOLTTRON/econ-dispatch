@@ -63,6 +63,10 @@ class Model(ForecastModelBase):
                  time_diff_tolerance=1.0, dependent_variables=[],
                  independent_variable_tolerances={}):
         self.data_frame = pd.read_csv(training_csv, parse_dates=[time_stamp_column])
+
+        self.data_frame["cool_load"] /= 293.1
+        self.data_frame["heat_load"] /= 293.1
+
         self.time_stamp_column = time_stamp_column
         self.time_diff_tolerance = time_diff_tolerance
         self.dependent_variables = [str(d) for d in dependent_variables]

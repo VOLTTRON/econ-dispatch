@@ -82,7 +82,7 @@ lambda_elec_togrid = 0.1 * np.ones(24)  #$/kWh
 
 forecast = []
 
-for h in range(3):
+for h in range(24):
     record = {"elec_load": E_load[h],
               "heat_load": Q_loadheat[h],
               "cool_load": Q_loadcool[h],
