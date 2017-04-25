@@ -349,22 +349,22 @@ def optimize(forecast, write_lp=False):
 
     prob += objective_function, "Objective Function"
 
-    print str(objective_function)
-    print len(constraints)
-
     for c in constraints:
-        print str(c)
-        prob += c
+       prob += c
 
     if write_lp:
         prob.writeLP("TEST.lp")
     prob.solve()
 
-    print pulp.LpStatus[prob.status]
+    status = pulp.LpStatus[prob.status]
+
+    #print status
 
     result = {}
 
     for var in prob.variables():
         result[var.name] = var.varValue
+
+    result["Optimization Status"] = status
 
     return result

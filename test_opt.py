@@ -100,6 +100,6 @@ for result_key in sorted(results.keys(), key=natural_keys):
 
 csv_out = OptimizerCSVOutput("hospital_modeled_data_output.csv")
 
-csv_out.writerow(results)
+csv_out.writerow(results, forecast)
 
 csv_out.close()

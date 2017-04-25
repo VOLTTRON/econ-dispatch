@@ -38,18 +38,33 @@ class OptimizerCSVOutput(object):
         self.file = open(file_name, "wb")
         self.csv_file = None
 
-    def writerow(self, row):
+    def writerow(self, optimization, forecasts, timestamp=""):
+
+        flat_forecasts = {}
+        for i, record in enumerate(forecasts):
+            flat_forecasts.update({"elec_load" + str(i):record.get("elec_load", 0.0),
+                                   "heat_load" + str(i): record.get("heat_load", 0.0),
+                                   "cool_load" + str(i): record.get("cool_load", 0.0),
+                                   "solar_kW" + str(i): record.get("solar_kW", 0.0),
+                                   "natural_gas_cost" + str(i): record.get("natural_gas_cost", 0.0),
+                                   "electricity_cost" + str(i): record.get("electricity_cost", 0.0)
+                                   })
+
         if self.csv_file is None:
-            keys = row.keys()
-            keys.sort(key=natural_keys)
-            self.csv_file = csv.DictWriter(self.file, keys)
+            optimization_keys = optimization.keys()
+            optimization_keys.remove("Optimization Status")
+            optimization_keys.sort(key=natural_keys)
+            forecast_keys = flat_forecasts.keys()
+            forecast_keys.sort(key=natural_keys)
+            self.csv_file = csv.DictWriter(self.file, ["timestamp", "Optimization Status"] + optimization_keys + forecast_keys, extrasaction='ignore')
             self.csv_file.writeheader()
 
-        self.csv_file.writerow(row)
+        row = {}
+        row["timestamp"] = str(timestamp)
+        row.update(optimization)
+        row.update(flat_forecasts)
 
-    def writerows(self, rows):
-        for row in rows:
-            self.writerow(row)
+        self.csv_file.writerow(row)
 
     def close(self):
         self.file.close()
