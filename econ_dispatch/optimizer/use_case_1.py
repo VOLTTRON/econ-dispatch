@@ -349,12 +349,12 @@ def optimize(forecast, write_lp=False):
 
     prob += objective_function, "Objective Function"
 
-    print str(objective_function)
-    print len(constraints)
+    #print str(objective_function)
+    #print len(constraints)
 
-    for c in constraints:
-        print str(c)
-        prob += c
+    #for c in constraints:
+    #    print str(c)
+    #    prob += c
 
     if write_lp:
         prob.writeLP("TEST.lp")
@@ -362,7 +362,7 @@ def optimize(forecast, write_lp=False):
 
     status = pulp.LpStatus[prob.status]
 
-    print status
+    #print status
 
     result = {}
 
