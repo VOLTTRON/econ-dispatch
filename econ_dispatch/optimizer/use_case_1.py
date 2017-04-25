@@ -349,12 +349,8 @@ def optimize(forecast, write_lp=False):
 
     prob += objective_function, "Objective Function"
 
-    #print str(objective_function)
-    #print len(constraints)
-
-    #for c in constraints:
-    #    print str(c)
-    #    prob += c
+    for c in constraints:
+       prob += c
 
     if write_lp:
         prob.writeLP("TEST.lp")
