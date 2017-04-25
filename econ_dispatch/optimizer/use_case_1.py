@@ -360,11 +360,15 @@ def optimize(forecast, write_lp=False):
         prob.writeLP("TEST.lp")
     prob.solve()
 
-    print pulp.LpStatus[prob.status]
+    status = pulp.LpStatus[prob.status]
+
+    print status
 
     result = {}
 
     for var in prob.variables():
         result[var.name] = var.varValue
+
+    result["Optimization Status"] = status
 
     return result

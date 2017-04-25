@@ -75,16 +75,16 @@ def main(config_file):
     print application.model
 
     networkx.drawing.nx_pydot.write_dot(application.model.component_graph, config_file.name + ".dot")
-    now = dt.datetime(2017, 12, 29)
-    # end = dt.datetime(2017, 12, 30)
-    # time_step = dt.timedelta(hours=1)
-    #
-    # while now < end:
-    #     print now
-    #     application.run(now, {})
-    #     now += time_step
+    now = dt.datetime(2017, 1, 1)
+    end = dt.datetime(2017, 12, 29)
+    time_step = dt.timedelta(hours=1)
 
-    application.run(now, {})
+    while now < end:
+        print now
+        application.run(now, {})
+        now += time_step
+
+    #application.run(now, {})
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
