@@ -65,10 +65,14 @@ from econ_dispatch.application import Application
 import networkx
 
 import datetime as dt
+import time
 
+import numpy as np
 
+_log = logging.getLogger(__name__)
 
 def main(config_file):
+    overall_start_time = time.time()
     config = json.loads(config_file.read())
     application = Application(model_config=config)
 
@@ -77,14 +81,35 @@ def main(config_file):
     networkx.drawing.nx_pydot.write_dot(application.model.component_graph, config_file.name + ".dot")
     now = dt.datetime(2017, 1, 1)
     end = dt.datetime(2017, 12, 29)
+    #now = dt.datetime(2017, 6, 24)
+    #end = dt.datetime(2017, 6, 25)
+    #end = dt.datetime(2017, 1, 2)
     time_step = dt.timedelta(hours=1)
 
-    while now < end:
-        print now
-        application.run(now, {})
-        now += time_step
+    run_times = []
 
-    #application.run(now, {})
+
+    try:
+        while now < end:
+            _log.debug("Processing timestamp: " + str(now))
+            start_time = time.time()
+            application.run(now, {})
+            now += time_step
+            end_time = time.time()
+            run_times.append(end_time-start_time)
+    finally:
+        if run_times:
+            run_time_array = np.array(run_times)
+            mean = run_time_array.mean()
+            std = run_time_array.std()
+            max_time = run_time_array.max()
+            total_time = time.time() - overall_start_time
+            _log.info("Total Run Time: "+str(total_time))
+            _log.info("Application Run Average: " + str(mean))
+            _log.info("Application Run Standard Deviation: " + str(std))
+            _log.info("Application Run Max: " + str(max_time))
+
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

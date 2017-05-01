@@ -61,6 +61,9 @@ import pandas as pd
 import pulp
 from pulp import LpVariable
 
+import logging
+_log = logging.getLogger(__name__)
+
 
 def binary_var(name):
     return LpVariable(name, 0, 1, pulp.LpInteger)
@@ -354,7 +357,18 @@ def optimize(forecast, write_lp=False):
 
     if write_lp:
         prob.writeLP("TEST.lp")
-    prob.solve()
+
+    convergence_time = -1
+    objective_value = -1
+
+    try:
+        prob.solve()
+        #prob.solve(pulp.solvers.GLPK_CMD(options=["--tmlim", "10"]))
+    except Exception as e:
+        _log.error("PuLP failed: " + str(e))
+    else:
+        convergence_time = prob.solutionTime
+        objective_value = pulp.value(prob.objective)
 
     status = pulp.LpStatus[prob.status]
 
@@ -366,5 +380,8 @@ def optimize(forecast, write_lp=False):
         result[var.name] = var.varValue
 
     result["Optimization Status"] = status
+
+    result["Objective Value"] = objective_value
+    result["Convergence Time"] = convergence_time
 
     return result
