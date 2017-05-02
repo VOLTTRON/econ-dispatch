@@ -56,9 +56,12 @@
 # }}}
 
 import json
+import os
 import numpy as np
+import pandas as pd
 
 from econ_dispatch.component_models import ComponentBase
+from econ_dispatch.utils import least_squares_regression
 
 FARADAY_CONSTANT = 96485 # C/mol
 
@@ -70,7 +73,7 @@ Coef.NominalCurrent = np.array([0.1921, 0.1582, 0.0261])
 Coef.NominalASR = 0.5
 Coef.ReStartDegradation = float(1e-3)
 Coef.LinearDegradation = float(4.5e-6)
-Coef.ThresholdDegradation = float(9e3)#hours before which there is no linear degradation
+Coef.ThresholdDegradation = float(8e3)
 Coef.Utilization = np.array([-.25, -.2, .65])
 Coef.StackHeatLoss = 0.1
 Coef.AncillaryPower = np.array([0.5, 4.0, 0.25])
@@ -79,19 +82,19 @@ Coef.StackDeltaT = 100.0
 Coef.ExhaustTemperature = np.array([0.0, 0.0, 0.0])
 Coef.gain = 1.4
 
-# NominalV = np.array([0.775, 0.8, 0.814])
-
 class Component(ComponentBase):
-    def __init__(self):
-        super(Component, self).__init__()
+    def __init__(self, gen_data_file=None, **kwargs):
+        super(Component, self).__init__(**kwargs)
         self.fuel_type= 'CH4'
-        self.nominal_power = 203.0
-        self.nominal_ocv = 0.775
+        self.nominal_power = 402.0
+        self.nominal_ocv = 0.8
 
         self.power = 300.0
         self.T_amb = 20.0
         self.gen_start = 5.0
         self.gen_hours = 7000.0
+
+        self.gen_data_file = gen_data_file
         
     def get_output_metadata(self):
         return ""
@@ -100,13 +103,47 @@ class Component(ComponentBase):
         return ""
 
     def get_optimization_parameters(self):
-        FuelFlow, ExhaustFlow, ExhaustTemperature, NetEfficiency = self.FuelCell_Operate(Coef)
-        return {}
+        # load data
+        training_data = pd.read_csv(self.gen_data_file, header=0)
+
+        Valid = training_data['Valid'].values
+
+        Power = training_data['Power'].values
+        Power = Power[Valid]
+
+        AmbTemperature = training_data['AmbTemperature'].values
+        AmbTemperature = AmbTemperature[Valid]
+        
+        Start = training_data['Start'].values
+        Start = Start[Valid]
+        
+        Hours = training_data['Hours'].values
+        Hours = Hours[Valid]
+
+        FuelFlow, ExhaustFlow, ExhaustTemperature, NetEfficiency = self.FuelCell_Operate_new(Coef, Power, AmbTemperature, Start, Hours)
+
+        sort_indexes = np.argsort(Power)
+        Xdata = Power[sort_indexes]
+        Ydata = FuelFlow[sort_indexes] * 171.11 # fuel: kg/s -> mmBtu/hr
+    
+        xmin_Turbine = min(Xdata)
+        xmax_Turbine = max(Xdata)
+
+        n1 = np.nonzero(Xdata <= xmin_Turbine + (xmax_Turbine - xmin_Turbine) * 0.3)[-1][-1]
+        n2 = np.nonzero(Xdata <= xmin_Turbine + (xmax_Turbine - xmin_Turbine) * 0.6)[-1][-1]
+
+        m_Turbine = least_squares_regression(inputs=Xdata[n1:n2], output=Ydata[n1:n2])
+
+        return {
+            "m_Turbine": m_Turbine,
+            "xmin_Turbine": xmin_Turbine,
+            "xmax_Turbine": xmax_Turbine
+        }
 
     def update_parameters(self, **kwargs):
         pass
 
-    def FuelCell_Operate(self, Coef):
+    def FuelCell_Operate(self, Coef, Power, Tin, Starts, NetHours):
         if self.fuel_type == "CH4":
             n = 8 # number of electrons per molecule (assuming conversion to H2)
             LHV = 50144 # Lower heating value of CH4 in kJ/g
@@ -117,28 +154,23 @@ class Component(ComponentBase):
             m_fuel = 2# molar mass
         else:
             raise ValueError("Unknown fuel type {}".format(self.fuel_type))
-    
+
         cells = self.nominal_power
-        power = self.power
-        T_amb = self.T_amb
-        gen_start = self.gen_start
-        gen_hours = self.gen_hours
-        
-        n_power = power / self.nominal_power
-        ASR = Coef.NominalASR + Coef.ReStartDegradation * gen_start + Coef.LinearDegradation * max(0, (gen_hours - Coef.ThresholdDegradation)) #ASR  in Ohm*cm^2
-        Utilization = Coef.Utilization[0] * (1 - n_power)**2 + Coef.Utilization[1] * (1 - n_power) + Coef.Utilization[2] #decrease in utilization at part load
-        Current = Coef.Area * (Coef.NominalCurrent[0] * n_power**2 + Coef.NominalCurrent[1] * n_power + Coef.NominalCurrent[2]) #first guess of current
-        HeatLoss = power * Coef.StackHeatLoss
-        Ancillarypower = 0.1 * power
-    
-        for j in range(4):
-            Voltage = cells * (Coef.NominalOCV - Current * ASR / Coef.Area)
-            Current = Coef.gain * (power + Ancillarypower) * 1000 / Voltage - (Coef.gain - 1) * Current
+
+        nPower = Power / self.nominal_power
+        ASR = Coef.NominalASR + Coef.ReStartDegradation * Starts + Coef.LinearDegradation * max(0,np.amax(NetHours - Coef.ThresholdDegradation)) #ASR  in Ohm*cm^2 
+        Utilization = Coef.Utilization[0] * (1 - nPower)**2 + Coef.Utilization[1] * (1 - nPower) + Coef.Utilization[2] #decrease in utilization at part load
+        Current = Coef.Area * (Coef.NominalCurrent[0] * nPower**2 + Coef.NominalCurrent[1] * nPower + Coef.NominalCurrent[2]) #first guess of current
+        HeatLoss = Power * Coef.StackHeatLoss
+        AncillaryPower = 0.1 * Power
+        for i in range(4):
+            Voltage = cells * (self.nominal_ocv - Current * ASR / Coef.Area)
+            Current = Coef.gain * (Power + AncillaryPower) * 1000 / Voltage - (Coef.gain - 1) * Current
             FuelFlow = m_fuel * cells * Current / (n * 1000 * FARADAY_CONSTANT * Utilization)
             ExhaustFlow = (cells * Current * (1.2532 - Voltage / cells) / 1000 - HeatLoss) / (1.144 * Coef.StackDeltaT) #flow rate in kg/s with a specific heat of 1.144kJ/kg*K
-            Ancillarypower = Coef.Ancillarypower[0] * FuelFlow**2  + Coef.Ancillarypower[1] * FuelFlow + Coef.Ancillarypower[0] * ExhaustFlow**2 + Coef.Ancillarypower[1]*ExhaustFlow + Coef.Ancillarypower[2] * (T_amb - 18) * ExhaustFlow
-    
-        ExhaustTemperature = ((cells * Current *(1.2532 - Voltage / cells) / 1000 - HeatLoss) + (1 - Utilization) * FuelFlow * LHV) / (1.144 * ExhaustFlow) + T_amb + (Coef.ExhaustTemperature[0]*n_power**2 + Coef.ExhaustTemperature[1] * n_power + Coef.ExhaustTemperature[2])
-        NetEfficiency = power / (FuelFlow * LHV)
-        
+            AncillaryPower = Coef.AncillaryPower[0] * FuelFlow**2 + Coef.AncillaryPower[1] * FuelFlow + Coef.AncillaryPower[0] * ExhaustFlow**2 + Coef.AncillaryPower[1] * ExhaustFlow + Coef.AncillaryPower[2] * (Tin - 18) * ExhaustFlow
+
+        ExhaustTemperature = ((cells * Current * (1.2532 - Voltage / cells) / 1000 - HeatLoss) + (1 - Utilization) * FuelFlow * LHV) / (1.144 * ExhaustFlow) + Tin + (Coef.ExhaustTemperature[0] * nPower**2 + Coef.ExhaustTemperature[1]*nPower + Coef.ExhaustTemperature[2])
+        NetEfficiency = Power / (FuelFlow * LHV)
+
         return FuelFlow, ExhaustFlow, ExhaustTemperature, NetEfficiency

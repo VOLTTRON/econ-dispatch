@@ -66,14 +66,14 @@ import argparse
 import csv
 import json
 from ast import literal_eval
-from econ_dispatch.component_models import get_algorithm_class
+from econ_dispatch.component_models import get_component_class
 from pprint import pprint
 
 from dateutil.parser import parse
 
 def main(component_name, csv_input_file, component_config_file=None):
     input_csv = csv.DictReader(csv_input_file)
-    klass = get_algorithm_class(component_name)
+    klass = get_component_class(component_name)
 
     kwargs = {}
     if component_config_file is not None:
