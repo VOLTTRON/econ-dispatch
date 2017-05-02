@@ -53,10 +53,14 @@ class OptimizerCSVOutput(object):
         if self.csv_file is None:
             optimization_keys = optimization.keys()
             optimization_keys.remove("Optimization Status")
+            optimization_keys.remove("Convergence Time")
+            optimization_keys.remove("Objective Value")
             optimization_keys.sort(key=natural_keys)
             forecast_keys = flat_forecasts.keys()
             forecast_keys.sort(key=natural_keys)
-            self.csv_file = csv.DictWriter(self.file, ["timestamp", "Optimization Status"] + optimization_keys + forecast_keys, extrasaction='ignore')
+            self.csv_file = csv.DictWriter(self.file,
+                                           ["timestamp", "Optimization Status", "Objective Value", "Convergence Time"] +
+                                           optimization_keys + forecast_keys, extrasaction='ignore')
             self.csv_file.writeheader()
 
         row = {}
