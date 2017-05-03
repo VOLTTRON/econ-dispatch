@@ -140,7 +140,7 @@ class SystemModel(object):
 
     def run_general_optimizer(self, now, predicted_loads):
         _log.debug("Running General Optimizer")
-        results = self.optimizer(predicted_loads)
+        results = self.optimizer(now, predicted_loads)
 
         if self.optimizer_debug_csv is not None:
             self.optimizer_debug_csv.writerow(results, predicted_loads, now)

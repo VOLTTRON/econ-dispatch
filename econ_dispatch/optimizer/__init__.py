@@ -55,7 +55,53 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
-def get_optimization_function(name):
-    module = __import__(name, globals(), locals(), ['optimize'], 1)
-    method = module.optimize
-    return method
+import pulp
+import logging
+_log = logging.getLogger(__name__)
+
+
+def get_optimization_function(config):
+    name = config["name"]
+    write_lp = config.get("write_lp", False)
+    use_glpk = config.get("use_glpk", False)
+    glpk_options = config.get("glpk_options", [])
+
+    module = __import__(name, globals(), locals(), ['get_optimization_problem'], 1)
+    get_optimization_problem = module.get_optimization_problem
+
+    def optimize(now, forecast):
+        prob = get_optimization_problem(forecast)
+
+        if write_lp:
+            prob.writeLP(str(now)+".lp")
+
+        convergence_time = -1
+        objective_value = -1
+
+        try:
+            if use_glpk:
+                prob.solve(pulp.solvers.GLPK_CMD(options=glpk_options))
+            else:
+                prob.solve()
+            #
+        except Exception as e:
+            _log.warning("PuLP failed: " + str(e))
+        else:
+            convergence_time = prob.solutionTime
+            objective_value = pulp.value(prob.objective)
+
+        status = pulp.LpStatus[prob.status]
+
+        result = {}
+
+        for var in prob.variables():
+            result[var.name] = var.varValue
+
+        result["Optimization Status"] = status
+
+        result["Objective Value"] = objective_value
+        result["Convergence Time"] = convergence_time
+
+        return result
+
+    return optimize
