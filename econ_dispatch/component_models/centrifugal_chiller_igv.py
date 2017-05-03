@@ -91,8 +91,24 @@ class Component(ComponentBase):
         return ""
 
     def get_optimization_parameters(self):
-        self.predict()
-        return {}
+        with open(self.history_data_file, 'r') as f:
+            historical_data = json.load(f)
+
+        # chiller cooling output in mmBtu/hr (converted from cooling Tons)
+        Qch = np.array(historical_data["Qch(tons)"]) * 3.517 / 293.1
+
+        # chiller power input in kW
+        P = historical_data["P(kW)"]
+    
+        m_ChillerIGV = least_squares_regression(inputs=Qch, output=P)
+        xmax_ChillerIGV = max(Qch)
+        xmin_ChillerIGV = min(Qch)
+
+        return {
+            "m_ChillerIGV": m_ChillerIGV,
+            "xmax_ChillerIGV": xmax_ChillerIGV,
+            "xmin_ChillerIGV": xmin_ChillerIGV
+        }
 
     def update_parameters(self,
                           Tcho=DEFAULT_TCHO,

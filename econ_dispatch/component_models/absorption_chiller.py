@@ -88,11 +88,10 @@ class Component(ComponentBase):
         # heat input to the generator in mmBTU/hr
         self.Qin = DEFAULT_QIN
 
-        with open(history_data_file, 'r') as f:
-            historical_data = json.load(f)
-
+        self.history_data_file = history_data_file
+        
         # Gordon-Ng model coefficients
-        self.a0, self.a1 = self.train(historical_data)
+        self.a0, self.a1 = self.train()
 
     def get_output_metadata(self):
         return [u"chilled_water"]
@@ -101,8 +100,25 @@ class Component(ComponentBase):
         return [u"heat"]
 
     def get_optimization_parameters(self):
-        Qch = self.predict()
-        return {"Qch":Qch}
+        with open(self.history_data_file, 'r') as f:
+            historical_data = json.load(f)
+    
+        Qch = np.array(historical_data["Qch(tons)"]) * 3.517 / 293.1 # chiller cooling output in mmBTU/hr (converted from cooling Tons)
+        Qin = np.array(historical_data["Qin(MMBtu/h)"]) # chiller heat input in mmBTU/hr
+    
+        n1 = np.nonzero(Qch < 8)[-1]
+        Xdata = Qch[n1]
+        Ydata = Qin[n1]
+
+        m_AbsChiller = least_squares_regression(inputs=Xdata, output=Ydata)
+        xmax_AbsChiller = np.amax(Xdata)
+        xmin_AbsChiller = np.amin(Xdata)
+    
+        return {
+            "xmax_AbsChiller": xmax_AbsChiller,
+            "xmin_AbsChiller": xmin_AbsChiller,
+            "m_AbsChiller": m_AbsChiller
+        }
 
     def update_parameters(self,
                           Tcho=DEFAULT_TCHO,
@@ -131,19 +147,18 @@ class Component(ComponentBase):
         Qch = Qch / 3.517 #Converting kW to cooling ton
         return Qch
 
-    def train(self, historical_data):
+    def train(self):
         # This module reads the historical data on temperatures (in Fahrenheit), inlet heat to the
         # chiller (in mmBTU/hr) and outlet cooling load (in cooling ton) then, converts
         # the data to proper units which then will be used for model training. At
         # the end, regression coefficients will be written to a file
 
-        # data_file = os.path.join(os.path.dirname(__file__), 'CH-Abs-Historical-Data.json')
-        # with open(data_file, 'r') as f:
-        #     historical_data = json.load(f)
+        with open(self.history_data_file, 'r') as f:
+            historical_data = json.load(f)
 
         Tcho = historical_data["Tcho(F)"]# chilled water supply temperature in F
         Tcdi = historical_data["Tcdi(F)"]# inlet temperature from condenser in F
-        Tgeni = historical_data["Tgei(F)"]# generator inlet water temperature in F
+        Tgeni = historical_data["Tgeni(F)"]# generator inlet water temperature in F
         Qch = historical_data["Qch(tons)"]# chiller cooling output in cooling Tons
         Qin = historical_data["Qin(MMBtu/h)"]# chiller heat input in mmBTU/hr
         i = len(Tcho)
