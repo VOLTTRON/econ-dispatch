@@ -68,7 +68,7 @@ _log = logging.getLogger(__name__)
 def binary_var(name):
     return LpVariable(name, 0, 1, pulp.LpInteger)
 
-def optimize(forecast, write_lp=False):
+def get_optimization_problem(forecast, write_lp=None):
     # get the model parameters and bounds for variables
     # load FuelCellPara.mat
     m_Turbine = [0.553388269906111, 0.00770880111175251]
@@ -355,33 +355,4 @@ def optimize(forecast, write_lp=False):
     for c in constraints:
        prob += c
 
-    if write_lp:
-        prob.writeLP("TEST.lp")
-
-    convergence_time = -1
-    objective_value = -1
-
-    try:
-        prob.solve()
-        #prob.solve(pulp.solvers.GLPK_CMD(options=["--tmlim", "10"]))
-    except Exception as e:
-        _log.error("PuLP failed: " + str(e))
-    else:
-        convergence_time = prob.solutionTime
-        objective_value = pulp.value(prob.objective)
-
-    status = pulp.LpStatus[prob.status]
-
-    #print status
-
-    result = {}
-
-    for var in prob.variables():
-        result[var.name] = var.varValue
-
-    result["Optimization Status"] = status
-
-    result["Objective Value"] = objective_value
-    result["Convergence Time"] = convergence_time
-
-    return result
+    return prob
