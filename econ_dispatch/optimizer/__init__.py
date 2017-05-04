@@ -58,13 +58,21 @@
 import pulp
 import logging
 _log = logging.getLogger(__name__)
-
+import os.path
+import os
 
 def get_optimization_function(config):
     name = config["name"]
     write_lp = config.get("write_lp", False)
     use_glpk = config.get("use_glpk", False)
     glpk_options = config.get("glpk_options", [])
+    lp_out_dir = config.get("lp_out_dir", "lps")
+
+    if write_lp:
+        try:
+            os.makedirs(lp_out_dir)
+        except Exception:
+            pass
 
     module = __import__(name, globals(), locals(), ['get_optimization_problem'], 1)
     get_optimization_problem = module.get_optimization_problem
@@ -73,7 +81,7 @@ def get_optimization_function(config):
         prob = get_optimization_problem(forecast)
 
         if write_lp:
-            prob.writeLP(str(now)+".lp")
+            prob.writeLP(os.path.join(lp_out_dir, str(now).replace(":", "_")+".lp"))
 
         convergence_time = -1
         objective_value = -1
