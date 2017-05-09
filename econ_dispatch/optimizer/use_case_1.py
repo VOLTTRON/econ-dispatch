@@ -331,7 +331,7 @@ def get_optimization_problem(forecast, write_lp=None):
         constraints.append((exp, label))
 
         # HRU
-        label = "Wasteheat{}".format(label)
+        label = "Wasteheat{}".format(hour)
         exp = Q_Genheating
         if flagabs:
             exp = exp + Q_Gencooling
@@ -340,7 +340,7 @@ def get_optimization_problem(forecast, write_lp=None):
         constraints.append((exp, label))
 
         label = "HRUHeatlimit{}".format(hour)
-        exp = Q_Genheating - a_hru * Q_HRUheating <= 0
+        exp = Q_HRUheating - a_hru * Q_Genheating <= 0
         constraints.append((exp, label))
 
 
