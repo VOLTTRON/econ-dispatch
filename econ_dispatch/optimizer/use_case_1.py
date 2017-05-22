@@ -64,6 +64,7 @@ from pulp import LpVariable
 import logging
 _log = logging.getLogger(__name__)
 
+UNSERVE_LIMIT = 10000
 
 def binary_var(name):
     return LpVariable(name, 0, 1, pulp.LpInteger)
@@ -96,12 +97,12 @@ def get_optimization_problem(forecast, write_lp=None):
     cap_FuelCell = 500  # kW
     cap_abs = 464 / 293.1  # kW -> mmBtu/hr
     cap_boiler = 8  # mmBtu/hr
-    n_chiller = 4
+    n_chiller = 3
     cap_chiller = 200 * 3.517 / 293.1  # ton -> mmBtu/hr
 
     ## compute the parameters for the optimization
     # boiler
-    xmin_Boiler[0] = cap_boiler * 0.2 # !!!need to consider cases when xmin is not in the first section of the training data
+    xmin_Boiler[0] = cap_boiler * 0.15 # !!!need to consider cases when xmin is not in the first section of the training data
     Nsection = np.where(xmax_Boiler > cap_boiler)[0][0]
     Nsection = Nsection + 1
     xmin_Boiler = xmin_Boiler[:Nsection]
@@ -112,7 +113,7 @@ def get_optimization_problem(forecast, write_lp=None):
 
     # absorption chiller
     flagabs = True
-    xmin_AbsChiller = cap_abs * 0.2
+    xmin_AbsChiller = cap_abs * 0.15
     a_abs = m_AbsChiller[1]
     b_abs = m_AbsChiller[0] + a_abs * xmin_AbsChiller
     xmax_AbsChiller = cap_abs
@@ -143,9 +144,6 @@ def get_optimization_problem(forecast, write_lp=None):
 
     ################################################################################
 
-
-
-    n_hours = 3
     objective_component = []
     constraints = []
     for hour, forecast_hour in enumerate(forecast):
@@ -162,6 +160,14 @@ def get_optimization_problem(forecast, write_lp=None):
         E_gridelec = LpVariable("E_gridelec_hour{}".format(hour))
 
         # regular variables
+
+        E_unserve = LpVariable("E_unserve_hour{}".format(hour), 0)
+        E_dump = LpVariable("E_dump_hour{}".format(hour), 0)
+        Heat_unserve = LpVariable("Heat_unserve_hour{}".format(hour), 0)
+        Heat_dump = LpVariable("Heat_dump_hour{}".format(hour), 0)
+        Cool_unserve = LpVariable("Cool_unserve_hour{}".format(hour), 0)
+        Cool_dump = LpVariable("Cool_dump_hour{}".format(hour), 0)
+
         E_turbinegas = LpVariable("E_turbinegas_hour{}".format(hour), xmin_Boiler[0])
         Q_turbine = LpVariable("Q_turbine_hour{}".format(hour), 0)
         E_turbineelec = LpVariable("E_turbineelec_hour{}".format(hour), 0)
@@ -200,7 +206,13 @@ def get_optimization_problem(forecast, write_lp=None):
         objective_component += [
             forecast_hour["natural_gas_cost"]* E_turbinegas,
             forecast_hour["natural_gas_cost"] * E_boilergas,
-            forecast_hour["electricity_cost"] * E_gridelec
+            forecast_hour["electricity_cost"] * E_gridelec,
+            UNSERVE_LIMIT * E_unserve,
+            UNSERVE_LIMIT * E_dump,
+            UNSERVE_LIMIT * Heat_unserve,
+            UNSERVE_LIMIT * Heat_dump,
+            UNSERVE_LIMIT * Cool_unserve,
+            UNSERVE_LIMIT * Cool_dump
         ]
 
         # electric energy balance
@@ -208,12 +220,13 @@ def get_optimization_problem(forecast, write_lp=None):
         exp = E_turbineelec + E_gridelec
         for e_chill in E_chillerelec:
             exp = exp - e_chill
+        exp = exp + E_unserve - E_dump
         exp = exp == forecast_hour["elec_load"] - forecast_hour["solar_kW"]
         constraints.append((exp, label))
 
         # heating balance
         label = "HeatBalance{}".format(hour)
-        exp = Q_boiler + Q_HRUheating == forecast_hour["heat_load"]
+        exp = Q_boiler + Q_HRUheating + Heat_unserve - Heat_dump == forecast_hour["heat_load"]
         constraints.append((exp, label))
 
         # cooling balance
@@ -227,6 +240,7 @@ def get_optimization_problem(forecast, write_lp=None):
             for q_chill in Q_chiller[1:]:
                 exp = exp + q_chill
 
+        exp = exp + Cool_unserve - Cool_dump
         exp = exp == forecast_hour["cool_load"]
         constraints.append((exp, label))
 
