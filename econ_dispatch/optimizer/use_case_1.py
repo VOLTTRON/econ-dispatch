@@ -147,6 +147,7 @@ def get_optimization_problem(forecast, write_lp=None):
     objective_component = []
     constraints = []
     for hour, forecast_hour in enumerate(forecast):
+        hour = str(hour).zfill(2)
         # binary variables
         Sturbine = binary_var("Sturbine_hour{}".format(hour))
         Sboiler = binary_var("Sboiler_hour{}".format(hour))
@@ -259,11 +260,11 @@ def get_optimization_problem(forecast, write_lp=None):
         exp = E_turbineelec - E_turbineelec_aux - xmin_Turbine * Sturbine == 0
         constraints.append((exp, label))
 
-        label = "Eturbinelower{}".format(hour)
+        label = "TurbineElower{}".format(hour)
         exp = E_turbineelec - xmin_Turbine * Sturbine >= 0
         constraints.append((exp, label))
 
-        label = "Eturbineupper{}".format(hour)
+        label = "TurbineEupper{}".format(hour)
         exp = E_turbineelec - xmax_Turbine * Sturbine <= 0
         constraints.append((exp, label))
 
@@ -284,11 +285,11 @@ def get_optimization_problem(forecast, write_lp=None):
         exp = exp == 0
         constraints.append((exp, label))
 
-        label = "Qboilerlower{}".format(hour)
+        label = "BoilerQlower{}".format(hour)
         exp = Q_boiler - xmin_Boiler[0] * Sboiler >= 0
         constraints.append((exp, label))
 
-        label = "Qboilerupper{}".format(hour)
+        label = "BoilerQupper{}".format(hour)
         exp = Q_boiler - xmax_Boiler[-1] * Sboiler <= 0
         constraints.append((exp, label))
 
@@ -310,11 +311,11 @@ def get_optimization_problem(forecast, write_lp=None):
             exp = exp == 0
             constraints.append((exp, label))
 
-            label = "Qchillerlower{}_{}".format(chiller, hour)
+            label = "ChillerQlower{}_{}".format(chiller, hour)
             exp = Q_chiller[chiller] - xmin_Chiller[chiller] * Schiller[chiller] >= 0
             constraints.append((exp, label))
 
-            label = "Qchillerupper{}_{}".format(chiller, hour)
+            label = "ChillerQupper{}_{}".format(chiller, hour)
             exp = Q_chiller[chiller] - xmax_Chiller[chiller] * Schiller[chiller] <= 0
             constraints.append((exp, label))
 
@@ -336,16 +337,16 @@ def get_optimization_problem(forecast, write_lp=None):
         exp = exp == 0
         constraints.append((exp, label))
 
-        label = "Qabschillerlower{}".format(hour)
+        label = "AbschillerQlower{}".format(hour)
         exp = Q_abs - xmin_AbsChiller * Sabs >= 0
         constraints.append((exp, label))
 
-        label = "Qabschillerupper{}".format(hour)
+        label = "AbschillerQupper{}".format(hour)
         exp = Q_abs - xmax_AbsChiller * Sabs <= 0
         constraints.append((exp, label))
 
         # HRU
-        label = "Wasteheat{}".format(hour)
+        label = "HRUWasteheat{}".format(hour)
         exp = Q_Genheating
         if flagabs:
             exp = exp + Q_Gencooling
