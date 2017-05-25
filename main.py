@@ -69,21 +69,21 @@ import time
 
 import numpy as np
 
+from dateutil.parser import parse
+
 _log = logging.getLogger(__name__)
 
-def main(config_file):
+def main(config_file, start, end, write_dot):
     overall_start_time = time.time()
     config = json.loads(config_file.read())
     application = Application(model_config=config)
 
     print application.model
 
-    networkx.drawing.nx_pydot.write_dot(application.model.component_graph, config_file.name + ".dot")
-    now = dt.datetime(2017, 1, 1)
-    end = dt.datetime(2017, 12, 29)
-    #now = dt.datetime(2017, 6, 24)
-    #end = dt.datetime(2017, 6, 25)
-    #end = dt.datetime(2017, 1, 2)
+    if write_dot:
+        networkx.drawing.nx_pydot.write_dot(application.model.component_graph, config_file.name + ".dot")
+
+    now = start
     time_step = dt.timedelta(hours=1)
 
     run_times = []
@@ -104,7 +104,7 @@ def main(config_file):
             std = run_time_array.std()
             max_time = run_time_array.max()
             total_time = time.time() - overall_start_time
-            _log.info("Total Run Time: "+str(total_time))
+            _log.info("Total Run Time: " + str(total_time))
             _log.info("Application Run Average: " + str(mean))
             _log.info("Application Run Standard Deviation: " + str(std))
             _log.info("Application Run Max: " + str(max_time))
@@ -114,5 +114,17 @@ def main(config_file):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("config", type=argparse.FileType("r"), help="Configuration file to load")
+    parser.add_argument("--start-time", default="2017-1-1", help="Start date time in ISO format")
+    parser.add_argument("--end-time", default="2017-12-29", help="End date time in ISO format")
+    parser.add_argument("--write-dot", default=False, action="store_const", const=True,
+                        help="Write graphviz dot file for configuration.")
+
     args = parser.parse_args()
-    main(args.config)
+
+    start = parse(args.start_time)
+    end = parse(args.end_time)
+
+    _log.info("Simulation start: "+str(start))
+    _log.info("Simulation end: "+str(end))
+
+    main(args.config, start, end, args.write_dot)
