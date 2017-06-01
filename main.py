@@ -66,6 +66,7 @@ import networkx
 
 import datetime as dt
 import time
+import re
 
 import numpy as np
 
@@ -73,9 +74,33 @@ from dateutil.parser import parse
 
 _log = logging.getLogger(__name__)
 
+#Config comment stripper taken from VOLTTRON.
+_comment_re = re.compile(
+    r'((["\'])(?:\\?.)*?\2)|(/\*.*?\*/)|((?:#|//).*?(?=\n|$))',
+    re.MULTILINE | re.DOTALL)
+
+def _repl(match):
+    """Replace the matched group with an appropriate string."""
+    # If the first group matched, a quoted string was matched and should
+    # be returned unchanged.  Otherwise a comment was matched and the
+    # empty string should be returned.
+    return match.group(1) or ''
+
+
+def strip_comments(string):
+    """Return string with all comments stripped.
+    Both JavaScript-style comments (//... and /*...*/) and hash (#...)
+    comments are removed.
+    """
+    return _comment_re.sub(_repl, string)
+
+def parse_json_config(config_str):
+    """Parse a JSON-encoded configuration file."""
+    return json.loads(strip_comments(config_str))
+
 def main(config_file, start, end, write_dot):
     overall_start_time = time.time()
-    config = json.loads(config_file.read())
+    config = parse_json_config(config_file.read())
     application = Application(model_config=config)
 
     print application.model

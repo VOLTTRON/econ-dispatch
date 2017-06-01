@@ -66,6 +66,9 @@ time_step = dt.timedelta(hours=1)
 from econ_dispatch.forecast_models import HistoryModelBase
 
 class Weather(HistoryModelBase):
+    def __init__(self, hours_forecast=24, **kwargs):
+        super(Weather, self).__init__(**kwargs)
+        self.hours_forecast = hours_forecast
 
     def get_weather_forecast(self, now):
         results = self.get_historical_data(now)
@@ -77,7 +80,7 @@ class Weather(HistoryModelBase):
         now = now.replace(year=self.history_year)
 
         results = []
-        for _ in xrange(24):
+        for _ in xrange(self.hours_forecast):
             record = self.get_historical_hour(now)
             record[self.time_column] = now
             results.append(record)
