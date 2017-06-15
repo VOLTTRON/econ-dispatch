@@ -55,61 +55,36 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
-import pulp
-import logging
-_log = logging.getLogger(__name__)
-import os.path
+
+import json
+from math import ceil, isnan
 import os
+import numpy as np
 
-def get_optimization_function(config):
-    name = config["name"]
-    write_lp = config.get("write_lp", False)
-    use_glpk = config.get("use_glpk", False)
-    glpk_options = config.get("glpk_options", [])
-    lp_out_dir = config.get("lp_out_dir", "lps")
+from econ_dispatch.component_models import ComponentBase
 
-    if write_lp:
-        try:
-            os.makedirs(lp_out_dir)
-        except Exception:
-            pass
 
-    module = __import__(name, globals(), locals(), ['get_optimization_problem'], 1)
-    get_optimization_problem = module.get_optimization_problem
+class Component(ComponentBase):
+    def __init__(self, mat_turbine = [], xmax_turbine = 0.0, xmin_turbine = 0.0, **kwargs):
+        super(Component, self).__init__(**kwargs)
+        self.mat_turbine = mat_turbine
+        self.xmax_turbine = xmax_turbine
+        self.xmin_turbine = xmin_turbine
 
-    def optimize(now, forecast, parameters = {}):
-        prob = get_optimization_problem(forecast, parameters)
+    def get_output_metadata(self):
+        return [u"electricity", u"waste_heat"]
 
-        if write_lp:
-            prob.writeLP(os.path.join(lp_out_dir, str(now).replace(":", "_")+".lp"))
+    def get_input_metadata(self):
+        return [u"natural_gas"]
 
-        convergence_time = -1
-        objective_value = -1
+    def get_optimization_parameters(self):
+        return {
+            "xmin_turbine": self.xmin_turbine,
+            "xmax_turbine": self.xmax_turbine,
+            "mat_turbine": self.mat_turbine
+        }
 
-        try:
-            if use_glpk:
-                prob.solve(pulp.solvers.GLPK_CMD(options=glpk_options))
-            else:
-                prob.solve()
-            #
-        except Exception as e:
-            _log.warning("PuLP failed: " + str(e))
-        else:
-            convergence_time = prob.solutionTime
-            objective_value = pulp.value(prob.objective)
+    def update_parameters(self, timestamp=None, **kwargs):
+        pass
 
-        status = pulp.LpStatus[prob.status]
 
-        result = {}
-
-        for var in prob.variables():
-            result[var.name] = var.varValue
-
-        result["Optimization Status"] = status
-
-        result["Objective Value"] = objective_value
-        result["Convergence Time"] = convergence_time
-
-        return result
-
-    return optimize

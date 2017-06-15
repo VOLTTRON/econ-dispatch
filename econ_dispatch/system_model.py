@@ -138,15 +138,24 @@ class SystemModel(object):
         for component in self.instance_map.itervalues():
             component.update_parameters(now, **inputs)
 
-    def run_general_optimizer(self, now, predicted_loads):
+    def run_general_optimizer(self, now, predicted_loads, parameters):
         _log.debug("Running General Optimizer")
-        results = self.optimizer(now, predicted_loads)
+        results = self.optimizer(now, predicted_loads, parameters)
 
         if self.optimizer_debug_csv is not None:
             self.optimizer_debug_csv.writerow(results, predicted_loads, now)
 
         return results
 
+    def get_parameters(self, now, inputs):
+        self.update_components(now, inputs)
+
+        results = {}
+        for component in self.instance_map.itervalues():
+            parameters = component.get_optimization_parameters()
+            results.update(parameters)
+
+        return results
 
     def run_component_optimizer(self, component_loads):
         _log.debug("Running Component Optimizer")
@@ -157,8 +166,8 @@ class SystemModel(object):
     def run(self, now, inputs):
         _log.info("Running " + str(now))
         forecasts = self.get_forecasts(now)
-        self.update_components(now, inputs)
-        component_loads = self.run_general_optimizer(now, forecasts)
+        parameters = self.get_parameters(now, inputs)
+        component_loads = self.run_general_optimizer(now, forecasts, parameters)
         self.run_component_optimizer(component_loads)
         commands = self.get_commands()
 

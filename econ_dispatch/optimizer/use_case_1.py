@@ -61,6 +61,8 @@ import pandas as pd
 import pulp
 from pulp import LpVariable
 
+from pprint import pformat
+
 import logging
 _log = logging.getLogger(__name__)
 
@@ -69,28 +71,33 @@ UNSERVE_LIMIT = 10000
 def binary_var(name):
     return LpVariable(name, 0, 1, pulp.LpInteger)
 
-def get_optimization_problem(forecast, write_lp=None):
+def get_optimization_problem(forecast, parameters={}):
     # get the model parameters and bounds for variables
     # load FuelCellPara.mat
-    m_Turbine = [0.553388269906111, 0.00770880111175251]
-    xmax_Turbine = 408.200000000000
-    xmin_Turbine = 20.5100000000000
 
-    # load BoilerPara.mat
-    m_Boiler = [[1.02338001783412, -5.47472301330830, -11.2128369305035],
-                [1.25837185026029, 1.52937309060521, 1.65693038866453]]
-    xmax_Boiler = [23.9781302213668, 44.9845991134643, 61.2098989486694]
-    xmin_Boiler = [0.149575993418693, 23.9781302213668, 44.9845991134643]
+    _log.debug("Parameters:\n"+pformat(parameters))
 
-    # load ChillerIGVPara.mat
-    m_ChillerIGV = [14.0040999536939, 35.4182417367909]
-    xmax_ChillerIGV = 2.13587853974753
-    xmin_ChillerIGV = 0.155991129307404
+    try:
+        mat_turbine = parameters["mat_turbine"]
+        xmax_turbine = parameters["xmax_turbine"]
+        xmin_turbine = parameters["xmin_turbine"]
 
-    # load AbsChillerPara.mat
-    m_AbsChiller = [1.42355081496335, 0.426344465964358]
-    xmax_AbsChiller = 7.91954964176049
-    xmin_AbsChiller = 6.55162743091095
+        # load BoilerPara.mat
+        mat_boiler = parameters["mat_boiler"]
+        xmax_boiler =  parameters["xmax_boiler"]
+        xmin_boiler =  parameters["xmin_boiler"]
+
+        # load ChillerIGVPara.mat
+        mat_chillerIGV = parameters["mat_chillerIGV"]
+        xmax_chillerIGV = parameters["xmax_chillerIGV"]
+        xmin_chillerIGV = parameters["xmin_chillerIGV"]
+
+        # load AbsChillerPara.mat
+        mat_abschiller = parameters["mat_abschiller"]
+        xmax_abschiller = parameters["xmax_abschiller"]
+        xmin_abschiller = parameters["xmin_abschiller"]
+    except KeyError as e:
+        raise RuntimeError("Missing needed configuration parameter: " + e.message)
 
 
     # component capacity
@@ -102,20 +109,20 @@ def get_optimization_problem(forecast, write_lp=None):
 
     ## compute the parameters for the optimization
     # boiler
-    xmin_Boiler[0] = cap_boiler * 0.15 # !!!need to consider cases when xmin is not in the first section of the training data
-    Nsection = np.where(xmax_Boiler > cap_boiler)[0][0]
+    xmin_boiler[0] = cap_boiler * 0.15 # !!!need to consider cases when xmin is not in the first section of the training data
+    Nsection = np.where(xmax_boiler > cap_boiler)[0][0]
     Nsection = Nsection + 1
-    xmin_Boiler = xmin_Boiler[:Nsection]
-    xmax_Boiler = xmax_Boiler[:Nsection]
-    a_boiler = m_Boiler[1][:Nsection]
-    b_boiler = m_Boiler[0][0] + a_boiler[0] * xmin_Boiler[0]
-    xmax_Boiler[-1] = cap_boiler
+    xmin_boiler = xmin_boiler[:Nsection]
+    xmax_boiler = xmax_boiler[:Nsection]
+    a_boiler = mat_boiler[1][:Nsection]
+    b_boiler = mat_boiler[0][0] + a_boiler[0] * xmin_boiler[0]
+    xmax_boiler[-1] = cap_boiler
 
     # absorption chiller
     flagabs = True
     xmin_AbsChiller = cap_abs * 0.15
-    a_abs = m_AbsChiller[1]
-    b_abs = m_AbsChiller[0] + a_abs * xmin_AbsChiller
+    a_abs = mat_abschiller[1]
+    b_abs = mat_abschiller[0] + a_abs * xmin_AbsChiller
     xmax_AbsChiller = cap_abs
 
     # chiller
@@ -125,14 +132,14 @@ def get_optimization_problem(forecast, write_lp=None):
     xmax_Chiller = []
     for i in range(n_chiller):
         xmin_Chiller.append(cap_chiller * 0.15)
-        a_chiller.append(m_ChillerIGV[1] + i * 0.01)  # adding 0.01 to the slopes to differentiate the chillers
-        b_chiller.append(m_ChillerIGV[0] + a_chiller[i] * xmin_ChillerIGV)
+        a_chiller.append(mat_chillerIGV[1] + i * 0.01)  # adding 0.01 to the slopes to differentiate the chillers
+        b_chiller.append(mat_chillerIGV[0] + a_chiller[i] * xmin_chillerIGV)
         xmax_Chiller.append(cap_chiller)
 
     # generator
     xmin_Turbine = cap_FuelCell * 0.3
-    a_E_turbine = m_Turbine[1]
-    b_E_turbine = m_Turbine[0] + a_E_turbine * xmin_Turbine
+    a_E_turbine = mat_turbine[1]
+    b_E_turbine = mat_turbine[0] + a_E_turbine * xmin_Turbine
     xmax_Turbine = cap_FuelCell
 
     a_Q_turbine = a_E_turbine - 1 / 293.1
@@ -169,7 +176,7 @@ def get_optimization_problem(forecast, write_lp=None):
         Cool_unserve = LpVariable("Cool_unserve_hour{}".format(hour), 0)
         Cool_dump = LpVariable("Cool_dump_hour{}".format(hour), 0)
 
-        E_turbinegas = LpVariable("E_turbinegas_hour{}".format(hour), xmin_Boiler[0])
+        E_turbinegas = LpVariable("E_turbinegas_hour{}".format(hour), xmin_boiler[0])
         Q_turbine = LpVariable("Q_turbine_hour{}".format(hour), 0)
         E_turbineelec = LpVariable("E_turbineelec_hour{}".format(hour), 0)
         E_turbineelec_aux = LpVariable("E_turbineelec_hour{}_aux{}".format(hour, 1), 0, xmax_Turbine - xmin_Turbine)
@@ -178,8 +185,8 @@ def get_optimization_problem(forecast, write_lp=None):
 
         Q_boiler = LpVariable("Q_boiler_hour{}".format(hour), 0)
         Q_boiler_aux = []
-        for i in range(len(xmax_Boiler)):
-            var = LpVariable("Q_boiler_hour{}_aux{}".format(hour, i), 0, xmax_Boiler[i] - xmin_Boiler[i])
+        for i in range(len(xmax_boiler)):
+            var = LpVariable("Q_boiler_hour{}_aux{}".format(hour, i), 0, xmax_boiler[i] - xmin_boiler[i])
             Q_boiler_aux.append(var)
 
         E_chillerelec = []
@@ -281,16 +288,16 @@ def get_optimization_problem(forecast, write_lp=None):
         exp = Q_boiler
         for q in Q_boiler_aux:
             exp = exp - q
-        exp = exp - xmin_Boiler[0] * Sboiler
+        exp = exp - xmin_boiler[0] * Sboiler
         exp = exp == 0
         constraints.append((exp, label))
 
         label = "BoilerQlower{}".format(hour)
-        exp = Q_boiler - xmin_Boiler[0] * Sboiler >= 0
+        exp = Q_boiler - xmin_boiler[0] * Sboiler >= 0
         constraints.append((exp, label))
 
         label = "BoilerQupper{}".format(hour)
-        exp = Q_boiler - xmax_Boiler[-1] * Sboiler <= 0
+        exp = Q_boiler - xmax_boiler[-1] * Sboiler <= 0
         constraints.append((exp, label))
 
         # chillers

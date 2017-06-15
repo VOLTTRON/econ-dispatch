@@ -69,6 +69,14 @@ class Component(ComponentBase):
         super(Component, self).__init__(**kwargs)
 
         self.history_data_file = history_data_file
+        self.historical_data = {}
+        self.cached_parameters = {}
+
+        #Set to True whenever seomthing happens that causes us to need to recalculate
+        # the optimization parameters.
+        self.opt_params_dirty = True
+
+        self.setup_historical_data()
 
         # Building heating load assigned to Boiler
         self.Qbp = 55
@@ -88,6 +96,21 @@ class Component(ComponentBase):
             # Use part load curve for 'atmospheric' boiler from http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.553.4931&rep=rep1&type=pdf
             self.polynomial_coeffs = (0.6978, 3.3745, -15.632, 32.772, -31.45, 11.268)
 
+    def setup_historical_data(self):
+        with open(self.history_data_file, 'r') as f:
+            historical_data = json.load(f)
+
+        Gbp = np.array(historical_data["boiler_gas_input"])
+        Qbp = np.array(historical_data["boiler_heat_output"])
+
+        sort_indexes = np.argsort(Qbp)
+        Qbp = Qbp[sort_indexes]
+        Gbp = Gbp[sort_indexes]
+
+        self.historical_data["boiler_gas_input"] = Gbp
+        self.historical_data["boiler_heat_output"] = Qbp
+
+
     def get_output_metadata(self):
         return [u"heated_water"]
 
@@ -95,15 +118,12 @@ class Component(ComponentBase):
         return [u"natural_gas"]
 
     def get_optimization_parameters(self):
-        with open(self.history_data_file, 'r') as f:
-            historical_data = json.load(f)
 
-        Gbp = np.array(historical_data["boiler_gas_input"])
-        Qbp = np.array(historical_data["boiler_heat_output"])
-    
-        sort_indexes = np.argsort(Qbp)
-        Qbp = Qbp[sort_indexes]
-        Gbp = Gbp[sort_indexes]
+        if not self.opt_params_dirty:
+            return self.cached_parameters.copy()
+
+        Qbp = self.historical_data["boiler_heat_output"]
+        Gbp = self.historical_data["boiler_gas_input"]
     
         n1 = np.nonzero(Qbp < 24)[-1][-1]
         n2 = np.nonzero(Qbp < 45)[-1][-1]
@@ -132,12 +152,14 @@ class Component(ComponentBase):
     
         m_Boiler[1][1] = (y2 - y1) / (x2 - x1)
         m_Boiler[0][1] = y1 - m_Boiler[1][1] * x1
-    
-        return {
-            "xmin_Boiler": xmin_Boiler,
-            "xmax_Boiler": xmax_Boiler,
-            "m_Boiler": m_Boiler
-        }
+
+        self.cached_parameters = {
+                                    "xmin_Boiler": xmin_Boiler,
+                                    "xmax_Boiler": xmax_Boiler,
+                                    "m_Boiler": m_Boiler
+                                }
+        self.opt_params_dirty = False
+        return self.cached_parameters.copy()
 
     def update_parameters(self, Qbp=DEFAULT_QBP):
         self.Qbp = Qbp
@@ -157,21 +179,16 @@ class Component(ComponentBase):
     def train(self):
         # This module reads the historical data on boiler heat output and
         # gas heat input both in mmBTU/hr then, converts
-        # the data to proper units which then will be used for model training. At
-        # the end, regression coefficients will be written to a file
-
-        # data_file = os.path.join(os.path.dirname(__file__), 'Boiler-Historical-Data.json')
-        with open(self.history_data_file, 'r') as f:
-            historical_data = json.load(f)
+        # the data to proper units which then will be used for model training.
 
         # boiler gas input in mmBTU
         # Note from Nick Fernandez: Most sites will not have metering for gas inlet
         # to the boiler.  I'm creating a second option to use a defualt boiler
         # curve
-        Gbp = historical_data["boiler_gas_input"]
+        Gbp = self.historical_data["boiler_gas_input"]
 
         # boiler heat output in mmBTU
-        Qbp = historical_data["boiler_heat_output"]
+        Qbp = self.historical_data["boiler_heat_output"]
 
         i = len(Gbp)
 
