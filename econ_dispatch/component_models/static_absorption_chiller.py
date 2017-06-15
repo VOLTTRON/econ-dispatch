@@ -55,61 +55,51 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
-import pulp
-import logging
-_log = logging.getLogger(__name__)
-import os.path
+import json
 import os
+import numpy as np
 
-def get_optimization_function(config):
-    name = config["name"]
-    write_lp = config.get("write_lp", False)
-    use_glpk = config.get("use_glpk", False)
-    glpk_options = config.get("glpk_options", [])
-    lp_out_dir = config.get("lp_out_dir", "lps")
+from econ_dispatch.component_models import ComponentBase
+from econ_dispatch.utils import least_squares_regression
 
-    if write_lp:
-        try:
-            os.makedirs(lp_out_dir)
-        except Exception:
-            pass
 
-    module = __import__(name, globals(), locals(), ['get_optimization_problem'], 1)
-    get_optimization_problem = module.get_optimization_problem
+def fahrenheit_to_kelvin(t):
+    return (t - 32) / 1.8 + 273.15
 
-    def optimize(now, forecast, parameters = {}):
-        prob = get_optimization_problem(forecast, parameters)
 
-        if write_lp:
-            prob.writeLP(os.path.join(lp_out_dir, str(now).replace(":", "_")+".lp"))
+DEFAULT_TCHO = 45.8
+DEFAULT_TCDI = 83.7
+DEFAULT_TGENI = 335
+DEFAULT_QIN = 8.68
 
-        convergence_time = -1
-        objective_value = -1
 
-        try:
-            if use_glpk:
-                prob.solve(pulp.solvers.GLPK_CMD(options=glpk_options))
-            else:
-                prob.solve()
-            #
-        except Exception as e:
-            _log.warning("PuLP failed: " + str(e))
-        else:
-            convergence_time = prob.solutionTime
-            objective_value = pulp.value(prob.objective)
+class Component(ComponentBase):
+    def __init__(self, mat_abschill = [], xmax_abschill = 0.0, xmin_abschill = 0.0, **kwargs):
+        super(Component, self).__init__(**kwargs)
+        self.mat_abschill = mat_abschill
+        self.xmax_abschill = xmax_abschill
+        self.xmin_abschill = xmin_abschill
 
-        status = pulp.LpStatus[prob.status]
+    def get_output_metadata(self):
+        return [u"chilled_water"]
 
-        result = {}
+    def get_input_metadata(self):
+        return [u"heat"]
 
-        for var in prob.variables():
-            result[var.name] = var.varValue
+    def get_optimization_parameters(self):
+        return {
+            "xmin_abschiller": self.xmin_abschill,
+            "xmax_abschiller": self.xmax_abschill,
+            "mat_abschiller": self.mat_abschill
+        }
 
-        result["Optimization Status"] = status
+    def update_parameters(self,
+                          Tcho=DEFAULT_TCHO,
+                          Tcdi=DEFAULT_TCDI,
+                          Tgeni=DEFAULT_TGENI,
+                          Qin=DEFAULT_QIN):
+        self.Tcho = Tcho
+        self.Tcdi = Tcdi
+        self.Tgeni = Tgeni
+        self.Qin = Qin
 
-        result["Objective Value"] = objective_value
-        result["Convergence Time"] = convergence_time
-
-        return result
-
-    return optimize
