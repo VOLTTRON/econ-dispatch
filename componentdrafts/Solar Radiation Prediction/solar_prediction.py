@@ -148,7 +148,7 @@ def deployment(model1, model2):
     # Why is this here if t2 is always set to 10?
     # a = clock
     # t2 = a(4)
-    t2 = 8
+    t2 = 10
 
     #----------------------------------------------------------------------
     #Reading input variable values from Data file
@@ -273,34 +273,24 @@ def deployment(model1, model2):
 
     elif t2 == 9:
         ci[i+1] = ci[i+1]+1
-        pr4[i+1, ci[i+1]] = max(data[i+1, 0:9] * mo1.T, 0)
-        x[1:7] = data[i+2, 1:7]
-        x[8] = pr4[i+1, ci[i+1]]
-        x[9] = pr4[i, ci[i+2]]
+        pr4[i+1, ci[i+1]-1] = max(np.dot(data[i+1, 0:9], mo1), 0)
+
+        x[0:7] = data[i+2, 0:7]
+        x[7] = pr4[i+1, ci[i+1]-1]
+        x[8] = pr4[i, ci[i+2]-1]
         ci[i+2] = ci[i+2]+1
-        pr4[i+2, ci[i+2]] = max(x * mo1.T, 0)
-        x[1:7] = data[i+3, 1:7]
-        x[8] = pr4[i+2, ci[i+2]]
-        x[9] = pr4[i+1, ci[i+2]]
+        pr4[i+2, ci[i+2]-1] = max(np.dot(x, mo1), 0)
+
+        x[0:7] = data[i+3, 0:7]
+        x[7] = pr4[i+2, ci[i+2]-1]
+        x[8] = pr4[i+1, ci[i+2]-1]
         ci[i+3] = ci[i+3]+1
-        pr4[i+3, ci[i+3]] = max(x * mo1.T, 0)
+        pr4[i+3, ci[i+3]-1] = max(np.dot(x, mo1), 0)
 
+    return pr4, pr24, ci
 
-    print "updated deployment data"
-    print "pr4"
-    for x in pr4:
-        print x
-
-    print "pr24"
-    for x in pr24:
-        print x
-
-    print "ci", ci
 
 
 if __name__ == '__main__':
     model1, model2 = training()
-    # print model1
-    # print model2
-
-    deployment(model1, model2)
+    pr4, pr24, ci = deployment(model1, model2)
