@@ -1,3 +1,5 @@
+import datetime
+
 import numpy as np
 import pandas as pd
 
@@ -109,8 +111,6 @@ def training():
 
     x1 = np.column_stack((Id, T, CC, CC24, I24, CC1, CC2, I1, I2))
 
-    print "x1.dtype", x1.dtype
-
     # x2(1:8736, 1) = Id
     # x2(1:8736, 2) = T
     # x2(1:8736, 3) = CC
@@ -139,19 +139,21 @@ def training():
         X, residuals, rank, s = np.linalg.lstsq(Aw, Bw)
         model2[i] = X
 
-
-
     return model1, model2
 
 
-# def deployment(model1, model2):
-    # #getting the current time which determines how the prediction method should
-    # #work
+def deployment(model1, model2):
+    #getting the current time which determines how the prediction method should
+    #work
+
+    # Why is this here if t2 is always set to 10?
     # a = clock
     # t2 = a(4)
-    # t2 = 10
-    # #----------------------------------------------------------------------
-    # #Reading input variable values from Data file
+    t2 = 10
+
+    #----------------------------------------------------------------------
+    #Reading input variable values from Data file
+    data = pd.read_csv("Deployment_Data.csv", header=0)
     # t = xlsread('Deployment_Data.xlsx', 'a2:a13')
     # cc = xlsread('Deployment_Data.xlsx', 'b2:b13')
     # cc24 = xlsread('Deployment_Data.xlsx', 'c2:c13')
@@ -159,101 +161,143 @@ def training():
     # I24 = xlsread('Deployment_Data.xlsx', 'e2:e13')
     # pr4 =  xlsread('Deployment_Data.xlsx', 'f2:I13')
     # ci = xlsread('Deployment_Data.xlsx', 'k2:k13')
-    # #Specifying the number of predictions that will be made for each time period
-    # np = [2, 2, 4, 4, 4, 4, 4, 4, 4, 3, 2, 1]
 
-    # #-------------------------------------------------------------------
-    # #Telling to model the current month. This will be used to choose model.
+    t = data["Time"].values
+    cc = data["CC"].values
+    cc24 = data["CC t-24"].values
+    I = data["I"].values
+    I24 = data["I t-24"].values
+
+    # pr4 = xlsread('Deployment_Data.xlsx', 'f2:bI13')
+    h1 = data["1-Hour Ahead Prediction"].values
+    h2 = data["2-Hour Ahead Prediction"].values
+    h3 = data["3-Hour Ahead Prediction"].values
+    h4 = data["4-Hour Ahead Prediction"].values
+    pr4 = np.column_stack((h1, h2, h3, h4))
+
+    ci = data["Current Index"].values
+
+    #Specifying the number of predictions that will be made for each time period
+    n_predictions = [2, 2, 4, 4, 4, 4, 4, 4, 4, 3, 2, 1]
+
+    #-------------------------------------------------------------------
+    #Telling to model the current month. This will be used to choose model.
     # v = datevec(now)
     # month = v(2)
-    # #selecting appropriate models
+    month = datetime.datetime.now().month
+
+    # adjust for indexes by zero
+    month = month - 1
+
+    #selecting appropriate models
     # mo1 = model1(month, 1:9)
     # mo2 = model2(month, 1:5)
-    # #------------------------------------------------
-    # #Defining zero matrices and vectors
-    # le = np.zeros(4, 2)
-    # e = np.zeros(4, 4)
-    # data = np.zeros(12, 9)
-    # pr24 = np.zeros(12, 1)
-    # #--------------------------------------------------
-    # #fiiling the first column of data with 1's
-    # data(1:12, 1) = np.zeros(12, 1)+1
-    # #Putting input variables into the data matrix
-    # data(1:12, 2) = t
-    # data(1:12, 3) = cc
-    # data(1:12, 4) = cc24
-    # data(1:12, 5) = I24
-    # #-----------------------------------------
-    # #calculating and filling in the first lag of cloud covre and radiarion
-    #  data(2:12, 6) = cc(1:11)
-    #  data(2:12, 8) = I(1:11)
-    # #calculating and filling the second lag of cloud cover and radiation
-    # data(3:12, 7) = cc(1:10)
-    # data(3:12, 9) = I(1:10)
-    # #-------------------------------------------------------
-    # #calculating 24-hours predictions
-    # for i = 1:12
-    #     # pr24(i) = max(data(i, 1:5) * mo2' , 0) # complex conjugate transpose?
-    # end
-    # #obtaining i as the index
-    # i = t2-7
-    # #-----------------------
-    # #x = data(time-7, 1:9)
-    # if t2 > = 10 && t2 < = 19
-    #    #setting the number of predictions that will be made at ach time
-    #    k = np(i)
-    #    #-------------------------------------------------------------------
-    #    for j = 0:k-1
-    #        #The following lines of code updates  the last estimate for the time period of interest
-    #        if j == 0
-    #           ci(i) = ci(i)+1
-    #           # pr4(i, ci(i)) = max(data(i, 1:9) * mo1', 0) # complex conjugate transpose?
-    #        else
-    #            x(1:7) = data(t2-7+j, 1:7)
-    #            x(8) = pr4(i+j-1, ci(i+j-1))
-    #            x(9) = pr4(i+j-2, ci(i+j-2))
-    #            ci(i+j) = ci(i+j)+1
-    #            # pr4(i+j, ci(i+j)) = max(x * mo1', 0) # complex conjugate transpose?
-    #        end
-    #    end
-    # elseif t2 == 8
-    #         ci(i) = ci(i)+1
-    #         # pr4(i, ci(i)) = max(data(i, 1:5) * mo2', 0)
-    #         ci(i+1) = ci(i+1)+1
-    #         # pr4(i+1, ci(i)) = max(data(i+1, 1:5) * mo2', 0)
-    #         x(1:7) = data(i+2, 1:7)
-    #         x(8) = pr4(i+1, ci(i+1))
-    #         x(9) = pr4(i, ci(i))
-    #         ci(i+2) = ci(i+2)+1
-    #         # pr4(i+2, ci(i+2)) = max(x * mo1', 0)
-    #         x(1:7) = data(i+3, 1:7)
-    #         x(8) = pr4(i+2, ci(i+2))
-    #         x(9) = pr4(i+1, ci(i+1))
-    #         ci(i+3) = ci(i+3)+1
-    #         # pr4(i+3, ci(i+3)) = max(x * mo1', 0)
-    #     elseif t2 == 9
-    #         ci(i+1) = ci(i+1)+1
-    #         # pr4(i+1, ci(i+1)) = max(data(i+1, 1:9) * mo1', 0)
-    #         x(1:7) = data(i+2, 1:7)
-    #         x(8) = pr4(i+1, ci(i+1))
-    #         x(9) = pr4(i, ci(i+2))
-    #         ci(i+2) = ci(i+2)+1
-    #         # pr4(i+2, ci(i+2)) = max(x * mo1', 0)
-    #         x(1:7) = data(i+3, 1:7)
-    #         x(8) = pr4(i+2, ci(i+2))
-    #         x(9) = pr4(i+1, ci(i+2))
-    #         ci(i+3) = ci(i+3)+1
-    #         # pr4(i+3, ci(i+3)) = max(x * mo1', 0)
-    # end
+    mo1 = model1[month]
+    mo2 = model2[month]
 
-    # print "updated deployment data"
-    # print "pr4", pr4
-    # print "pr24", pr24
-    # print "ci", ci
+
+    #------------------------------------------------
+    #Defining zero matrices and vectors
+    le = np.zeros((4, 2))
+    e = np.zeros((4, 4))
+    data = np.zeros((12, 9))
+    pr24 = np.zeros(12)
+
+    #--------------------------------------------------
+    #fiiling the first column of data with 1's
+    data[:,0] = np.ones(12)
+
+    #Putting input variables into the data matrix
+    data[:, 1] = t
+    data[:, 2] = cc
+    data[:, 3] = cc24
+    data[:, 4] = I24
+
+    #-----------------------------------------
+    #calculating and filling in the first lag of cloud covre and radiarion
+    data[1:, 5] = cc[:-1]
+    data[1:, 7] = I[:-1]
+
+    #calculating and filling the second lag of cloud cover and radiation
+    data[2:, 6] = cc[:-2]
+    data[2:, 8] = I[:-2]
+
+    #-------------------------------------------------------
+    #calculating 24-hours predictions
+    for i in range(12):
+        pr24[i] = max(np.dot(data[i, 0:5], mo2), 0)
+
+
+    #obtaining i as the index, adjusted for zero indexes
+    i = t2 - 7 - 1
+
+    #-----------------------
+    #x = data(time-7, 1:9)
+
+    x = np.zeros(9)
+    if t2 >= 10 and t2 <= 19:
+       #setting the number of predictions that will be made at ach time
+       k = n_predictions[i]
+       #-------------------------------------------------------------------
+       for j in range(k):
+           #The following lines of code update the last estimate for the time period of interest
+           if j == 0:
+
+               pr4[i, ci[i]] = max(np.dot(data[i], mo1), 0)
+               ci[i] = ci[i]+1
+           else:
+               x[0:7] = data[t2 - 7 + j - 1, 0:7]
+               x[7] = pr4[i+j-1, ci[i+j-1] - 1]
+               x[8] = pr4[i+j-2, ci[i+j-2] - 1]
+
+               pr4[i+j, ci[i+j]] = max(np.dot(x, mo1), 0)
+               ci[i+j] = ci[i+j] + 1
+
+    elif t2 == 8:
+        ci[i] = ci[i]+1
+        pr4[i, ci[i]] = max(data[i, 1:5] * mo.T, 0)
+        ci[i+1] = ci[i+1]+1
+        pr4[i+1, ci[i]] = max(data[i+1, 1:5] * mo2.T, 0)
+        x[1:7] = data[i+2, 1:7]
+        x[8] = pr4[i+1, ci[i+1]]
+        x[9] = pr4[i, ci[i]]
+        ci[i+2] = ci[i+2]+1
+        pr4[i+2, ci[i+2]] = max(x * mo1.T, 0)
+        x[1:7] = data[i+3, 1:7]
+        x[8] = pr4[i+2, ci[i+2]]
+        x[9] = pr4[i+1, ci[i+1]]
+        ci[i+3] = ci[i+3]+1
+        pr4[i+3, ci[i+3]] = max(x * mo1.T, 0)
+    elif t2 == 9:
+        ci[i+1] = ci[i+1]+1
+        pr4[i+1, ci[i+1]] = max(data[i+1, 1:9] * mo1.T, 0)
+        x[1:7] = data[i+2, 1:7]
+        x[8] = pr4[i+1, ci[i+1]]
+        x[9] = pr4[i, ci[i+2]]
+        ci[i+2] = ci[i+2]+1
+        pr4[i+2, ci[i+2]] = max(x * mo1.T, 0)
+        x[1:7] = data[i+3, 1:7]
+        x[8] = pr4[i+2, ci[i+2]]
+        x[9] = pr4[i+1, ci[i+2]]
+        ci[i+3] = ci[i+3]+1
+        pr4[i+3, ci[i+3]] = max(x * mo1.T, 0)
+
+
+    print "updated deployment data"
+    print "pr4"
+    for x in pr4:
+        print x
+
+    print "pr24"
+    for x in pr24:
+        print x
+
+    print "ci", ci
 
 
 if __name__ == '__main__':
     model1, model2 = training()
     print model1
     print model2
-    # deployment(model1, model2)
+
+    deployment(model1, model2)
