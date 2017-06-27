@@ -1,5 +1,4 @@
 import datetime
-
 import numpy as np
 import pandas as pd
 
@@ -149,7 +148,7 @@ def deployment(model1, model2):
     # Why is this here if t2 is always set to 10?
     # a = clock
     # t2 = a(4)
-    t2 = 10
+    t2 = 8
 
     #----------------------------------------------------------------------
     #Reading input variable values from Data file
@@ -255,22 +254,26 @@ def deployment(model1, model2):
 
     elif t2 == 8:
         ci[i] = ci[i]+1
-        pr4[i, ci[i]] = max(data[i, 1:5] * mo.T, 0)
+        pr4[i, ci[i]-1] = max(np.dot(data[i, 0:5], mo2), 0)
+
         ci[i+1] = ci[i+1]+1
-        pr4[i+1, ci[i]] = max(data[i+1, 1:5] * mo2.T, 0)
-        x[1:7] = data[i+2, 1:7]
-        x[8] = pr4[i+1, ci[i+1]]
-        x[9] = pr4[i, ci[i]]
+        pr4[i+1, ci[i]-1] = max(np.dot(data[i+1, 0:5], mo2), 0)
+
+        x[0:7] = data[i+2, 0:7]
+        x[7] = pr4[i+1, ci[i+1]-1]
+        x[8] = pr4[i, ci[i]-1]
         ci[i+2] = ci[i+2]+1
-        pr4[i+2, ci[i+2]] = max(x * mo1.T, 0)
-        x[1:7] = data[i+3, 1:7]
-        x[8] = pr4[i+2, ci[i+2]]
-        x[9] = pr4[i+1, ci[i+1]]
+        pr4[i+2, ci[i+2]-1] = max(np.dot(x, mo1), 0)
+
+        x[0:7] = data[i+3, 0:7]
+        x[7] = pr4[i+2, ci[i+2]-1]
+        x[8] = pr4[i+1, ci[i+1]-1]
         ci[i+3] = ci[i+3]+1
-        pr4[i+3, ci[i+3]] = max(x * mo1.T, 0)
+        pr4[i+3, ci[i+3]-1] = max(np.dot(x, mo1), 0)
+
     elif t2 == 9:
         ci[i+1] = ci[i+1]+1
-        pr4[i+1, ci[i+1]] = max(data[i+1, 1:9] * mo1.T, 0)
+        pr4[i+1, ci[i+1]] = max(data[i+1, 0:9] * mo1.T, 0)
         x[1:7] = data[i+2, 1:7]
         x[8] = pr4[i+1, ci[i+1]]
         x[9] = pr4[i, ci[i+2]]
@@ -297,7 +300,7 @@ def deployment(model1, model2):
 
 if __name__ == '__main__':
     model1, model2 = training()
-    print model1
-    print model2
+    # print model1
+    # print model2
 
     deployment(model1, model2)
