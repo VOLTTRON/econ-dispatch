@@ -94,33 +94,44 @@ class Component(ComponentBase):
         self.gen_start = 5.0
         self.gen_hours = 7000.0
 
-        self.gen_data_file = gen_data_file
+        self.training_data = {}
+        self.cached_parameters = {}
+
+        self.setup_training_data(gen_data_file)
+
+        # Set to True whenever something happens that causes us to need to recalculate
+        # the optimization parameters.
+        self.opt_params_dirty = True
+
         
     def get_output_metadata(self):
-        return ""
+        return [u"electricity"]
 
     def get_input_metadata(self):
         return ""
 
+    def setup_training_data(self, gen_data_file):
+        self.training_data = pd.read_csv(self.gen_data_file, header=0)
+
     def get_optimization_parameters(self):
-        # load data
-        training_data = pd.read_csv(self.gen_data_file, header=0)
+        if not self.opt_params_dirty:
+            return self.cached_parameters.copy()
 
-        Valid = training_data['Valid'].values
+        Valid = self.training_data['Valid'].values
 
-        Power = training_data['Power'].values
+        Power = self.training_data['Power'].values
         Power = Power[Valid]
 
-        AmbTemperature = training_data['AmbTemperature'].values
+        AmbTemperature = self.training_data['AmbTemperature'].values
         AmbTemperature = AmbTemperature[Valid]
         
-        Start = training_data['Start'].values
+        Start = self.training_data['Start'].values
         Start = Start[Valid]
         
-        Hours = training_data['Hours'].values
+        Hours = self.training_data['Hours'].values
         Hours = Hours[Valid]
 
-        FuelFlow, ExhaustFlow, ExhaustTemperature, NetEfficiency = self.FuelCell_Operate_new(Coef, Power, AmbTemperature, Start, Hours)
+        FuelFlow, ExhaustFlow, ExhaustTemperature, NetEfficiency = self.FuelCell_Operate(Coef, Power, AmbTemperature, Start, Hours)
 
         sort_indexes = np.argsort(Power)
         Xdata = Power[sort_indexes]
@@ -134,11 +145,14 @@ class Component(ComponentBase):
 
         m_Turbine = least_squares_regression(inputs=Xdata[n1:n2], output=Ydata[n1:n2])
 
-        return {
-            "m_Turbine": m_Turbine,
+        self.cached_parameters = {
+            "m_Turbine": m_Turbine.tolist(),
             "xmin_Turbine": xmin_Turbine,
             "xmax_Turbine": xmax_Turbine
         }
+
+        self.opt_params_dirty = False
+        return self.cached_parameters.copy()
 
     def update_parameters(self, **kwargs):
         pass

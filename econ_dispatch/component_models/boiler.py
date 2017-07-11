@@ -79,36 +79,32 @@ class Component(ComponentBase):
         self.setup_historical_data()
 
         # Building heating load assigned to Boiler
-        self.Qbp = 55
+        self.current_Qbp = 55
 
-        # Boiler Nameplate parameters (User Inputs)
-        self.Qbprated = 60 #mmBtu/hr
-        self.Gbprated = 90 # mmBtu/hr
-
-        # NG heat Content 950 Btu/ft3 is assumed
-        self.HC = 0.03355
-
-        GasInputSubmetering = True #Is metering of gas input to the boilers available? If not, we can't build a regression, and instead will rely on default boiler part load efficiency curves
-        if GasInputSubmetering:
-            # ********* 5-degree polynomial model coefficients from training*****
-            self.polynomial_coeffs = self.train()
-        else:
-            # Use part load curve for 'atmospheric' boiler from http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.553.4931&rep=rep1&type=pdf
-            self.polynomial_coeffs = (0.6978, 3.3745, -15.632, 32.772, -31.45, 11.268)
+        # # Boiler Nameplate parameters (User Inputs)
+        # self.Qbprated = 60 #mmBtu/hr
+        # self.Gbprated = 90 # mmBtu/hr
+        #
+        # # NG heat Content 950 Btu/ft3 is assumed
+        # self.HC = 0.03355
+        #
+        # GasInputSubmetering = True #Is metering of gas input to the boilers available? If not, we can't build a regression, and instead will rely on default boiler part load efficiency curves
+        # if GasInputSubmetering:
+        #     # ********* 5-degree polynomial model coefficients from training*****
+        #     self.polynomial_coeffs = self.train()
+        # else:
+        #     # Use part load curve for 'atmospheric' boiler from http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.553.4931&rep=rep1&type=pdf
+        #     self.polynomial_coeffs = (0.6978, 3.3745, -15.632, 32.772, -31.45, 11.268)
 
     def setup_historical_data(self):
         with open(self.history_data_file, 'r') as f:
             historical_data = json.load(f)
 
-        Gbp = np.array(historical_data["boiler_gas_input"])
-        Qbp = np.array(historical_data["boiler_heat_output"])
+        historical_Gbp = np.array(historical_data["boiler_gas_input"])
+        historical_Qbp = np.array(historical_data["boiler_heat_output"])
 
-        sort_indexes = np.argsort(Qbp)
-        Qbp = Qbp[sort_indexes]
-        Gbp = Gbp[sort_indexes]
-
-        self.historical_data["boiler_gas_input"] = Gbp
-        self.historical_data["boiler_heat_output"] = Qbp
+        self.historical_data["boiler_gas_input"] = historical_Gbp
+        self.historical_data["boiler_heat_output"] = historical_Qbp
 
 
     def get_output_metadata(self):
@@ -122,96 +118,109 @@ class Component(ComponentBase):
         if not self.opt_params_dirty:
             return self.cached_parameters.copy()
 
-        Qbp = self.historical_data["boiler_heat_output"]
-        Gbp = self.historical_data["boiler_gas_input"]
+        historical_Qbp = self.historical_data["boiler_heat_output"]
+        historical_Gbp = self.historical_data["boiler_gas_input"]
+
+        sort_indexes = np.argsort(historical_Qbp)
+        historical_Qbp = historical_Qbp[sort_indexes]
+        historical_Gbp = historical_Gbp[sort_indexes]
     
-        n1 = np.nonzero(Qbp < 24)[-1][-1]
-        n2 = np.nonzero(Qbp < 45)[-1][-1]
+        n1 = np.nonzero(historical_Qbp < 24)[-1][-1]
+        n2 = np.nonzero(historical_Qbp < 45)[-1][-1]
     
-        xmin_Boiler = np.zeros(3)
-        xmax_Boiler = np.zeros(3)
+        xmin_boiler = np.zeros(3)
+        xmax_boiler = np.zeros(3)
     
-        m1 = least_squares_regression(inputs=Qbp[  :n1], output=Gbp[  :n1])
-        m2 = least_squares_regression(inputs=Qbp[n1:n2], output=Gbp[n1:n2])
-        m3 = least_squares_regression(inputs=Qbp[n2:  ], output=Gbp[n2:  ])
+        m1 = least_squares_regression(inputs=historical_Qbp[  :n1+1], output=historical_Gbp[  :n1+1])
+        m2 = least_squares_regression(inputs=historical_Qbp[n1:n2+1], output=historical_Gbp[n1:n2+1])
+        m3 = least_squares_regression(inputs=historical_Qbp[n2:  ], output=historical_Gbp[n2:  ])
     
-        m_Boiler = np.array([m1,m2,m3]).T
+        mat_boiler = np.array([m1,m2,m3]).T
     
-        xmax_Boiler[0] = max(Qbp[  :n1])
-        xmax_Boiler[1] = max(Qbp[n1:n2])
-        xmax_Boiler[2] = max(Qbp[n2:  ])
+        xmax_boiler[0] = max(historical_Qbp[  :n1+1])
+        xmax_boiler[1] = max(historical_Qbp[n1:n2+1])
+        xmax_boiler[2] = max(historical_Qbp[n2:  ])
     
-        xmin_Boiler[0] = min(Qbp[:n1])
-        xmin_Boiler[1] = xmax_Boiler[0]
-        xmin_Boiler[2] = xmax_Boiler[1]
+        xmin_boiler[0] = min(historical_Qbp[:n1+1])
+        xmin_boiler[1] = xmax_boiler[0]
+        xmin_boiler[2] = xmax_boiler[1]
     
-        x1 = xmax_Boiler[0]
-        x2 = xmin_Boiler[2]
-        y1 = m_Boiler[0][0] + m_Boiler[1][0] * xmax_Boiler[0]
-        y2 = m_Boiler[0][2] + m_Boiler[1][2] * xmin_Boiler[2]
+        x1 = xmax_boiler[0]
+        x2 = xmin_boiler[2]
+        y1 = mat_boiler[0][0] + mat_boiler[1][0] * xmax_boiler[0]
+        y2 = mat_boiler[0][2] + mat_boiler[1][2] * xmin_boiler[2]
     
-        m_Boiler[1][1] = (y2 - y1) / (x2 - x1)
-        m_Boiler[0][1] = y1 - m_Boiler[1][1] * x1
+        mat_boiler[1][1] = (y2 - y1) / (x2 - x1)
+        mat_boiler[0][1] = y1 - mat_boiler[1][1] * x1
 
         self.cached_parameters = {
-                                    "xmin_Boiler": xmin_Boiler,
-                                    "xmax_Boiler": xmax_Boiler,
-                                    "m_Boiler": m_Boiler
+                                    "xmin_boiler": xmin_boiler.tolist(),
+                                    "xmax_boiler": xmax_boiler.tolist(),
+                                    "mat_boiler": mat_boiler.tolist()
                                 }
         self.opt_params_dirty = False
         return self.cached_parameters.copy()
 
     def update_parameters(self, Qbp=DEFAULT_QBP):
-        self.Qbp = Qbp
+        self.current_Qbp = Qbp
 
-    def predict(self):
-        a0, a1, a2, a3, a4, a5 = self.polynomial_coeffs
-        if self.Qbp > self.Qbprated:
-            Qbp = self.Qbprated
-        else:
-            Qbp = self.Qbp
-
-        xbp = Qbp / self.Qbprated # part load ratio
-        ybp = a0 + a1*xbp + a2*(xbp)**2 + a3*(xbp)**3 + a4*(xbp)**4 + a5*(xbp)**5# relative efficiency (multiplier to ratred efficiency)
-        Gbp = (Qbp * self.Gbprated) / (ybp * self.Qbprated)# boiler gas heat input in mmBtu
-        FC = Gbp / self.HC #fuel consumption in cubic meters per hour
-
-    def train(self):
-        # This module reads the historical data on boiler heat output and
-        # gas heat input both in mmBTU/hr then, converts
-        # the data to proper units which then will be used for model training.
-
-        # boiler gas input in mmBTU
-        # Note from Nick Fernandez: Most sites will not have metering for gas inlet
-        # to the boiler.  I'm creating a second option to use a defualt boiler
-        # curve
-        Gbp = self.historical_data["boiler_gas_input"]
-
-        # boiler heat output in mmBTU
-        Qbp = self.historical_data["boiler_heat_output"]
-
-        i = len(Gbp)
-
-        # ****** Static Inputs (Rating Condition + Natural Gas Heat Content *******
-        Qbprated = 60 #boiler heat output at rated condition - user input (mmBtu)
-        Gbprated = 90 #boiler gas heat input at rated condition - user input (mmBtu)
-        #**************************************************************************
-
-        xbp = np.zeros(i)
-        xbp2 = np.zeros(i)
-        xbp3 = np.zeros(i)
-        xbp4 = np.zeros(i)
-        xbp5 = np.zeros(i)
-        ybp = np.zeros(i)
-
-        for a in range(i):
-            xbp[a] = Qbp[a] / Qbprated
-            xbp2[a] = xbp[a]**2
-            xbp3[a] = xbp[a]**3
-            xbp4[a] = xbp[a]**4
-            xbp5[a] = xbp[a]**5
-            ybp[a] = (Qbp[a] / Gbp[a]) / (float(Qbprated) / float(Gbprated))
-
-        regression_columns = xbp, xbp2, xbp3, xbp4, xbp5
-        AA = least_squares_regression(inputs=regression_columns, output=ybp)
-        return AA
+    # def predict(self):
+    #     a0, a1, a2, a3, a4, a5 = self.polynomial_coeffs
+    #     if self.current_Qbp > self.Qbprated:
+    #         Qbp = self.Qbprated
+    #     else:
+    #         Qbp = self.current_Qbp
+    #
+    #     xbp = Qbp / self.Qbprated # part load ratio
+    #     ybp = a0 + a1*xbp + a2*(xbp)**2 + a3*(xbp)**3 + a4*(xbp)**4 + a5*(xbp)**5# relative efficiency (multiplier to ratred efficiency)
+    #     Gbp = (Qbp * self.Gbprated) / (ybp * self.Qbprated)# boiler gas heat input in mmBtu
+    #     FC = Gbp / self.HC #fuel consumption in cubic meters per hour
+    #
+    # def train(self):
+    #     # This module reads the historical data on boiler heat output and
+    #     # gas heat input both in mmBTU/hr then, converts
+    #     # the data to proper units which then will be used for model training.
+    #
+    #     # boiler gas input in mmBTU
+    #     # Note from Nick Fernandez: Most sites will not have metering for gas inlet
+    #     # to the boiler.  I'm creating a second option to use a defualt boiler
+    #     # curve
+    #     historical_Gbp = self.historical_data["boiler_gas_input"]
+    #
+    #     # boiler heat output in mmBTU
+    #     historical_Qbp = self.historical_data["boiler_heat_output"]
+    #
+    #     i = len(historical_Gbp)
+    #
+    #     # ****** Static Inputs (Rating Condition + Natural Gas Heat Content *******
+    #     Qbprated = 60.0 #boiler heat output at rated condition - user input (mmBtu)
+    #     Gbprated = 90.0 #boiler gas heat input at rated condition - user input (mmBtu)
+    #     #**************************************************************************
+    #
+    #
+    #
+    #     xbp = historical_Qbp / Qbprated
+    #     xbp2 = xbp ** 2
+    #     xbp3 = xbp ** 3
+    #     xbp4 = xbp ** 4
+    #     xbp5 = xbp ** 5
+    #     ybp = (historical_Qbp / historical_Gbp) / (Qbprated / Gbprated)
+    #
+    #     # xbp = np.zeros(i)
+    #     # xbp2 = np.zeros(i)
+    #     # xbp3 = np.zeros(i)
+    #     # xbp4 = np.zeros(i)
+    #     # xbp5 = np.zeros(i)
+    #     # ybp = np.zeros(i)
+    #     #
+    #     # for a in range(i):
+    #     #     xbp[a] = historical_Qbp[a] / Qbprated
+    #     #     xbp2[a] = xbp[a]**2
+    #     #     xbp3[a] = xbp[a]**3
+    #     #     xbp4[a] = xbp[a]**4
+    #     #     xbp5[a] = xbp[a]**5
+    #     #     ybp[a] = (historical_Qbp[a] / historical_Gbp[a]) / (float(Qbprated) / float(Gbprated))
+    #
+    #     regression_columns = xbp, xbp2, xbp3, xbp4, xbp5
+    #     AA = least_squares_regression(inputs=regression_columns, output=ybp)
+    #     return AA

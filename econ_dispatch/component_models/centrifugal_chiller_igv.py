@@ -69,7 +69,7 @@ DEFAULT_QCH_KW = 500
 
 
 class Component(ComponentBase):
-    def __init__(self, history_data_file=None, **kwargs):
+    def __init__(self, training_data_file=None, **kwargs):
         super(Component, self).__init__(**kwargs)
         # Chilled water temperature setpoint outlet from chiller
         self.Tcho = DEFAULT_TCHO
@@ -82,33 +82,50 @@ class Component(ComponentBase):
         # building cooling load ASSIGNED TO THIS CHILLER in kW
         self.Qch_kW = DEFAULT_QCH_KW
 
-        self.history_data_file = history_data_file
+        self.training_data_file = training_data_file
+        self.historical_data = {}
+        self.cached_parameters = {}
 
-    def get_output_metadata(self):
-        return ""
+        # Set to True whenever seomthing happens that causes us to need to recalculate
+        # the optimization parameters.
+        self.opt_params_dirty = True
+        self.setup_historical_data()
 
-    def get_input_metadata(self):
-        return ""
-
-    def get_optimization_parameters(self):
-        with open(self.history_data_file, 'r') as f:
+    def setup_historical_data(self):
+        with open(self.training_data_file, 'r') as f:
             historical_data = json.load(f)
 
+        self.historical_data["P(kW)"] = np.array(historical_data["P(kW)"])
+        self.historical_data["Qch(tons)"] = np.array(historical_data["Qch(tons)"])
+
+    def get_output_metadata(self):
+        return [u"chilled_water"]
+
+    def get_input_metadata(self):
+        return [u"electricity"]
+
+    def get_optimization_parameters(self):
+
+        if not self.opt_params_dirty:
+            return self.cached_parameters.copy()
+
         # chiller cooling output in mmBtu/hr (converted from cooling Tons)
-        Qch = np.array(historical_data["Qch(tons)"]) * 3.517 / 293.1
+        Qch = np.array(self.historical_data["Qch(tons)"]) * 3.517 / 293.1
 
         # chiller power input in kW
-        P = historical_data["P(kW)"]
+        P = self.historical_data["P(kW)"]
     
         m_ChillerIGV = least_squares_regression(inputs=Qch, output=P)
         xmax_ChillerIGV = max(Qch)
         xmin_ChillerIGV = min(Qch)
 
-        return {
-            "m_ChillerIGV": m_ChillerIGV,
-            "xmax_ChillerIGV": xmax_ChillerIGV,
-            "xmin_ChillerIGV": xmin_ChillerIGV
-        }
+        self.cached_parameters = {
+                                    "mat_chillerIGV": m_ChillerIGV.tolist(),
+                                    "xmax_chillerIGV": xmax_ChillerIGV,
+                                    "xmin_chillerIGV": xmin_ChillerIGV
+                                }
+        self.opt_params_dirty = False
+        return self.cached_parameters.copy()
 
     def update_parameters(self,
                           Tcho=DEFAULT_TCHO,
@@ -118,62 +135,62 @@ class Component(ComponentBase):
         self.Tcdi = Tcdi
         self.Qch_kW = Qch_kW
 
-    def predict(self):
-        # Regression models were built separately (Training Module) and
-        # therefore regression coefficients are available. Also, forecasted values
-        # for chiller cooling output were estimated from building load predictions. 
-        # This code is meant to be used for 24 hours ahead predictions.
-        # The code creates an excel file and writes 
-        # the results on it along with time stamps.
-        
-        # Gordon-Ng model coefficients
-        a0, a1, a2, a3 = self.train()
-        
-        Tcho_K = (self.Tcho - 32) / 1.8 + 273.15#Converting F to Kelvin
-        Tcdi_K = (self.Tcdi - 32) / 1.8 + 273.15#Converting F to Kelvin
-            
-        COP = ((Tcho_K / Tcdi_K) - a3 * (self.Qch_kW / Tcdi_K)) / ((a0 + (a1 * (Tcho_K / self.Qch_kW)) + a2 * ((Tcdi_K - Tcho_K) / (Tcdi_K * self.Qch_kW)) + 1)-((Tcho_K / Tcdi_K) - a3 * (self.Qch_kW / Tcdi_K)))
-        P_Ch_In = self.Qch_kW / COP #Chiller Electric Power Input in kW
-    
-    def train(self):
-        # This module reads the historical data on temperatures (in Fahrenheit), inlet power to the
-        # chiller (in kW) and outlet cooling load (in cooling ton) then, converts
-        # the data to proper units which then will be used for model training. At
-        # the end, regression coefficients will be written to a file
-
-        # data_file = os.path.join(os.path.dirname(__file__), 'CH-Cent-IGV-Historical-Data.json')        
-        with open(self.history_data_file, 'r') as f:
-            historical_data = json.load(f)
-    
-        Tcho = historical_data["Tcho(F)"]# chilled water supply temperature in F
-        Tcdi = historical_data["Tcdi(F)"]# condenser water temperature (outlet from heat rejection and inlet to chiller) in F
-        Qch = historical_data["Qch(tons)"]# chiller cooling output in Tons of cooling
-        P = historical_data["P(kW)"]# chiller power input in kW
-    
-        i = len(Tcho)
-        
-        # *********************************
-        
-        COP = np.zeros(i) # Chiller COP
-        x1 = np.zeros(i)
-        x2 = np.zeros(i)
-        x3 = np.zeros(i)
-        y = np.zeros(i)
-        
-        for a in range(i):
-            Tcho[a]= (Tcho[a] - 32) / 1.8 + 273.15#Converting F to Kelvin
-            Tcdi[a]= (Tcdi[a] - 32) / 1.8 + 273.15#Converting F to Kelvin
-            COP[a] = float(Qch[a]) / float(P[a])
-            Qch[a] = Qch[a] * 12000 / 3412 # Converting Tons to kW
-        
-        for a in range(i):
-            x1[a] = Tcho[a] / Qch[a]
-            x2[a] = (Tcdi[a] - Tcho[a]) / (Tcdi[a] * Qch[a])
-            x3[a] = (((1 / COP[a]) + 1) * Qch[a]) / Tcdi[a]
-            y[a] = ((((1 / COP[a]) + 1) * Tcho[a]) / Tcdi[a]) - 1
-
-        regression_columns = x1, x2, x3
-        AA = least_squares_regression(inputs=regression_columns, output=y)
-
-        return AA
+    # def predict(self):
+    #     # Regression models were built separately (Training Module) and
+    #     # therefore regression coefficients are available. Also, forecasted values
+    #     # for chiller cooling output were estimated from building load predictions.
+    #     # This code is meant to be used for 24 hours ahead predictions.
+    #     # The code creates an excel file and writes
+    #     # the results on it along with time stamps.
+    #
+    #     # Gordon-Ng model coefficients
+    #     a0, a1, a2, a3 = self.train()
+    #
+    #     Tcho_K = (self.Tcho - 32) / 1.8 + 273.15#Converting F to Kelvin
+    #     Tcdi_K = (self.Tcdi - 32) / 1.8 + 273.15#Converting F to Kelvin
+    #
+    #     COP = ((Tcho_K / Tcdi_K) - a3 * (self.Qch_kW / Tcdi_K)) / ((a0 + (a1 * (Tcho_K / self.Qch_kW)) + a2 * ((Tcdi_K - Tcho_K) / (Tcdi_K * self.Qch_kW)) + 1)-((Tcho_K / Tcdi_K) - a3 * (self.Qch_kW / Tcdi_K)))
+    #     P_Ch_In = self.Qch_kW / COP #Chiller Electric Power Input in kW
+    #
+    # def train(self):
+    #     # This module reads the historical data on temperatures (in Fahrenheit), inlet power to the
+    #     # chiller (in kW) and outlet cooling load (in cooling ton) then, converts
+    #     # the data to proper units which then will be used for model training. At
+    #     # the end, regression coefficients will be written to a file
+    #
+    #     # data_file = os.path.join(os.path.dirname(__file__), 'CH-Cent-IGV-Historical-Data.json')
+    #     with open(self.history_data_file, 'r') as f:
+    #         historical_data = json.load(f)
+    #
+    #     Tcho = historical_data["Tcho(F)"]# chilled water supply temperature in F
+    #     Tcdi = historical_data["Tcdi(F)"]# condenser water temperature (outlet from heat rejection and inlet to chiller) in F
+    #     Qch = historical_data["Qch(tons)"]# chiller cooling output in Tons of cooling
+    #     P = historical_data["P(kW)"]# chiller power input in kW
+    #
+    #     i = len(Tcho)
+    #
+    #     # *********************************
+    #
+    #     COP = np.zeros(i) # Chiller COP
+    #     x1 = np.zeros(i)
+    #     x2 = np.zeros(i)
+    #     x3 = np.zeros(i)
+    #     y = np.zeros(i)
+    #
+    #     for a in range(i):
+    #         Tcho[a]= (Tcho[a] - 32) / 1.8 + 273.15#Converting F to Kelvin
+    #         Tcdi[a]= (Tcdi[a] - 32) / 1.8 + 273.15#Converting F to Kelvin
+    #         COP[a] = float(Qch[a]) / float(P[a])
+    #         Qch[a] = Qch[a] * 12000 / 3412 # Converting Tons to kW
+    #
+    #     for a in range(i):
+    #         x1[a] = Tcho[a] / Qch[a]
+    #         x2[a] = (Tcdi[a] - Tcho[a]) / (Tcdi[a] * Qch[a])
+    #         x3[a] = (((1 / COP[a]) + 1) * Qch[a]) / Tcdi[a]
+    #         y[a] = ((((1 / COP[a]) + 1) * Tcho[a]) / Tcdi[a]) - 1
+    #
+    #     regression_columns = x1, x2, x3
+    #     AA = least_squares_regression(inputs=regression_columns, output=y)
+    #
+    #     return AA
     
