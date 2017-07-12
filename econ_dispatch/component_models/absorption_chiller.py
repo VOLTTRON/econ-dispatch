@@ -136,7 +136,7 @@ class Component(ComponentBase):
         self.opt_params_dirty = False
         return self.cached_parameters.copy()
 
-    def update_parameters(self,
+    def update_parameters(self, timestamp=None,
                           Tcho=DEFAULT_TCHO,
                           Tcdi=DEFAULT_TCDI,
                           Tgeni=DEFAULT_TGENI,

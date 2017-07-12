@@ -120,7 +120,7 @@ class Component(ComponentBase):
     def get_optimization_parameters(self):
         return {}
 
-    def update_parameters(self,
+    def update_parameters(self, timestamp=None,
                           MFR_chW=DEFAULT_MFR_CHW,
                           T_chW=DEFAULT_T_CHW,
                           MFR_abW=DEFAULT_MFR_ABW,

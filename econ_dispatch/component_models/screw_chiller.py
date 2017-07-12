@@ -92,7 +92,8 @@ class Component(ComponentBase):
         self.predict()
         return {}
 
-    def update_parameters(self, Tcho=DEFAULT_TCHO,
+    def update_parameters(self, timestamp=None,
+                          Tcho=DEFAULT_TCHO,
                           Tcdi=DEFAULT_TCDI,
                           Qch_kW=DEFAULT_QCH_KW):
         self.Tcho = Tcho

@@ -83,7 +83,7 @@ Coef.ExhaustTemperature = np.array([0.0, 0.0, 0.0])
 Coef.gain = 1.4
 
 class Component(ComponentBase):
-    def __init__(self, gen_data_file=None, **kwargs):
+    def __init__(self, training_data_file=None, capacity=500.0, **kwargs):
         super(Component, self).__init__(**kwargs)
         self.fuel_type= 'CH4'
         self.nominal_power = 402.0
@@ -94,10 +94,12 @@ class Component(ComponentBase):
         self.gen_start = 5.0
         self.gen_hours = 7000.0
 
+        self.capacity = capacity
+
         self.training_data = {}
         self.cached_parameters = {}
 
-        self.setup_training_data(gen_data_file)
+        self.setup_training_data(training_data_file)
 
         # Set to True whenever something happens that causes us to need to recalculate
         # the optimization parameters.
@@ -105,13 +107,13 @@ class Component(ComponentBase):
 
         
     def get_output_metadata(self):
-        return [u"electricity"]
+        return [u"electricity", u"waste_heat"]
 
     def get_input_metadata(self):
-        return ""
+        return [u"natural_gas"]
 
-    def setup_training_data(self, gen_data_file):
-        self.training_data = pd.read_csv(self.gen_data_file, header=0)
+    def setup_training_data(self, training_data_file):
+        self.training_data = pd.read_csv(training_data_file, header=0)
 
     def get_optimization_parameters(self):
         if not self.opt_params_dirty:
@@ -137,24 +139,25 @@ class Component(ComponentBase):
         Xdata = Power[sort_indexes]
         Ydata = FuelFlow[sort_indexes] * 171.11 # fuel: kg/s -> mmBtu/hr
     
-        xmin_Turbine = min(Xdata)
-        xmax_Turbine = max(Xdata)
+        xmin_prime_mover = min(Xdata)
+        xmax_prime_mover = max(Xdata)
 
-        n1 = np.nonzero(Xdata <= xmin_Turbine + (xmax_Turbine - xmin_Turbine) * 0.3)[-1][-1]
-        n2 = np.nonzero(Xdata <= xmin_Turbine + (xmax_Turbine - xmin_Turbine) * 0.6)[-1][-1]
+        n1 = np.nonzero(Xdata <= xmin_prime_mover + (xmax_prime_mover - xmin_prime_mover) * 0.3)[-1][-1]
+        n2 = np.nonzero(Xdata <= xmin_prime_mover + (xmax_prime_mover - xmin_prime_mover) * 0.6)[-1][-1]
 
-        m_Turbine = least_squares_regression(inputs=Xdata[n1:n2], output=Ydata[n1:n2])
+        mat_prime_mover = least_squares_regression(inputs=Xdata[n1:n2+1], output=Ydata[n1:n2+1])
 
         self.cached_parameters = {
-            "m_Turbine": m_Turbine.tolist(),
-            "xmin_Turbine": xmin_Turbine,
-            "xmax_Turbine": xmax_Turbine
+            "mat_prime_mover": mat_prime_mover.tolist(),
+            "xmax_prime_mover": xmax_prime_mover,
+            "xmin_prime_mover": xmin_prime_mover,
+            "cap_prime_mover": self.capacity
         }
 
         self.opt_params_dirty = False
         return self.cached_parameters.copy()
 
-    def update_parameters(self, **kwargs):
+    def update_parameters(self, timestamp=None, **kwargs):
         pass
 
     def FuelCell_Operate(self, Coef, Power, Tin, Starts, NetHours):
@@ -177,7 +180,7 @@ class Component(ComponentBase):
         Current = Coef.Area * (Coef.NominalCurrent[0] * nPower**2 + Coef.NominalCurrent[1] * nPower + Coef.NominalCurrent[2]) #first guess of current
         HeatLoss = Power * Coef.StackHeatLoss
         AncillaryPower = 0.1 * Power
-        for i in range(4):
+        for i in xrange(4):
             Voltage = cells * (self.nominal_ocv - Current * ASR / Coef.Area)
             Current = Coef.gain * (Power + AncillaryPower) * 1000 / Voltage - (Coef.gain - 1) * Current
             FuelFlow = m_fuel * cells * Current / (n * 1000 * FARADAY_CONSTANT * Utilization)

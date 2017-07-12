@@ -93,7 +93,7 @@ class Component(ComponentBase):
             "mat_abschiller": self.mat_abschill
         }
 
-    def update_parameters(self,
+    def update_parameters(self, timestamp=None,
                           Tcho=DEFAULT_TCHO,
                           Tcdi=DEFAULT_TCDI,
                           Tgeni=DEFAULT_TGENI,

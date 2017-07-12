@@ -136,7 +136,7 @@ class SystemModel(object):
     def update_components(self, now, inputs):
         _log.debug("Updating Components")
         for component in self.instance_map.itervalues():
-            component.update_parameters(now, **inputs)
+            component.update_parameters(timestamp=now, **inputs)
 
     def run_general_optimizer(self, now, predicted_loads, parameters):
         _log.debug("Running General Optimizer")

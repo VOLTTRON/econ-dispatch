@@ -75,7 +75,7 @@ valid_io_types = set([u"heated_water",
 class ComponentBase(object):
     __metaclass__ = abc.ABCMeta
     def __init__(self, name="MISSING_NAME", **kwargs):
-        self.update_parameters(**kwargs)
+        self.update_parameters(None, **kwargs)
         self.name = name
 
     def get_input_metadata(self):
@@ -117,7 +117,7 @@ class ComponentBase(object):
         return {}
 
     @abc.abstractmethod
-    def get_optimization_parameters(self):
+    def get_optimization_parameters(self, now):
         """Get the current parameters of the component for the optimizer.
         Returned values must take the form of a dictionary."""
         pass
