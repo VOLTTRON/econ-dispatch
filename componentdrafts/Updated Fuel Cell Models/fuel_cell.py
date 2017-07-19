@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 
 
+# This class is just here so we can maintain the structure of the original code for translation
+# Checking to see if a value exists in a structure as in FuelCell_Calibrate is not the Right Thing
 class Coefficient(object):
     def __getattr__(self, name):
         return self.__dict__.get(name, None)
@@ -20,6 +22,7 @@ def first_five_percent_or_50(array):
     n_take = max(50, five_percent)
 
     return nonzero[:n_take]
+
 
 
 def FuelCell_Calibrate(Type, Fuel, NetPower, FuelFlow, Time, InletTemperature, AirFlow, ExhaustTemperature, Voltage, Current, AncillaryPower, Cells, CellArea, StackDeltaT, Coef):
@@ -205,19 +208,21 @@ def FuelCell_Calibrate(Type, Fuel, NetPower, FuelFlow, Time, InletTemperature, A
         npow = nPower[valid2]
         npow = npow[Utilization>0]
         Utilization = Utilization[Utilization>0]
-        # C = np.column_stack(((1-npow) ** 2, (1-npow), np.ones(len(npow))))
-        # d = Utilization
-        # Aeq = [0, 0, 1]
-        # beq = nominalUtil
-        # A = [[1, 0, 0], [0, 1, 0], [-1, 1, 0]]
-        # b = [0,0,0]
+        C = np.column_stack(((1-npow) ** 2, (1-npow), np.ones(len(npow))))
+        d = Utilization
+        Aeq = [0, 0, 1]
+        beq = nominalUtil
+        A = [[1, 0, 0], [0, 1, 0], [-1, 1, 0]]
+        b = [0,0,0]
         # Coef.Utilization = lsqlin(C, d, A, b, Aeq, beq)
 
-        #hardcoded until we can 
-        Coef.Utilization = [-0.252401442379831,-0.252401442379831,0.624704478460831]
+        ################################################################################
+        #hardcoded until we can get the solution from a function, gen1 Utilization
+        Coef.Utilization = [-0.252401442379831, -0.252401442379831, 0.624704478460831]
+        ################################################################################
 
         # recalculate V & I as ASR degrades so that efficiency matches
-        #current = reverse function of Utilization: , Power & fuel flow are inputs
+        # current = reverse function of Utilization: , Power & fuel flow are inputs
         Utilization = Coef.Utilization[0] * (1-nPower)**2 + Coef.Utilization[1] * (1-nPower) + Coef.Utilization[2] #decrease in utilization at part load
         Current = Utilization * FuelFlow / m_fuel * (n * 1000 * 96485) / Coef.Cells
 
@@ -227,7 +232,8 @@ def FuelCell_Calibrate(Type, Fuel, NetPower, FuelFlow, Time, InletTemperature, A
         Voltage[np.isinf(Voltage)] = 0
         Voltage[np.isnan(Voltage)] = 0
 
-    #Part-Load Utilization is calculated from fuel flow and current.
+    # This IF is never entered with the provided test data. Why is it here?
+    # Part-Load Utilization is calculated from fuel flow and current.
     if not Coef.Utilization:
         Utilization = Current * Coef.Cells / (n * 1000 * 96485) / (FuelFlow / m_fuel)
         valid2 = (NetPower>Coef.NominalPower * 0.15) & (NetPower<Coef.NominalPower * 0.9) & valid
@@ -295,7 +301,7 @@ def FuelCell_Calibrate(Type, Fuel, NetPower, FuelFlow, Time, InletTemperature, A
 
 
     #ASR
-    ASR = (Coef.NominalOCV-Voltage / Coef.Cells) / (Current / Coef.Area)
+    ASR = (Coef.NominalOCV - Voltage / Coef.Cells) / (Current / Coef.Area)
     nData = int(max(50, math.ceil(len(np.nonzero(valid3)[0]) / 20.0))) #1st 5# of data above 75% power, or 50 data points
     ASR = ASR[valid3]
     if not Coef.NominalASR:
@@ -345,24 +351,56 @@ def FuelCell_Calibrate(Type, Fuel, NetPower, FuelFlow, Time, InletTemperature, A
     return Coef
 
 
-NominalV = np.array([0.775, 0.8, 0.814])
-for i in [1]:#, 2, 3]:
-    # load(strcat('Gen', num2str(i)))
-    data = pd.read_csv("gen1.csv", header=0)
+def FuelCell_Operate(Power,Tin,Starts,NetHours,Coef):
+    ## Inputs:
+    #Power (kW) requested power output
+    #Tin (C) temperature of inlet air
+    #Starts (#) cumulative # of starts on this system
+    #NetHours (hrs) cumulative hours since last maintenance refurbishment
+    #Coef (varies) a set of performance parameters describing this microturbine
+    ## Outputs:
+    #FuelFlow (mmBTU/hr) fuel demand of the microturbine to produce the required power
+    #ExhaustFlow (kg/s) exhaust mass flow of the microturbine
+    #ExhaustTemperature (C) exhaust temperature of microturbine
+    #NetEfficiency (#) fuel-to-electric efficiency of the microturbine
+
+    ## Calculations
+    nPower = Power/Coef.NominalPower
+    # ASR = Coef.NominalASR + Coef.ReStartDegradation*Starts + Coef.LinearDegradation * max(0, (NetHours - Coef.ThresholdDegradation)) #ASR  in Ohm*cm^2
+    diff = NetHours - Coef.ThresholdDegradation
+    diff[diff < 0] = 0
+    ASR = Coef.NominalASR + Coef.ReStartDegradation*Starts + Coef.LinearDegradation * diff #ASR  in Ohm*cm^2
+    Utilization = Coef.Utilization[0]*(1-nPower)**2 + Coef.Utilization[1]*(1-nPower) + Coef.Utilization[2] #decrease in utilization at part load
+    Current = Power / Coef.Cells * 1000 / 0.8#initial guess assumes a voltage of 0.8 per cell
+    HeatLoss = Power * Coef.StackHeatLoss
+    AncillaryPower = 0.1 * Power#initial guess of 10#
+    ##Total power = V*I = (OCV-ASR/area*I)*I:  find I & V
+    for _ in range(4):
+        Voltage = Coef.Cells * (Coef.NominalOCV - Current * ASR / Coef.Area)
+        Current = 1.2 * (Power + AncillaryPower) * 1000.0 / Voltage - 0.2 * Current
+        FuelFlow = Coef.Cells * Current *Coef.kg_per_Amp / Utilization
+        ExhaustFlow = (Coef.Cells * Current * (1.2532 - Voltage / Coef.Cells) / 1000 - HeatLoss) / (1.144 * Coef.StackDeltaT) #flow rate in kg/s with a specific heat of 1.144kJ/kg*K
+        AncillaryPower = Coef.AncillaryPower[0] * FuelFlow**2  + Coef.AncillaryPower[1] * FuelFlow + Coef.AncillaryPower[0]*ExhaustFlow**2 + Coef.AncillaryPower[1]*ExhaustFlow + Coef.AncillaryPower[2]*(Tin-18)*ExhaustFlow
+
+    ExhaustTemperature = (FuelFlow * Coef.LHV - HeatLoss - Power)/(1.144*ExhaustFlow) + Tin + (Coef.ExhaustTemperature[0]*nPower**2 + Coef.ExhaustTemperature[1]*nPower + Coef.ExhaustTemperature[2])
+    NetEfficiency = Power / (FuelFlow * Coef.LHV)
+    FuelFlow = FuelFlow * Coef.LHV / 1.055 * 3600 / 1e6 #converting kg/s to mmBTU
+
+    return FuelFlow, ExhaustFlow, ExhaustTemperature, NetEfficiency
+
+
+for i in [1, 2, 3]:
+    data = pd.read_csv("gen" + str(i) + ".csv", header=0)
+
     Power = data['Power'].values
     Fuel = data['Fuel'].values / 50144 # 50144 kJ / kg converts fuel kW to kg / s
     Time = data['Time'].values
     AmbTemperature = data['AmbTemperature'].values
+    Start = data['Start'].values
+    Hours = data['Hours'].values
+    Valid = data['Valid'].values
 
+    Coef = FuelCell_Calibrate('PAFC', 'CH4', Power, Fuel, Time, AmbTemperature, [], [], [], [], [], [], [], [], [])
 
-#     Coef.NominalPower = Gen.NominalPower
-#     Coef.Cells = Gen.NominalPower #currently set up for 1kW cells
-#     Coef.NominalOCV = NominalV(i)
-
-
-    coef = FuelCell_Calibrate('PAFC', 'CH4', Power, Fuel, Time, AmbTemperature, [], [], [], [], [], [], [], [], [])
-
-    print coef
-
-
-    # FuelFlow, ExhaustFlow, ExhaustTemperature, NetEfficiency = FuelCell_Operate(Gen.Power(Gen.Valid), Gen.AmbTemperature(Gen.Valid), Gen.Start(Gen.Valid), Gen.Hours(Gen.Valid), Coef)
+    FuelFlow, ExhaustFlow, ExhaustTemperature, NetEfficiency = FuelCell_Operate(Power[Valid], AmbTemperature[Valid], Start[Valid], Hours[Valid], Coef)
+    # What are we supposed to do with these results?
