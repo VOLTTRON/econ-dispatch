@@ -217,8 +217,10 @@ def FuelCell_Calibrate(Type, Fuel, NetPower, FuelFlow, Time, InletTemperature, A
         # Coef.Utilization = lsqlin(C, d, A, b, Aeq, beq)
 
         ################################################################################
-        #hardcoded until we can get the solution from a function, gen1 Utilization
+        #hardcoded until we can get the solution from a function, gen 1-3
         Coef.Utilization = [-0.252401442379831, -0.252401442379831, 0.624704478460831]
+        # Coef.Utilization = [-0.204907997896642, -0.204907997896642, 0.667692146661545]
+        # Coef.Utilization = [-0.176796165093604, -0.176796165093604, 0.653483909412929]
         ################################################################################
 
         # recalculate V & I as ASR degrades so that efficiency matches
@@ -324,10 +326,11 @@ def FuelCell_Calibrate(Type, Fuel, NetPower, FuelFlow, Time, InletTemperature, A
     if not Coef.ThresholdDegradation: #hours before which there is no linear degradation
         if Time is not None: #find time when ASR is still 99# of nominal
             Time2 = Time[valid3]
-            t = 1
+            t = 0
             nS = len(Time2) - nData
 
-            while t < nS and np.mean(ASR[t:t+nData]) < 1.1 * Coef.NominalASR:
+            # Plus 1 to match slice length from original matlab
+            while t < nS and np.mean(ASR[t:t+nData+1]) < 1.1 * Coef.NominalASR:
                 t = t+1
 
             Coef.ThresholdDegradation = Time2[t]
