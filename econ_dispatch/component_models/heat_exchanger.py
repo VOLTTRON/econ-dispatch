@@ -72,5 +72,6 @@ class Component(ComponentBase):
     def get_optimization_parameters(self):
         return {"efficiency":self.efficiency}
 
-    def update_parameters(self, efficiency=10.00):
+    def update_parameters(self, timestamp, efficiency=10.00,
+                          **kwargs):
         self.efficiency = efficiency

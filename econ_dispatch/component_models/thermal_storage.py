@@ -120,13 +120,14 @@ class Component(ComponentBase):
     def get_optimization_parameters(self):
         return {}
 
-    def update_parameters(self, timestamp=None,
+    def update_parameters(self, timestamp,
                           MFR_chW=DEFAULT_MFR_CHW,
                           T_chW=DEFAULT_T_CHW,
                           MFR_abW=DEFAULT_MFR_ABW,
                           T_abW=DEFAULT_T_ABW,
                           MFR_chwBldg=DEFAULT_MFR_CHWBLDG,
-                          T_chwBldgReturn=DEFAULT_T_CHWBLDGRETURN):
+                          T_chwBldgReturn=DEFAULT_T_CHWBLDGRETURN,
+                          **kwargs):
         self.MFR_chW = MFR_chW
         self.T_chW = T_chW
         self.MFR_abW = MFR_abW

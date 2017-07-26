@@ -157,7 +157,7 @@ class Component(ComponentBase):
         self.opt_params_dirty = False
         return self.cached_parameters.copy()
 
-    def update_parameters(self, timestamp=None, **kwargs):
+    def update_parameters(self, timestamp, **kwargs):
         pass
 
     def FuelCell_Operate(self, Coef, Power, Tin, Starts, NetHours):

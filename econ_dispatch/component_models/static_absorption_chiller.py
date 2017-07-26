@@ -93,11 +93,12 @@ class Component(ComponentBase):
             "mat_abschiller": self.mat_abschill
         }
 
-    def update_parameters(self, timestamp=None,
+    def update_parameters(self, timestamp,
                           Tcho=DEFAULT_TCHO,
                           Tcdi=DEFAULT_TCDI,
                           Tgeni=DEFAULT_TGENI,
-                          Qin=DEFAULT_QIN):
+                          Qin=DEFAULT_QIN,
+                          **kwargs):
         self.Tcho = Tcho
         self.Tcdi = Tcdi
         self.Tgeni = Tgeni

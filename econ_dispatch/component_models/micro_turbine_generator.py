@@ -104,7 +104,7 @@ class Component(ComponentBase):
         AirFlow, FuelFlow, Tout, Efficiency = self.GasTurbine_Operate(self.Pdemand, self.Temperature, 0, Coef)
         return {"efficiency":Efficiency}
 
-    def update_parameters(self, timestamp=None, **kwargs):
+    def update_parameters(self, timestamp, **kwargs):
         pass
 
     def GasTurbine_Operate(self, Power, Tin, NetHours, Coef):

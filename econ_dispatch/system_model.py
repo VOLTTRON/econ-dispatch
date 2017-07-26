@@ -60,10 +60,10 @@ _log = logging.getLogger(__name__)
 
 import networkx as nx
 
-from pprint import pprint
+import datetime
 
 class SystemModel(object):
-    def __init__(self, optimizer, weather_model, optimizer_debug_csv=None):
+    def __init__(self, optimizer, weather_model, optimization_frequency, optimizer_debug_csv=None):
         self.component_graph = nx.MultiDiGraph()
         self.instance_map = {}
 
@@ -73,6 +73,9 @@ class SystemModel(object):
         self.weather_model = weather_model
 
         self.optimizer_debug_csv = optimizer_debug_csv
+
+        self.optimization_frequency = optimization_frequency
+        self.next_optimization = None
 
     def add_forecast_model(self, model, name):
         self.forecast_models[name] = model
@@ -148,7 +151,6 @@ class SystemModel(object):
         return results
 
     def get_parameters(self, now, inputs):
-        self.update_components(now, inputs)
 
         results = {}
         for component in self.instance_map.itervalues():
@@ -157,21 +159,48 @@ class SystemModel(object):
 
         return results
 
-    def run_component_optimizer(self, component_loads):
-        _log.debug("Running Component Optimizer")
-
-    def get_commands(self):
-        return {}
+    def get_commands(self, component_loads):
+        _log.debug("Gathering commands")
+        result = {}
+        for component in self.instance_map.itervalues():
+            component_commands = component.get_commands(component_loads)
+            for device, commands in component_commands.iteritems():
+                result[device] = commands
+        return result
 
     def run(self, now, inputs):
-        _log.info("Running " + str(now))
-        forecasts = self.get_forecasts(now)
-        parameters = self.get_parameters(now, inputs)
-        component_loads = self.run_general_optimizer(now, forecasts, parameters)
-        self.run_component_optimizer(component_loads)
-        commands = self.get_commands()
+        self.update_components(now, inputs)
+
+        if self.next_optimization is None:
+            self.next_optimization = self.find_starting_datetime(now)
+
+        commands = {}
+        if (self.next_optimization <= now):
+            _log.info("Running optimizer: " + str(now))
+            self.next_optimization = self.next_optimization + self.optimization_frequency
+            forecasts = self.get_forecasts(now)
+            parameters = self.get_parameters(now, inputs)
+            component_loads = self.run_general_optimizer(now, forecasts, parameters)
+            commands = self.get_commands(component_loads)
 
         return commands
+
+    def find_starting_datetime(self, now):
+        """This is taken straight from DriverAgent in MasterDriverAgent."""
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        seconds_from_midnight = (now - midnight).total_seconds()
+        interval = self.optimization_frequency.total_seconds()
+
+        offset = seconds_from_midnight % interval
+
+        if not offset:
+            return now
+
+        previous_in_seconds = seconds_from_midnight - offset
+        next_in_seconds = previous_in_seconds + interval
+
+        from_midnight = datetime.timedelta(seconds=next_in_seconds)
+        return midnight + from_midnight
 
 
 

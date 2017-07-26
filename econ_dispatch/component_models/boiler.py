@@ -161,7 +161,8 @@ class Component(ComponentBase):
         self.opt_params_dirty = False
         return self.cached_parameters.copy()
 
-    def update_parameters(self, timestamp=None, Qbp=DEFAULT_QBP):
+    def update_parameters(self, timestamp, Qbp=DEFAULT_QBP,
+                          **kwargs):
         self.current_Qbp = Qbp
 
     # def predict(self):

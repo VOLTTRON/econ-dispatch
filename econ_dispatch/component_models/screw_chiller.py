@@ -92,10 +92,11 @@ class Component(ComponentBase):
         self.predict()
         return {}
 
-    def update_parameters(self, timestamp=None,
+    def update_parameters(self, timestamp,
                           Tcho=DEFAULT_TCHO,
                           Tcdi=DEFAULT_TCDI,
-                          Qch_kW=DEFAULT_QCH_KW):
+                          Qch_kW=DEFAULT_QCH_KW,
+                          **kwargs):
         self.Tcho = Tcho
         self.Tcdi = Tcdi
         self.Qch_kW = Qch_kW

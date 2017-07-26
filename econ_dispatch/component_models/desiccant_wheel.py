@@ -133,12 +133,13 @@ class Component(ComponentBase):
                 "MFR_HW_In":MFR_HW_In,
                 "T_HW_Out":T_HW_Out}
 
-    def update_parameters(self, timestamp=None,
+    def update_parameters(self, timestamp,
                           cfm_OA=DEFAULT_CFM_OA,
                           fan_status=DEFAULT_FAN_STATUS,
                           T_OA=DEFAULT_T_OA,
                           RH_OA=DEFAULT_RH_OA,
-                          T_HW=DEFAULT_T_HW):
+                          T_HW=DEFAULT_T_HW,
+                          **kwargs):
 
         self.cfm_OA = cfm_OA
         self.fan_status = fan_status
