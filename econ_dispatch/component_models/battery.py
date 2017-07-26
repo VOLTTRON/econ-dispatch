@@ -149,7 +149,7 @@ class Component(ComponentBase):
         NewSOC, InputPower = self.getUpdatedSOC()
         return {"SOC": NewSOC, "InputPower": InputPower}
 
-    def update_parameters(self,
+    def update_parameters(self, timestamp,
                           capacity=DEFAULT_CAPACITY,
                           input_power_request=DEFAULT_INPUT_POWER_REQUEST,
                           timestep=DEFAULT_TIMESTEP,
@@ -161,7 +161,8 @@ class Component(ComponentBase):
                           InvEFF_DisCharge=DEFAULT_INVEFF_DISCHARGE,
                           IR_DisCharge=DEFAULT_IR_DISCHARGE,
                           Idle_A=DEFAULT_IDLE_A,
-                          Idle_B=DEFAULT_IDLE_B):
+                          Idle_B=DEFAULT_IDLE_B,
+                          **kwargs):
 
         self.capacity = capacity
         self.input_power_request = input_power_request

@@ -86,7 +86,9 @@ class Component(ComponentBase):
     def get_optimization_parameters(self):
         return {"electricity":self.electricity_out()}
 
-    def update_parameters(self, capacity=DEFAULT_CAPACITY, electricity_in=DEFAULT_ELEC_IN):
+    def update_parameters(self, timestamp,
+                          capacity=DEFAULT_CAPACITY, electricity_in=DEFAULT_ELEC_IN,
+                          **kwargs):
         self.capacity = capacity
         self.electricity_in = electricity_in
 

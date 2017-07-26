@@ -78,9 +78,10 @@ def get_optimization_problem(forecast, parameters={}):
     _log.debug("Parameters:\n"+pformat(parameters))
 
     try:
-        mat_turbine = parameters["mat_turbine"]
-        xmax_turbine = parameters["xmax_turbine"]
-        xmin_turbine = parameters["xmin_turbine"]
+        mat_prime_mover = parameters["mat_prime_mover"]
+        #xmax_prime_mover = parameters["xmax_prime_mover"]
+        #xmin_prime_mover = parameters["xmin_prime_mover"]
+        cap_prime_mover = parameters["cap_prime_mover"]
 
         # load BoilerPara.mat
         mat_boiler = parameters["mat_boiler"]
@@ -101,7 +102,7 @@ def get_optimization_problem(forecast, parameters={}):
 
 
     # component capacity
-    cap_FuelCell = 500  # kW
+    #cap_prime_mover = 500  # kW
     cap_abs = 464 / 293.1  # kW -> mmBtu/hr
     cap_boiler = 8  # mmBtu/hr
     n_chiller = 3
@@ -136,14 +137,14 @@ def get_optimization_problem(forecast, parameters={}):
         b_chiller.append(mat_chillerIGV[0] + a_chiller[i] * xmin_chillerIGV)
         xmax_Chiller.append(cap_chiller)
 
-    # generator
-    xmin_Turbine = cap_FuelCell * 0.3
-    a_E_turbine = mat_turbine[1]
-    b_E_turbine = mat_turbine[0] + a_E_turbine * xmin_Turbine
-    xmax_Turbine = cap_FuelCell
+    # prime mover (fuel cell/micro turbine generator)
+    xmin_prime_mover = cap_prime_mover * 0.3
+    a_E_primer_mover = mat_prime_mover[1]
+    b_E_prime_mover = mat_prime_mover[0] + a_E_primer_mover * xmin_prime_mover
+    xmax_prime_mover = cap_prime_mover
 
-    a_Q_turbine = a_E_turbine - 1 / 293.1
-    b_Q_turbine = b_E_turbine - xmin_Turbine / 293.1
+    a_Q_primer_mover = a_E_primer_mover - 1 / 293.1
+    b_Q_primer_mover = b_E_prime_mover - xmin_prime_mover / 293.1
 
     # heat recovery unit
     a_hru = 0.8
@@ -176,10 +177,10 @@ def get_optimization_problem(forecast, parameters={}):
         Cool_unserve = LpVariable("Cool_unserve_hour{}".format(hour), 0)
         Cool_dump = LpVariable("Cool_dump_hour{}".format(hour), 0)
 
-        E_turbinegas = LpVariable("E_turbinegas_hour{}".format(hour), xmin_boiler[0])
-        Q_turbine = LpVariable("Q_turbine_hour{}".format(hour), 0)
-        E_turbineelec = LpVariable("E_turbineelec_hour{}".format(hour), 0)
-        E_turbineelec_aux = LpVariable("E_turbineelec_hour{}_aux{}".format(hour, 1), 0, xmax_Turbine - xmin_Turbine)
+        E_prime_mover_fuel = LpVariable("E_prime_mover_fuel_hour{}".format(hour), xmin_boiler[0])
+        Q_prime_mover = LpVariable("Q_prime_mover_hour{}".format(hour), 0)
+        E_prime_mover_elec = LpVariable("E_prime_mover_elec_hour{}".format(hour), 0)
+        E_prime_mover_elec_aux = LpVariable("E_prime_mover_elec_hour{}_aux{}".format(hour, 1), 0, xmax_prime_mover - xmin_prime_mover)
 
         E_boilergas = LpVariable("E_boilergas_hour{}".format(hour), 0)
 
@@ -212,7 +213,7 @@ def get_optimization_problem(forecast, parameters={}):
 
         # constraints
         objective_component += [
-            forecast_hour["natural_gas_cost"]* E_turbinegas,
+            forecast_hour["natural_gas_cost"]* E_prime_mover_fuel,
             forecast_hour["natural_gas_cost"] * E_boilergas,
             forecast_hour["electricity_cost"] * E_gridelec,
             UNSERVE_LIMIT * E_unserve,
@@ -225,7 +226,7 @@ def get_optimization_problem(forecast, parameters={}):
 
         # electric energy balance
         label = "ElecBalance{}".format(hour)
-        exp = E_turbineelec + E_gridelec
+        exp = E_prime_mover_elec + E_gridelec
         for e_chill in E_chillerelec:
             exp = exp - e_chill
         exp = exp + E_unserve - E_dump
@@ -253,26 +254,26 @@ def get_optimization_problem(forecast, parameters={}):
         constraints.append((exp, label))
 
         # generator gas
-        label = "TurbineGasConsume{}".format(hour)
-        exp = E_turbinegas - a_E_turbine * E_turbineelec_aux - b_E_turbine * Sturbine == 0
+        label = "PrimeMoverFuelConsume{}".format(hour)
+        exp = E_prime_mover_fuel - a_E_primer_mover * E_prime_mover_elec_aux - b_E_prime_mover * Sturbine == 0
         constraints.append((exp, label))
 
         # generator heat
-        label = "TurbineHeatGenerate{}".format(hour)
-        exp = Q_turbine - a_Q_turbine * E_turbineelec_aux - b_Q_turbine * Sturbine == 0
+        label = "PrimeMoverHeatGenerate{}".format(hour)
+        exp = Q_prime_mover - a_Q_primer_mover * E_prime_mover_elec_aux - b_Q_primer_mover * Sturbine == 0
         constraints.append((exp, label))
 
         # microturbine elec
-        label = "TurbineElecGenerate{}".format(hour)
-        exp = E_turbineelec - E_turbineelec_aux - xmin_Turbine * Sturbine == 0
+        label = "PrimeMoverElecGenerate{}".format(hour)
+        exp = E_prime_mover_elec - E_prime_mover_elec_aux - xmin_prime_mover * Sturbine == 0
         constraints.append((exp, label))
 
-        label = "TurbineElower{}".format(hour)
-        exp = E_turbineelec - xmin_Turbine * Sturbine >= 0
+        label = "PrimeMoverElower{}".format(hour)
+        exp = E_prime_mover_elec - xmin_prime_mover * Sturbine >= 0
         constraints.append((exp, label))
 
-        label = "TurbineEupper{}".format(hour)
-        exp = E_turbineelec - xmax_Turbine * Sturbine <= 0
+        label = "PrimeMoverEupper{}".format(hour)
+        exp = E_prime_mover_elec - xmax_prime_mover * Sturbine <= 0
         constraints.append((exp, label))
 
         # boiler
@@ -357,7 +358,7 @@ def get_optimization_problem(forecast, parameters={}):
         exp = Q_Genheating
         if flagabs:
             exp = exp + Q_Gencooling
-        exp = exp - Q_turbine
+        exp = exp - Q_prime_mover
         exp = exp == 0
         constraints.append((exp, label))
 

@@ -75,7 +75,7 @@ valid_io_types = set([u"heated_water",
 class ComponentBase(object):
     __metaclass__ = abc.ABCMeta
     def __init__(self, name="MISSING_NAME", **kwargs):
-        self.update_parameters(**kwargs)
+        self.update_parameters(None, **kwargs)
         self.name = name
 
     def get_input_metadata(self):
@@ -93,10 +93,6 @@ class ComponentBase(object):
         """
         return []
 
-    def set_input_value(self, value):
-        """Sets the current input value for this component. Does nothing by default."""
-        return
-
     def get_output_metadata(self):
         """Must return a string describing the output for this component.
         This is used by the model validator to determine if the configured network is valid.
@@ -112,8 +108,8 @@ class ComponentBase(object):
         """
         return []
 
-    def get_output(self):
-        """Gets the current output values for this component in the form of a dictionary. Returns an empty dictionary."""
+    def get_commands(self, component_loads):
+        """Get the set points for a component based on the optimized component load."""
         return {}
 
     @abc.abstractmethod
@@ -123,9 +119,8 @@ class ComponentBase(object):
         pass
 
     @abc.abstractmethod
-    def update_parameters(self, timestamp=None, **kwargs):
-        """Update the internal parameters of the component based on the input values.
-        As the model must be aware of component types the format can be whatever the component wants."""
+    def update_parameters(self, timestamp, **kwargs):
+        """Update the internal parameters of the component based on the input values."""
         pass
 
     def __str__(self):

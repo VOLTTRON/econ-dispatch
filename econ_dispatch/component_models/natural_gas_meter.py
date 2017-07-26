@@ -67,5 +67,6 @@ class Component(ComponentBase):
     def get_optimization_parameters(self):
         return {"cost":self.cost}
 
-    def update_parameters(self, cost=10.00):
+    def update_parameters(self, timestamp, cost=10.00,
+                          **kwargs):
         self.cost = cost

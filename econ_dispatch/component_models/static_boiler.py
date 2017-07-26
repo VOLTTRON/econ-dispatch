@@ -85,7 +85,7 @@ class Component(ComponentBase):
                     "mat_boiler": self.mat_boiler
                 }
 
-    def update_parameters(self, Qbp=DEFAULT_QBP, **kwargs):
+    def update_parameters(self, timestamp, Qbp=DEFAULT_QBP, **kwargs):
         self.Qbp = Qbp
 
 

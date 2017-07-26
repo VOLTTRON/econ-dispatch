@@ -136,11 +136,12 @@ class Component(ComponentBase):
         self.opt_params_dirty = False
         return self.cached_parameters.copy()
 
-    def update_parameters(self,
+    def update_parameters(self, timestamp,
                           Tcho=DEFAULT_TCHO,
                           Tcdi=DEFAULT_TCDI,
                           Tgeni=DEFAULT_TGENI,
-                          Qin=DEFAULT_QIN):
+                          Qin=DEFAULT_QIN,
+                          **kwargs):
         self.Tcho = Tcho
         self.Tcdi = Tcdi
         self.Tgeni = Tgeni

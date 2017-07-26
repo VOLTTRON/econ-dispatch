@@ -65,11 +65,12 @@ from econ_dispatch.component_models import ComponentBase
 
 
 class Component(ComponentBase):
-    def __init__(self, mat_turbine = [], xmax_turbine = 0.0, xmin_turbine = 0.0, **kwargs):
+    def __init__(self, mat = [], xmax = 0.0, xmin = 0.0, capacity = 0.0, **kwargs):
         super(Component, self).__init__(**kwargs)
-        self.mat_turbine = mat_turbine
-        self.xmax_turbine = xmax_turbine
-        self.xmin_turbine = xmin_turbine
+        self.mat = mat
+        self.xmax = xmax
+        self.xmin = xmin
+        self.cap = capacity
 
     def get_output_metadata(self):
         return [u"electricity", u"waste_heat"]
@@ -79,12 +80,13 @@ class Component(ComponentBase):
 
     def get_optimization_parameters(self):
         return {
-            "xmin_turbine": self.xmin_turbine,
-            "xmax_turbine": self.xmax_turbine,
-            "mat_turbine": self.mat_turbine
+            "cap_prime_mover": self.cap,
+            "xmin_prime_mover": self.xmin,
+            "xmax_prime_mover": self.xmax,
+            "mat_prime_mover": self.mat
         }
 
-    def update_parameters(self, timestamp=None, **kwargs):
+    def update_parameters(self, timestamp, **kwargs):
         pass
 
 
