@@ -62,6 +62,7 @@ logging.basicConfig(level=logging.DEBUG)
 import argparse
 import json
 from econ_dispatch.application import Application
+from econ_dispatch.forecast_models import HistoryModelBase
 import networkx
 
 import datetime as dt
@@ -98,15 +99,27 @@ def parse_json_config(config_str):
     """Parse a JSON-encoded configuration file."""
     return json.loads(strip_comments(config_str))
 
-def main(config_file, start, end, write_dot):
+class InputHistory(HistoryModelBase):
+    pass
+
+class NullInputData(object):
+    def __init__(self, history_data_file=None, historical_data_time_column="timestamp"):
+        pass
+    def derive_variables(self, now, independent_variable_values={}):
+        return {}
+
+def main(config_file, start, end, write_dot, input_csv_file_name, time_column):
     overall_start_time = time.time()
     config = parse_json_config(config_file.read())
     application = Application(model_config=config)
 
-    print application.model
-
     if write_dot:
         networkx.drawing.nx_pydot.write_dot(application.model.component_graph, config_file.name + ".dot")
+
+    if input_csv_file_name is None:
+        input_data = NullInputData()
+    else:
+        input_data = InputHistory(input_csv_file_name, time_column)
 
     now = start
     time_step = dt.timedelta(hours=1)
@@ -118,7 +131,7 @@ def main(config_file, start, end, write_dot):
         while now < end:
             _log.debug("Processing timestamp: " + str(now))
             start_time = time.time()
-            application.run(now, {})
+            application.run(now, input_data.derive_variables(now))
             now += time_step
             end_time = time.time()
             run_times.append(end_time-start_time)
@@ -141,6 +154,8 @@ if __name__ == "__main__":
     parser.add_argument("config", type=argparse.FileType("r"), help="Configuration file to load")
     parser.add_argument("--start-time", default="2017-1-1", help="Start date time in ISO format")
     parser.add_argument("--end-time", default="2017-12-29", help="End date time in ISO format")
+    parser.add_argument("--input-data", help="Sensor input data as a CSV file")
+    parser.add_argument("--input-data-time-column", default="timestamp", help="Name of the column containing the timestamp.")
     parser.add_argument("--write-dot", default=False, action="store_const", const=True,
                         help="Write graphviz dot file for configuration.")
 
@@ -152,4 +167,4 @@ if __name__ == "__main__":
     _log.info("Simulation start: "+str(start))
     _log.info("Simulation end: "+str(end))
 
-    main(args.config, start, end, args.write_dot)
+    main(args.config, start, end, args.write_dot, args.input_data, args.input_data_time_column)
