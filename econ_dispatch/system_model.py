@@ -62,6 +62,8 @@ import networkx as nx
 
 import datetime
 
+from pprint import pformat
+
 class SystemModel(object):
     def __init__(self, optimizer, weather_model, optimization_frequency, optimizer_debug_csv=None):
         self.component_graph = nx.MultiDiGraph()
@@ -138,6 +140,7 @@ class SystemModel(object):
 
     def update_components(self, now, inputs):
         _log.debug("Updating Components")
+        _log.debug("Inputs:\n"+pformat(inputs))
         for component in self.instance_map.itervalues():
             component.update_parameters(timestamp=now, **inputs)
 
