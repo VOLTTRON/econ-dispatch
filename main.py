@@ -158,7 +158,7 @@ def main(config_file, start, end,
 
         if output_csv_file is not None:
             if results:
-                topics = set(["timestamp"])
+                topics = set()
                 for result in results:
                     for device, commands in result[1].devices.iteritems():
                         for command in commands:
@@ -166,16 +166,19 @@ def main(config_file, start, end,
 
                 topics = list(topics)
                 topics.sort()
+                topics = ["timestamp"] + topics
                 _log.info("Unique commands:\n"+pformat(topics))
 
                 dict_writer = csv.DictWriter(output_csv_file, topics)
+                dict_writer.writeheader()
                 for result in results:
                     row = {}
                     row["timestamp"] = result[0]
                     for device, commands in result[1].devices.iteritems():
                         for command, value in commands.iteritems():
                             row[device+"/"+command] = value
-                    dict_writer.writerow(result)
+
+                    dict_writer.writerow(row)
             else:
                 _log.info("Results empty, no output file created.")
         else:

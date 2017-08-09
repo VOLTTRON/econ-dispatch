@@ -113,6 +113,10 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return [u"natural_gas"]
 
+    def get_commands(self, component_loads):
+        #return {"boiler":{"command2":20}}
+        return {}
+
     def get_optimization_parameters(self):
 
         if not self.opt_params_dirty:

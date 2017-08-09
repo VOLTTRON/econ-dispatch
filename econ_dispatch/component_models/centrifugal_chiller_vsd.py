@@ -100,6 +100,9 @@ class Component(ComponentBase):
         self.predict()
         return {}
 
+    def get_commands(self, component_loads):
+        return {}
+
     def update_parameters(self, timestamp,
                           Tcho=DEFAULT_TCHO,
                           Tcdi=DEFAULT_TCDI,

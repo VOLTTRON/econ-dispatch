@@ -78,10 +78,13 @@ class Component(ComponentBase):
         self.electricity_in = DEFAULT_ELEC_IN
 
     def get_output_metadata(self):
-        return "electricity"
+        return [u"electricity"]
 
     def get_input_metadata(self):
-        return "electricity"
+        return [u"electricity"]
+
+    def get_commands(self, component_loads):
+        return {}
 
     def get_optimization_parameters(self):
         return {"electricity":self.electricity_out()}
