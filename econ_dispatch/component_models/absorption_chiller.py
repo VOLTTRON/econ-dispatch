@@ -113,6 +113,10 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return [u"heat"]
 
+    def get_commands(self, component_loads):
+        #return {"abs_chiller":{"command1":10}}
+        return {}
+
     def get_optimization_parameters(self):
         if not self.opt_params_dirty:
             return self.cached_parameters.copy()

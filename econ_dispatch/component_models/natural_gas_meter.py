@@ -64,6 +64,9 @@ class Component(ComponentBase):
     def get_output_metadata(self):
         return [u"natural_gas"]
 
+    def get_commands(self, component_loads):
+        return {}
+
     def get_optimization_parameters(self):
         return {"cost":self.cost}
 

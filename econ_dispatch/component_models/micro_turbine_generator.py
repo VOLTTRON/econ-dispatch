@@ -100,6 +100,9 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return [u"natural_gas"]
 
+    def get_commands(self, component_loads):
+        return {}
+
     def get_optimization_parameters(self):
         AirFlow, FuelFlow, Tout, Efficiency = self.GasTurbine_Operate(self.Pdemand, self.Temperature, 0, Coef)
         return {"efficiency":Efficiency}

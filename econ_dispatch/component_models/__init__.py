@@ -109,7 +109,15 @@ class ComponentBase(object):
         return []
 
     def get_commands(self, component_loads):
-        """Get the set points for a component based on the optimized component load."""
+        """Get the set points for a component based on the optimized component load
+        and the current state of the component.
+        Return values must take the form:
+
+        {"device1": {"command1": 50.0, "command2": True},
+         "device2": {"command3": 22.0}}
+
+        Typically a component will only provide command for a single device.
+        """
         return {}
 
     @abc.abstractmethod

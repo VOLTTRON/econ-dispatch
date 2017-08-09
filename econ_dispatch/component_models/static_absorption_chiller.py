@@ -86,6 +86,9 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return [u"heat"]
 
+    def get_commands(self, component_loads):
+        return {}
+
     def get_optimization_parameters(self):
         return {
             "xmin_abschiller": self.xmin_abschill,

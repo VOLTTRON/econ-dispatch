@@ -157,6 +157,9 @@ class Component(ComponentBase):
         self.opt_params_dirty = False
         return self.cached_parameters.copy()
 
+    def get_commands(self, component_loads):
+        return {}
+
     def update_parameters(self, timestamp, **kwargs):
         pass
 

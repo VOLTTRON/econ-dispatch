@@ -67,6 +67,9 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return  [u"electricity"]
 
+    def get_commands(self, component_loads):
+        return {}
+
     def get_optimization_parameters(self):
         return {"efficiency":self.efficiency}
 

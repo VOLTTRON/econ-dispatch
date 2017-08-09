@@ -120,10 +120,13 @@ class Component(ComponentBase):
                 self.Coefs2 = self.getTrainingMFR(TrainingData)
     
     def get_output_metadata(self):
-        return ""
+        return []
 
     def get_input_metadata(self):
-        return ""
+        return []
+
+    def get_commands(self, component_loads):
+        return {}
 
     def get_optimization_parameters(self):
         Q_Cool_Out, Q_HW_In, Q_Elec_In, MFR_HW_In, T_HW_Out = self.predict()

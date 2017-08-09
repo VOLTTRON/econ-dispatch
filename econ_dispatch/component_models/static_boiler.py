@@ -78,6 +78,9 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return [u"natural_gas"]
 
+    def get_commands(self, component_loads):
+        return {}
+
     def get_optimization_parameters(self):
         return {
                     "xmin_boiler":  self.xmin_boiler,

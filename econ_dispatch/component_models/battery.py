@@ -145,6 +145,9 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return ""
 
+    def get_commands(self, component_loads):
+        return {}
+
     def get_optimization_parameters(self):
         NewSOC, InputPower = self.getUpdatedSOC()
         return {"SOC": NewSOC, "InputPower": InputPower}
