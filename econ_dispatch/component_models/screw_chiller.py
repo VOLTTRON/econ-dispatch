@@ -95,14 +95,10 @@ class Component(ComponentBase):
         self.predict()
         return {}
 
-    def update_parameters(self, timestamp,
-                          Tcho=DEFAULT_TCHO,
-                          Tcdi=DEFAULT_TCDI,
-                          Qch_kW=DEFAULT_QCH_KW,
-                          **kwargs):
-        self.Tcho = Tcho
-        self.Tcdi = Tcdi
-        self.Qch_kW = Qch_kW
+    def update_parameters(self, timestamp, inputs):
+        self.Tcho = inputs.get("Tcho", DEFAULT_TCHO)
+        self.Tcdi = inputs.get("Tcdi", DEFAULT_TCDI)
+        self.Qch_kW = inputs.get("Qch_kW", DEFAULT_QCH_KW)
 
     def predict(self):
         # Regression models were built separately (Training Module) and

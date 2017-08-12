@@ -165,9 +165,8 @@ class Component(ComponentBase):
         self.opt_params_dirty = False
         return self.cached_parameters.copy()
 
-    def update_parameters(self, timestamp, Qbp=DEFAULT_QBP,
-                          **kwargs):
-        self.current_Qbp = Qbp
+    def update_parameters(self, timestamp, inputs):
+        self.current_Qbp = inputs.get("Qbp", DEFAULT_QBP)
 
     # def predict(self):
     #     a0, a1, a2, a3, a4, a5 = self.polynomial_coeffs

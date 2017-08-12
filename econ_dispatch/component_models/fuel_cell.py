@@ -160,7 +160,7 @@ class Component(ComponentBase):
     def get_commands(self, component_loads):
         return {}
 
-    def update_parameters(self, timestamp, **kwargs):
+    def update_parameters(self, timestamp, inputs):
         pass
 
     def FuelCell_Operate(self, Coef, Power, Tin, Starts, NetHours):

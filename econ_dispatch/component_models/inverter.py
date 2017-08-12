@@ -89,11 +89,9 @@ class Component(ComponentBase):
     def get_optimization_parameters(self):
         return {"electricity":self.electricity_out()}
 
-    def update_parameters(self, timestamp,
-                          capacity=DEFAULT_CAPACITY, electricity_in=DEFAULT_ELEC_IN,
-                          **kwargs):
-        self.capacity = capacity
-        self.electricity_in = electricity_in
+    def update_parameters(self, timestamp, inputs):
+        self.capacity = inputs.get("capacity", DEFAULT_CAPACITY)
+        self.electricity_in = inputs.get("electricity_in", DEFAULT_ELEC_IN)
 
     def electricity_out(self):
         efficiency = np.interp(self.electricity_in/self.capacity, self.PLF, self.efficiency)

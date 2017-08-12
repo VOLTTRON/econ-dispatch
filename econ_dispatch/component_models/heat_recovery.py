@@ -127,18 +127,12 @@ class Component(ComponentBase):
             "heat_recovered": heat_recovered
         }
 
-    def update_parameters(self, timestamp,
-                          MFR_ex=DEFAULT_MFR_EX,
-                          MFR_water=DEFAULT_MFR_WATER,
-                          T_ex_i=DEFAULT_T_EX_I,
-                          T_water_i=DEFAULT_T_WATER_I,
-                          prime_mover_current_speed=DEFAULT_PRIME_MOVER_SPEED,
-                          **kwargs):
-        self.MFR_ex = MFR_ex
-        self.MFR_water = MFR_water
-        self.T_ex_i = T_ex_i
-        self.T_water_i = T_water_i
-        self.prime_mover_current_speed = prime_mover_current_speed
+    def update_parameters(self, timestamp, inputs):
+        self.MFR_ex = inputs.get("MFR_ex", DEFAULT_MFR_EX)
+        self.MFR_water = inputs.get("MFR_water", DEFAULT_MFR_WATER)
+        self.T_ex_i = inputs.get("T_ex_i", DEFAULT_T_EX_I)
+        self.T_water_i = inputs.get("T_water_i", DEFAULT_T_WATER_I)
+        self.prime_mover_current_speed = inputs.get("prime_mover_current_speed", DEFAULT_PRIME_MOVER_SPEED)
 
     def GetRegressionHeatRecovery(self, training_data_file):
         # data_file = os.path.join(os.path.dirname(__file__), 'MicroturbineData.csv')

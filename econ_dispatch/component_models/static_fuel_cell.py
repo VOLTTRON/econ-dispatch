@@ -89,7 +89,7 @@ class Component(ComponentBase):
             "mat_prime_mover": self.mat
         }
 
-    def update_parameters(self, timestamp, **kwargs):
+    def update_parameters(self, timestamp, inputs):
         pass
 
 

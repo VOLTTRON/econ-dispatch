@@ -140,16 +140,11 @@ class Component(ComponentBase):
         self.opt_params_dirty = False
         return self.cached_parameters.copy()
 
-    def update_parameters(self, timestamp,
-                          Tcho=DEFAULT_TCHO,
-                          Tcdi=DEFAULT_TCDI,
-                          Tgeni=DEFAULT_TGENI,
-                          Qin=DEFAULT_QIN,
-                          **kwargs):
-        self.Tcho = Tcho
-        self.Tcdi = Tcdi
-        self.Tgeni = Tgeni
-        self.Qin = Qin
+    def update_parameters(self, timestamp, inputs):
+        self.Tcho = inputs.get("Tcho", DEFAULT_TCHO)
+        self.Tcdi = inputs.get("Tcdi", DEFAULT_TCDI)
+        self.Tgeni = inputs.get("Tgeni", DEFAULT_TGENI)
+        self.Qin = inputs.get("Qin", DEFAULT_QIN)
 
     # def predict(self):
     #     # Regression models were built separately (Training Module) and

@@ -75,7 +75,6 @@ valid_io_types = set([u"heated_water",
 class ComponentBase(object):
     __metaclass__ = abc.ABCMeta
     def __init__(self, name="MISSING_NAME", **kwargs):
-        self.update_parameters(None, **kwargs)
         self.name = name
 
     def get_input_metadata(self):
@@ -127,7 +126,7 @@ class ComponentBase(object):
         pass
 
     @abc.abstractmethod
-    def update_parameters(self, timestamp, **kwargs):
+    def update_parameters(self, timestamp, inputs):
         """Update the internal parameters of the component based on the input values."""
         pass
 

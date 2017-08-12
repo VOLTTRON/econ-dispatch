@@ -62,17 +62,6 @@ import numpy as np
 from econ_dispatch.component_models import ComponentBase
 from econ_dispatch.utils import least_squares_regression
 
-
-def fahrenheit_to_kelvin(t):
-    return (t - 32) / 1.8 + 273.15
-
-
-DEFAULT_TCHO = 45.8
-DEFAULT_TCDI = 83.7
-DEFAULT_TGENI = 335
-DEFAULT_QIN = 8.68
-
-
 class Component(ComponentBase):
     def __init__(self, mat_abschill = [], xmax_abschill = 0.0, xmin_abschill = 0.0, **kwargs):
         super(Component, self).__init__(**kwargs)
@@ -96,14 +85,7 @@ class Component(ComponentBase):
             "mat_abschiller": self.mat_abschill
         }
 
-    def update_parameters(self, timestamp,
-                          Tcho=DEFAULT_TCHO,
-                          Tcdi=DEFAULT_TCDI,
-                          Tgeni=DEFAULT_TGENI,
-                          Qin=DEFAULT_QIN,
-                          **kwargs):
-        self.Tcho = Tcho
-        self.Tcdi = Tcdi
-        self.Tgeni = Tgeni
-        self.Qin = Qin
+    def update_parameters(self, timestamp, inputs):
+        pass
+
 
