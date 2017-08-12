@@ -62,8 +62,6 @@ import numpy as np
 from econ_dispatch.component_models import ComponentBase
 from econ_dispatch.utils import least_squares_regression
 
-DEFAULT_QBP = 55
-
 class Component(ComponentBase):
     def __init__(self, mat_boiler = [], xmax_boiler = [], xmin_boiler = [], **kwargs):
         super(Component, self).__init__(**kwargs)
@@ -88,7 +86,7 @@ class Component(ComponentBase):
                     "mat_boiler": self.mat_boiler
                 }
 
-    def update_parameters(self, timestamp, Qbp=DEFAULT_QBP, **kwargs):
-        self.Qbp = Qbp
+    def update_parameters(self, timestamp, inputs):
+        pass
 
 

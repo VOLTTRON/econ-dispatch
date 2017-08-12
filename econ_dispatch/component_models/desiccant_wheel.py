@@ -136,19 +136,12 @@ class Component(ComponentBase):
                 "MFR_HW_In":MFR_HW_In,
                 "T_HW_Out":T_HW_Out}
 
-    def update_parameters(self, timestamp,
-                          cfm_OA=DEFAULT_CFM_OA,
-                          fan_status=DEFAULT_FAN_STATUS,
-                          T_OA=DEFAULT_T_OA,
-                          RH_OA=DEFAULT_RH_OA,
-                          T_HW=DEFAULT_T_HW,
-                          **kwargs):
-
-        self.cfm_OA = cfm_OA
-        self.fan_status = fan_status
-        self.T_OA = T_OA
-        self.RH_OA = RH_OA
-        self.T_HW = T_HW
+    def update_parameters(self, timestamp, inputs):
+        self.cfm_OA = inputs.get("cfm_OA", DEFAULT_CFM_OA)
+        self.fan_status = inputs.get("fan_status", DEFAULT_FAN_STATUS)
+        self.T_OA = inputs.get("T_OA", DEFAULT_T_OA)
+        self.RH_OA = inputs.get("RH_OA", DEFAULT_RH_OA)
+        self.T_HW = inputs.get("T_HW", DEFAULT_T_HW)
 
     def getTrainingMFR(self, TrainingData):
         #This function is used by the Desiccant Wheel program to estimate the delta T across the regeneration coil for the purpose of calculating the hot water mass flow rate in the regeneration coil

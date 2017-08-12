@@ -152,33 +152,19 @@ class Component(ComponentBase):
         NewSOC, InputPower = self.getUpdatedSOC()
         return {"SOC": NewSOC, "InputPower": InputPower}
 
-    def update_parameters(self, timestamp,
-                          capacity=DEFAULT_CAPACITY,
-                          input_power_request=DEFAULT_INPUT_POWER_REQUEST,
-                          timestep=DEFAULT_TIMESTEP,
-                          PrevSOC=DEFAULT_PREVSOC,
-                          InputCurrent=DEFAULT_INPUTCURRENT,
-                          minimumSOC=DEFAULT_MINIMUMSOC,
-                          InvEFF_Charge=DEFAULT_INVEFF_CHARGE,
-                          IR_Charge=DEFAULT_IR_CHARGE,
-                          InvEFF_DisCharge=DEFAULT_INVEFF_DISCHARGE,
-                          IR_DisCharge=DEFAULT_IR_DISCHARGE,
-                          Idle_A=DEFAULT_IDLE_A,
-                          Idle_B=DEFAULT_IDLE_B,
-                          **kwargs):
-
-        self.capacity = capacity
-        self.input_power_request = input_power_request
-        self.timestep = timestep
-        self.PrevSOC = PrevSOC
-        self.InputCurrent = InputCurrent
-        self.minimumSOC = minimumSOC
-        self.InvEFF_Charge = InvEFF_Charge
-        self.IR_Charge = IR_Charge
-        self.InvEFF_DisCharge = InvEFF_DisCharge
-        self.IR_DisCharge = IR_DisCharge
-        self.Idle_A = Idle_A
-        self.Idle_B = Idle_B
+    def update_parameters(self, timestamp, inputs):
+        self.capacity = inputs.get("capacity", DEFAULT_CAPACITY)
+        self.input_power_request = inputs.get("input_power_request", DEFAULT_INPUT_POWER_REQUEST)
+        self.timestep = inputs.get("timestep", DEFAULT_TIMESTEP)
+        self.PrevSOC = inputs.get("PrevSOC", DEFAULT_PREVSOC)
+        self.InputCurrent = inputs.get("InputCurrent", DEFAULT_INPUTCURRENT)
+        self.minimumSOC = inputs.get("minimumSOC", DEFAULT_MINIMUMSOC)
+        self.InvEFF_Charge = inputs.get("InvEFF_Charge", DEFAULT_INVEFF_CHARGE)
+        self.IR_Charge = inputs.get("IR_Charge", DEFAULT_IR_CHARGE)
+        self.InvEFF_DisCharge = inputs.get("InvEFF_DisCharge", DEFAULT_INVEFF_DISCHARGE)
+        self.IR_DisCharge = inputs.get("IR_DisCharge", DEFAULT_IR_DISCHARGE)
+        self.Idle_A = inputs.get("Idle_A", DEFAULT_IDLE_A)
+        self.Idle_B = inputs.get("Idle_B", DEFAULT_IDLE_B)
 
 
     def getUpdatedSOC(self):

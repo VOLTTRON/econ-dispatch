@@ -123,20 +123,13 @@ class Component(ComponentBase):
     def get_optimization_parameters(self):
         return {}
 
-    def update_parameters(self, timestamp,
-                          MFR_chW=DEFAULT_MFR_CHW,
-                          T_chW=DEFAULT_T_CHW,
-                          MFR_abW=DEFAULT_MFR_ABW,
-                          T_abW=DEFAULT_T_ABW,
-                          MFR_chwBldg=DEFAULT_MFR_CHWBLDG,
-                          T_chwBldgReturn=DEFAULT_T_CHWBLDGRETURN,
-                          **kwargs):
-        self.MFR_chW = MFR_chW
-        self.T_chW = T_chW
-        self.MFR_abW = MFR_abW
-        self.T_abW = T_abW
-        self.MFR_chwBldg = MFR_chwBldg
-        self.T_chwBldgReturn = T_chwBldgReturn
+    def update_parameters(self, timestamp, inputs):
+        self.MFR_chW = inputs.get("MFR_chW", DEFAULT_MFR_CHW)
+        self.T_chW = inputs.get("T_chW", DEFAULT_T_CHW)
+        self.MFR_abW = inputs.get("MFR_abW", DEFAULT_MFR_ABW)
+        self.T_abW = inputs.get("T_abW", DEFAULT_T_ABW)
+        self.MFR_chwBldg = inputs.get("MFR_chwBldg", DEFAULT_MFR_CHWBLDG)
+        self.T_chwBldgReturn = inputs.get("T_chwBldgReturn", DEFAULT_T_CHWBLDGRETURN)
 
 
     def getNodeTemperatures(self, Nodes_tminus1):

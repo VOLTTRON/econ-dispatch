@@ -94,5 +94,5 @@ class Component(ComponentBase):
             "xmin_chillerVSD": self.xmin_chiller
         }
 
-    def update_parameters(self, timestamp, **kwargs):
+    def update_parameters(self, timestamp, inputs):
         pass
