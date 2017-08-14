@@ -71,6 +71,9 @@ DEFAULT_TCHO = 45.8
 DEFAULT_TCDI = 83.7
 DEFAULT_TGENI = 335
 DEFAULT_QIN = 8.68
+DEFAULT_TCHR = 55.0
+SPECIFIC_HEAT_WATER = 4.184 # KJ/Kg-C
+DENSITY_WATER = 1.000 # kg/L
 
 
 class Component(ComponentBase):
@@ -87,6 +90,9 @@ class Component(ComponentBase):
 
         # heat input to the generator in mmBTU/hr
         self.Qin = DEFAULT_QIN
+
+        # Chilled water return temperature.
+        self.Tchr = DEFAULT_TCHR
 
         self.historical_data = {}
         self.cached_parameters = {}
@@ -114,8 +120,12 @@ class Component(ComponentBase):
         return [u"heat"]
 
     def get_commands(self, component_loads):
-        #return {"abs_chiller":{"command1":10}}
-        return {}
+        abs_chller_load_mmBTU = component_loads["Q_abs_hour00"]
+        abs_chiller_load_kW = abs_chller_load_mmBTU*1000/3.412
+        mass_flow_rate_abs =  abs_chiller_load_kW / (SPECIFIC_HEAT_WATER*(self.Tchr-self.Tcho))
+        vol_flow_rate_setpoint_abs = mass_flow_rate_abs / DENSITY_WATER
+        return {self.name: {"vol_flow_rate_setpoint_abs":vol_flow_rate_setpoint_abs}}
+
 
     def get_optimization_parameters(self):
         if not self.opt_params_dirty:
@@ -145,6 +155,7 @@ class Component(ComponentBase):
         self.Tcdi = inputs.get("Tcdi", DEFAULT_TCDI)
         self.Tgeni = inputs.get("Tgeni", DEFAULT_TGENI)
         self.Qin = inputs.get("Qin", DEFAULT_QIN)
+        self.Tchr = inputs.get("Tchr", DEFAULT_TCHR)
 
     # def predict(self):
     #     # Regression models were built separately (Training Module) and
