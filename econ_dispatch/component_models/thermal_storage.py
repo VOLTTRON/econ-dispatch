@@ -57,12 +57,16 @@
 
 from econ_dispatch.component_models import ComponentBase
 
-DEFAULT_MFR_CHW = 50.4
-DEFAULT_T_CHW = 7.0
-DEFAULT_MFR_ABW = 10.0
-DEFAULT_T_ABW = 10
-DEFAULT_MFR_CHWBLDG = 30
-DEFAULT_T_CHWBLDGRETURN = 14
+DEFAULT_MFR_CHW = 50.4 #kg/s
+DEFAULT_T_CHW = 7.0 #C
+DEFAULT_MFR_ABW = 10.0 #kg/s
+DEFAULT_T_ABW = 10.0 #C
+DEFAULT_MFR_CHWBLDG = 30.0 #kg/s
+DEFAULT_T_CHWBLDGRETURN = 14.0 #C
+DEFAULT_T_CHWCHILLERRETURN = 15.0 #C
+DEFAULT_T_CHWSTORAGESUPPLY = 7.0 #C
+SPECIFIC_HEAT_WATER = 4.186 #kJ/kG-C
+DENSITY_WATER = 1.000 #kg/L
 
 
 class Component(ComponentBase):
@@ -104,6 +108,12 @@ class Component(ComponentBase):
         # return chilled water temperature from bulding in degress C
         self.T_chwBldgReturn = DEFAULT_T_CHWBLDGRETURN
 
+        # return chilled water temperature from the tank to the chillers and absorption chillers
+        self.T_chwChillerReturn = DEFAULT_T_CHWCHILLERRETURN
+
+        #supply chilled water temperature from teh tank to the building load in degrees C
+        self.T_chwStorageSupply = DEFAULT_T_CHWSTORAGESUPPLY
+
         # initialization of temperatures in tank
         Nodes = [15, 14, 13, 12, 11, 10, 9, 8, 7, 6]
 
@@ -118,6 +128,28 @@ class Component(ComponentBase):
         return []
 
     def get_commands(self, component_loads):
+        #PLACEHOLDER VARIABLE FOR DISPATCHED LOAD FROM TANK TO BUILDING
+        Q_tank_bldg=1.0  # mmBTU/hr
+        #PLACEHOLDER VARIABLE FOR DISPATCHED LOAD FROM CHILLERS TO TANK
+        Q_chiller_tank=0   # mmBTU/hr
+        #PLACEHOLDER VARIABLE FOR DISPATCHED LOAD FROM ABSORPTION CHILLERS TO TANK
+        Q_abchiller_tank=0   # mmBTU/hr
+
+        Q_tank_bldg_kW = Q_tank_bldg *1000/3.412
+        Q_chiller_tank_kW = Q_tank_bldg * 1000 / 3.412
+        Q_abchiller_tank_kW = Q_tank_bldg * 1000 / 3.412
+        mass_flow_rate_tank_bldg =  Q_tank_bldg_kW / (SPECIFIC_HEAT_WATER*(self.T_chwBldgReturn-self.T_chwStorageSupply))
+        vol_flow_rate_setpoint_tank_bldg = mass_flow_rate_tank_bldg / DENSITY_WATER
+        mass_flow_rate_chiller_tank = Q_chiller_tank_kW / (SPECIFIC_HEAT_WATER * (self.T_chwChillerReturn - self.T_chW))
+        vol_flow_rate_setpoint_chiller_tank = mass_flow_rate_chiller_tank / DENSITY_WATER
+        mass_flow_rate_abchiller_tank = Q_abchiller_tank_kW / (SPECIFIC_HEAT_WATER * (self.T_chwChillerReturn - self.T_abW))
+        vol_flow_rate_setpoint_abchiller_tank = mass_flow_rate_abchiller_tank / DENSITY_WATER
+
+        return {self.name: {"vol_flow_rate_setpoint_tank_bldg":vol_flow_rate_setpoint_tank_bldg,
+                            "vol_flow_rate_setpoint_chiller_tank": vol_flow_rate_setpoint_chiller_tank,
+                            "vol_flow_rate_setpoint_abchiller_tank": vol_flow_rate_setpoint_abchiller_tank}}
+
+
         return {}
 
     def get_optimization_parameters(self):
@@ -130,7 +162,8 @@ class Component(ComponentBase):
         self.T_abW = inputs.get("T_abW", DEFAULT_T_ABW)
         self.MFR_chwBldg = inputs.get("MFR_chwBldg", DEFAULT_MFR_CHWBLDG)
         self.T_chwBldgReturn = inputs.get("T_chwBldgReturn", DEFAULT_T_CHWBLDGRETURN)
-
+        self.T_chwChillerReturn = inputs.get("T_chwChillerReturn", DEFAULT_T_CHWCHILLERRETURN)
+        self.T_chwStorageSupply = inputs.get("T_chwStorageSupply", DEFAULT_T_CHWSTORAGESUPPLY)
 
     def getNodeTemperatures(self, Nodes_tminus1):
         n = len(Nodes_tminus1)
