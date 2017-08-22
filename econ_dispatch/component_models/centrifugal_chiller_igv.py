@@ -69,7 +69,9 @@ DEFAULT_QCH_KW = 500
 
 
 class Component(ComponentBase):
-    def __init__(self, training_data_file=None, **kwargs):
+    def __init__(self, training_data_file=None,
+                 capacity_per_chiller = 200.0,
+                 count = 3, **kwargs):
         super(Component, self).__init__(**kwargs)
         # Chilled water temperature setpoint outlet from chiller
         self.Tcho = DEFAULT_TCHO
@@ -81,6 +83,9 @@ class Component(ComponentBase):
 
         # building cooling load ASSIGNED TO THIS CHILLER in kW
         self.Qch_kW = DEFAULT_QCH_KW
+
+        self.capacity = float(capacity_per_chiller)
+        self.count = int(count)
 
         self.training_data_file = training_data_file
         self.historical_data = {}
@@ -105,7 +110,15 @@ class Component(ComponentBase):
         return [u"electricity"]
 
     def get_commands(self, component_loads):
-        return {}
+        points = {}
+        commands = {self.name: points}
+        for i in xrange(self.count):
+            if component_loads["E_chillerelec{}_hour00".format(i)] > 0.0:
+                points["chiller{}_on".format(i)] = True
+            else:
+                points["chiller{}_on".format(i)] = False
+
+        return commands
 
     def get_optimization_parameters(self):
 
@@ -125,7 +138,9 @@ class Component(ComponentBase):
         self.cached_parameters = {
                                     "mat_chillerIGV": m_ChillerIGV.tolist(),
                                     "xmax_chillerIGV": xmax_ChillerIGV,
-                                    "xmin_chillerIGV": xmin_ChillerIGV
+                                    "xmin_chillerIGV": xmin_ChillerIGV,
+                                    "capacity_per_chiller": self.capacity,
+                                    "chiller_count": self.count
                                 }
         self.opt_params_dirty = False
         return self.cached_parameters.copy()

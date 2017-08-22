@@ -65,7 +65,7 @@ from econ_dispatch.utils import least_squares_regression
 DEFAULT_QBP = 55
 
 class Component(ComponentBase):
-    def __init__(self, history_data_file=None, **kwargs):
+    def __init__(self, history_data_file=None, capacity=8.0, **kwargs):
         super(Component, self).__init__(**kwargs)
 
         self.history_data_file = history_data_file
@@ -80,6 +80,8 @@ class Component(ComponentBase):
 
         # Building heating load assigned to Boiler
         self.current_Qbp = 55
+
+        self.capacity = float(capacity)
 
         # # Boiler Nameplate parameters (User Inputs)
         # self.Qbprated = 60 #mmBtu/hr
@@ -114,8 +116,7 @@ class Component(ComponentBase):
         return [u"natural_gas"]
 
     def get_commands(self, component_loads):
-        #return {"boiler":{"command2":20}}
-        return {}
+        return {self.name:{"boiler_on":(component_loads["Q_boiler_hour00"]>0.0)}}
 
     def get_optimization_parameters(self):
 
@@ -160,7 +161,8 @@ class Component(ComponentBase):
         self.cached_parameters = {
                                     "xmin_boiler": xmin_boiler.tolist(),
                                     "xmax_boiler": xmax_boiler.tolist(),
-                                    "mat_boiler": mat_boiler.tolist()
+                                    "mat_boiler": mat_boiler.tolist(),
+                                    "cap_boiler": self.capacity
                                 }
         self.opt_params_dirty = False
         return self.cached_parameters.copy()

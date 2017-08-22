@@ -146,7 +146,9 @@ class Component(ComponentBase):
         return ""
 
     def get_commands(self, component_loads):
-        return {}
+        return {self.name:
+                    {"battery_set_point":
+                         component_loads["Q_prime_mover_hour00"] * 293.1}}
 
     def get_optimization_parameters(self):
         NewSOC, InputPower = self.getUpdatedSOC()
