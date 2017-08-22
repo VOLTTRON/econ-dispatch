@@ -87,26 +87,24 @@ def get_optimization_problem(forecast, parameters={}):
         mat_boiler = parameters["mat_boiler"]
         xmax_boiler =  parameters["xmax_boiler"]
         xmin_boiler =  parameters["xmin_boiler"]
+        cap_boiler = parameters["cap_boiler"]
 
         # load ChillerIGVPara.mat
         mat_chillerIGV = parameters["mat_chillerIGV"]
         xmax_chillerIGV = parameters["xmax_chillerIGV"]
         xmin_chillerIGV = parameters["xmin_chillerIGV"]
+        cap_chiller = parameters["capacity_per_chiller"]
+        cap_chiller = cap_chiller * 3.517 / 293.1  # ton -> mmBtu/hr
+        n_chiller = parameters["chiller_count"]
 
         # load AbsChillerPara.mat
         mat_abschiller = parameters["mat_abschiller"]
         xmax_abschiller = parameters["xmax_abschiller"]
         xmin_abschiller = parameters["xmin_abschiller"]
+        cap_abs = parameters["cap_abs_chiller"]
+        cap_abs = cap_abs / 293.1  # kW -> mmBtu/hr
     except KeyError as e:
         raise RuntimeError("Missing needed configuration parameter: " + e.message)
-
-
-    # component capacity
-    #cap_prime_mover = 500  # kW
-    cap_abs = 464 / 293.1  # kW -> mmBtu/hr
-    cap_boiler = 8  # mmBtu/hr
-    n_chiller = 3
-    cap_chiller = 200 * 3.517 / 293.1  # ton -> mmBtu/hr
 
     ## compute the parameters for the optimization
     # boiler

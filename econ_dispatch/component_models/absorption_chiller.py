@@ -77,7 +77,7 @@ DENSITY_WATER = 1.000 # kg/L
 
 
 class Component(ComponentBase):
-    def __init__(self, history_data_file=None, **kwargs):
+    def __init__(self, history_data_file=None, capacity=464.0, **kwargs):
         super(Component, self).__init__(**kwargs)
         #Chilled water temperature setpoint outlet from absorption chiller
         self.Tcho = DEFAULT_TCHO
@@ -93,6 +93,8 @@ class Component(ComponentBase):
 
         # Chilled water return temperature.
         self.Tchr = DEFAULT_TCHR
+
+        self.capacity = float(capacity)
 
         self.historical_data = {}
         self.cached_parameters = {}
@@ -145,7 +147,8 @@ class Component(ComponentBase):
         self.cached_parameters = {
                                     "xmax_abschiller": xmax_AbsChiller,
                                     "xmin_abschiller": xmin_AbsChiller,
-                                    "mat_abschiller": m_AbsChiller.tolist()
+                                    "mat_abschiller": m_AbsChiller.tolist(),
+                                    "cap_abs_chiller": self.capacity
                                 }
         self.opt_params_dirty = False
         return self.cached_parameters.copy()

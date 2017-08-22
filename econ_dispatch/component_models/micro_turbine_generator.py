@@ -101,7 +101,9 @@ class Component(ComponentBase):
         return [u"natural_gas"]
 
     def get_commands(self, component_loads):
-        return {}
+        return {self.name:
+                    {"fuel_cell_set_point":
+                         component_loads["Q_prime_mover_hour00"] * 293.1}}
 
     def get_optimization_parameters(self):
         AirFlow, FuelFlow, Tout, Efficiency = self.GasTurbine_Operate(self.Pdemand, self.Temperature, 0, Coef)
