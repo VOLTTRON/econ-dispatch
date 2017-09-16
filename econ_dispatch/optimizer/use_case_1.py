@@ -152,11 +152,15 @@ def get_optimization_problem(forecast, parameters={}):
 
     objective_component = []
     constraints = []
+    boiler_state = []
     for hour, forecast_hour in enumerate(forecast):
         hour = str(hour).zfill(2)
         # binary variables
         Sturbine = binary_var("Sturbine_hour{}".format(hour))
+
         Sboiler = binary_var("Sboiler_hour{}".format(hour))
+        boiler_state.append(Sboiler)
+
         Sabs = binary_var("Sabs_hour{}".format(hour))
         Schiller = []
         for i in range(n_chiller):
@@ -364,7 +368,73 @@ def get_optimization_problem(forecast, parameters={}):
         exp = Q_HRUheating - a_hru * Q_Genheating <= 0
         constraints.append((exp, label))
 
+    # time lock constraints need to look at multiple state variables
+    def lock_on_constraints(label_template, min_lock_time, state_variables, state_history):
+        for hour in range(len(forecast)):
+            label = label_template.format(hour)
+            exp = None
 
+            if hour - min_lock_time + 2 <= 0:
+                index = hour - min_lock_time + 1 + 24
+                tmp = sum(state_history[index:])
+                for tau in range(max(0, hour-min_lock_time+1), hour-2):
+                    exp += state_variables[tau]
+
+                if hour == 0:
+                    tmp = tmp - min_lock_time * state_history[-1]
+                    exp += (min_lock_time + 1) * state_variables[hour]
+                    exp = exp >= -tmp
+                else:
+                    exp += (min_lock_time + 1) * state_variables[hour] + (-min_lock_time + 1) * state_variables[hour-1]
+                    exp = exp >= -tmp
+
+            else:
+                for tau in range(hour-min_lock_time+1, hour-1):
+                    exp += state_variables[tau]
+
+                exp += (min_lock_time+1) * state_variables[hour] + (-min_lock_time + 1) * state_variables[hour-1]
+                exp = exp >= 0
+
+            constraints.append((exp, label))
+
+    def lock_off_constraints(label_template, min_lock_time, state_variables, state_history):
+        for hour in range(len(forecast)):
+            label = label_template.format(hour)
+            exp = None
+
+            if hour - min_lock_time + 2 <= 0:
+                print "IF"
+                index = hour - min_lock_time + 1 + 24
+                tmp = min_lock_time - sum(state_history[index:])
+
+                for tau in range(max(0, hour-min_lock_time+1), hour-2):
+                    exp += -state_variables[tau]
+
+                if hour == 0:
+                    tmp = tmp + min_lock_time * state_history[-1]
+                    exp += (-min_lock_time - 1) * state_variables[hour]
+                    exp = exp >= -tmp
+                else:
+                    exp += (-min_lock_time - 1) * state_variables[hour] + (min_lock_time - 1) * state_variables[hour-1]
+                    exp = exp >= -tmp
+
+            else:
+                print "ELSE"
+                for tau in range(hour-min_lock_time+1, hour-1):
+                    exp += -state_variables[tau]
+
+                exp += (-min_lock_time - 1) * state_variables[hour] + (min_lock_time - 1) * state_variables[hour-1]
+                exp = exp >= -min_lock_time
+
+            print "{}:".format(label), exp
+            constraints.append((exp, label))
+
+    s0_boiler = [1 for _ in range(24)]
+    lock_on_constraints("BoilerLockOn{}", 3, boiler_state, s0_boiler)
+    lock_off_constraints("BoilerLockOff{}", 3, boiler_state, s0_boiler)
+
+
+    # Build the optimization problem
     prob = pulp.LpProblem("Building Optimization", pulp.LpMinimize)
 
     objective_function = objective_component[0]
