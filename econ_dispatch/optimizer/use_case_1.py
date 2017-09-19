@@ -153,6 +153,7 @@ def get_optimization_problem(forecast, parameters={}):
     objective_component = []
     constraints = []
     boiler_state = []
+    absorption_chiller_state = []
     for hour, forecast_hour in enumerate(forecast):
         hour = str(hour).zfill(2)
         # binary variables
@@ -162,6 +163,8 @@ def get_optimization_problem(forecast, parameters={}):
         boiler_state.append(Sboiler)
 
         Sabs = binary_var("Sabs_hour{}".format(hour))
+        absorption_chiller_state.append(Sabs)
+
         Schiller = []
         for i in range(n_chiller):
             var = binary_var("Schiller{}_hour{}".format(i, hour))
@@ -429,9 +432,14 @@ def get_optimization_problem(forecast, parameters={}):
             print "{}:".format(label), exp
             constraints.append((exp, label))
 
-    s0_boiler = [1 for _ in range(24)]
-    lock_on_constraints("BoilerLockOn{}", 3, boiler_state, s0_boiler)
-    lock_off_constraints("BoilerLockOff{}", 3, boiler_state, s0_boiler)
+    # s0_boiler = [1 for _ in range(24)]
+    # lock_on_constraints("BoilerLockOn{}", 3, boiler_state, s0_boiler)
+    # lock_off_constraints("BoilerLockOff{}", 3, boiler_state, s0_boiler)
+
+    s0_abs = [1 for _ in range(24)]
+
+    lock_on_constraints("AbsLockOn{}", 3, absorption_chiller_state, s0_abs)
+    lock_off_constraints("AbsLockOff{}", 3, absorption_chiller_state, s0_abs)
 
 
     # Build the optimization problem
