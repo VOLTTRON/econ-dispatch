@@ -101,6 +101,9 @@ def get_optimization_problem(forecast, parameters={}):
         mat_abschiller = parameters["mat_abschiller"]
         xmax_abschiller = parameters["xmax_abschiller"]
         xmin_abschiller = parameters["xmin_abschiller"]
+        min_on_abs_chiller = parameters.get("min_on_abs_chiller", 3)
+        min_off_abs_chiller = parameters.get("min_off_abs_chiller", 0)
+        abs_chiller_history = parameters["abs_chiller_history"]
         cap_abs = parameters["cap_abs_chiller"]
         cap_abs = cap_abs / 293.1  # kW -> mmBtu/hr
     except KeyError as e:
@@ -436,10 +439,10 @@ def get_optimization_problem(forecast, parameters={}):
     # lock_on_constraints("BoilerLockOn{}", 3, boiler_state, s0_boiler)
     # lock_off_constraints("BoilerLockOff{}", 3, boiler_state, s0_boiler)
 
-    s0_abs = [1 for _ in range(24)]
-
-    lock_on_constraints("AbsLockOn{}", 3, absorption_chiller_state, s0_abs)
-    lock_off_constraints("AbsLockOff{}", 3, absorption_chiller_state, s0_abs)
+    lock_on_constraints("AbsLockOn{}", min_on_abs_chiller,
+                        absorption_chiller_state, abs_chiller_history)
+    lock_off_constraints("AbsLockOff{}", min_off_abs_chiller,
+                         absorption_chiller_state, abs_chiller_history)
 
 
     # Build the optimization problem
