@@ -77,7 +77,7 @@ DENSITY_WATER = 1.000 # kg/L
 
 
 class Component(ComponentBase):
-    def __init__(self, history_data_file=None, capacity=464.0, **kwargs):
+    def __init__(self, history_data_file=None, capacity=464.0, min_off=0, min_on=0, **kwargs):
         super(Component, self).__init__(**kwargs)
         #Chilled water temperature setpoint outlet from absorption chiller
         self.Tcho = DEFAULT_TCHO
@@ -96,8 +96,13 @@ class Component(ComponentBase):
 
         self.capacity = float(capacity)
 
+        self.min_on = min_on
+        self.min_off = min_off
+
         self.historical_data = {}
         self.cached_parameters = {}
+
+        self.command_history = [0] * 24
 
         self.setup_historical_data(history_data_file)
 
@@ -126,12 +131,16 @@ class Component(ComponentBase):
         abs_chiller_load_kW = abs_chller_load_mmBTU*1000/3.412
         mass_flow_rate_abs =  abs_chiller_load_kW / (SPECIFIC_HEAT_WATER*(self.Tchr-self.Tcho))
         vol_flow_rate_setpoint_abs = mass_flow_rate_abs / DENSITY_WATER
+        self.command_history = self.command_history[1:] + [int(vol_flow_rate_setpoint_abs > 0.0)]
         return {self.name: {"vol_flow_rate_setpoint_abs":vol_flow_rate_setpoint_abs}}
 
 
     def get_optimization_parameters(self):
         if not self.opt_params_dirty:
-            return self.cached_parameters.copy()
+            copy = self.cached_parameters.copy()
+            #Always update command history.
+            copy["abs_chiller_history"] = self.command_history[:]
+            return copy
 
         Qch = self.historical_data["Qch(tons)"] * (3.517 / 293.1) # chiller cooling output in mmBTU/hr (converted from cooling Tons)
         Qin = self.historical_data["Qin(MMBtu/h)"] # chiller heat input in mmBTU/hr
@@ -148,7 +157,10 @@ class Component(ComponentBase):
                                     "xmax_abschiller": xmax_AbsChiller,
                                     "xmin_abschiller": xmin_AbsChiller,
                                     "mat_abschiller": m_AbsChiller.tolist(),
-                                    "cap_abs_chiller": self.capacity
+                                    "cap_abs_chiller": self.capacity,
+                                    "min_on_abs_chiller": self.min_on,
+                                    "min_off_abs_chiller": self.min_off,
+                                    "abs_chiller_history": self.command_history[:]
                                 }
         self.opt_params_dirty = False
         return self.cached_parameters.copy()
