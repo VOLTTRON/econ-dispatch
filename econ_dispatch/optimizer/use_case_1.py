@@ -376,63 +376,35 @@ def get_optimization_problem(forecast, parameters={}):
 
     # time lock constraints need to look at multiple state variables
     def lock_on_constraints(label_template, min_lock_time, state_variables, state_history):
+        window_states = state_history[-min_lock_time:] + state_variables
+        window_size = min_lock_time + 1
+
         for hour in range(len(forecast)):
+            window = window_states[:window_size]
+            window_states = window_states[1:]
+            current_time = window[-1]
+            last_time = window[-2]
+
+            exp = pulp.lpSum(window[:-1]) >= min_lock_time * (last_time - current_time)
+
             label = label_template.format(hour)
-            exp = None
-
-            if hour - min_lock_time + 2 <= 0:
-                index = hour - min_lock_time + 1 + 24
-                tmp = sum(state_history[index:])
-                for tau in range(max(0, hour-min_lock_time+1), hour-2):
-                    exp += state_variables[tau]
-
-                if hour == 0:
-                    tmp = tmp - min_lock_time * state_history[-1]
-                    exp += (min_lock_time + 1) * state_variables[hour]
-                    exp = exp >= -tmp
-                else:
-                    exp += (min_lock_time + 1) * state_variables[hour] + (-min_lock_time + 1) * state_variables[hour-1]
-                    exp = exp >= -tmp
-
-            else:
-                for tau in range(hour-min_lock_time+1, hour-1):
-                    exp += state_variables[tau]
-
-                exp += (min_lock_time+1) * state_variables[hour] + (-min_lock_time + 1) * state_variables[hour-1]
-                exp = exp >= 0
-
             constraints.append((exp, label))
 
     def lock_off_constraints(label_template, min_lock_time, state_variables, state_history):
+        window_states = state_history[-min_lock_time:] + state_variables
+        window_size = min_lock_time + 1
+
         for hour in range(len(forecast)):
+            window = window_states[:window_size]
+            window = [1 - x for x in window]
+
+            window_states = window_states[1:]
+            current_time = window[-1]
+            last_time = window[-2]
+
+            exp = pulp.lpSum(window[:-1]) >= min_lock_time * (last_time - current_time)
+
             label = label_template.format(hour)
-            exp = None
-
-            if hour - min_lock_time + 2 <= 0:
-                print "IF"
-                index = hour - min_lock_time + 1 + 24
-                tmp = min_lock_time - sum(state_history[index:])
-
-                for tau in range(max(0, hour-min_lock_time+1), hour-2):
-                    exp += -state_variables[tau]
-
-                if hour == 0:
-                    tmp = tmp + min_lock_time * state_history[-1]
-                    exp += (-min_lock_time - 1) * state_variables[hour]
-                    exp = exp >= -tmp
-                else:
-                    exp += (-min_lock_time - 1) * state_variables[hour] + (min_lock_time - 1) * state_variables[hour-1]
-                    exp = exp >= -tmp
-
-            else:
-                print "ELSE"
-                for tau in range(hour-min_lock_time+1, hour-1):
-                    exp += -state_variables[tau]
-
-                exp += (-min_lock_time - 1) * state_variables[hour] + (min_lock_time - 1) * state_variables[hour-1]
-                exp = exp >= -min_lock_time
-
-            print "{}:".format(label), exp
             constraints.append((exp, label))
 
     # s0_boiler = [1 for _ in range(24)]
@@ -441,8 +413,8 @@ def get_optimization_problem(forecast, parameters={}):
 
     lock_on_constraints("AbsLockOn{}", min_on_abs_chiller,
                         absorption_chiller_state, abs_chiller_history)
-    lock_off_constraints("AbsLockOff{}", min_off_abs_chiller,
-                         absorption_chiller_state, abs_chiller_history)
+    # lock_off_constraints("AbsLockOff{}", min_off_abs_chiller,
+    #                      absorption_chiller_state, abs_chiller_history)
 
 
     # Build the optimization problem
