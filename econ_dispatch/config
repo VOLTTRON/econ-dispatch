@@ -1,0 +1,218 @@
+{
+    "device": {
+        "campus": "PNNL",
+        "building": "2400_STEVENS",
+        "unit": {
+        	"HEATER1": {
+                "subdevices": []
+            }
+        },
+        "analysis_name": "WaterHeater_Agent"
+    },
+    "output_file": "./waterheater_output.csv",
+    "mode": "PASSIVE",
+    "conversion_map": {
+        "statussetpoint*": "bool",
+        "temperature*": "float"
+    },
+    "unittype_map": {
+        "statussetpoint*": "On/Off",
+        "temperature*": "Farenheit"
+    },
+
+    "arguments": {
+        "optimizer_debug": "optimizer output.csv",
+        "optimization_frequency": 60, #Frequency of optimization in minutes.
+        "optimizer":
+        {
+            "name": "use_case_1",
+            #"use_glpk": true,
+            #"glpk_options": ["--tmlim", "10"],
+            "write_lp": false,
+            "lp_out_dir": "lps"
+        },
+        "weather":
+        {
+            "type": "history",
+            "settings":
+            {
+                "history_data_file": "USA_IL_Chicago-OHare.csv",
+                "hours_forecast": 5
+            }
+        },
+        "forecast_models":
+        {
+            "building_load":
+            {
+                "type": "history",
+                "settings":
+                {
+                    "history_data_file": "hospital_data_no_leap_day.csv"
+                }
+            },
+            "solar_pv":
+            {
+                "type": "zero"
+            },
+            "natural_gas_cost":
+            {
+                "type": "static",
+                "settings":
+                {
+                    "cost": 7.614
+                }
+            },
+            "electricity_cost":
+            {
+                "type": "static",
+                "settings":
+                {
+                    "cost": 0.1
+                }
+            }
+        },
+        "components":
+        [
+    #     {
+    #        "type": "natural_gas_meter",
+    #        "name": "natural_gas_meter",
+    #		"settings":
+    #		{
+    #			"cost": 7.614
+    #		}
+    #    },
+    #     {
+    #        "type": "electric_meter",
+    #        "name": "electric_meter",
+    #        "settings":
+    #		{
+    #			"cost": 0.1
+    #		}
+    #     },
+    #     {
+    #        "type": "static_centrifugal_chiller",
+    #        "name": "centrifugal_chiller",
+    #		"settings":
+    #		{
+    #			#Static chiller type defaults to IGV.
+    #			"mat_chiller": [14.0040999536939, 35.4182417367909],
+    #			"xmax_chiller": 2.13587853974753,
+    #			"xmin_chiller": 0.155991129307404
+    #		}
+    #     },
+         {
+            "type": "centrifugal_chiller_igv",
+            "name": "centrifugal_chiller",
+            "settings":
+            {
+                "training_data_file": "./component_example_training_data/CH-Cent-IGV-Historical-Data.json",
+                "capacity_per_chiller": 200.0,
+                "count": 3
+            }
+         },
+    #     {
+    #        "type": "micro_turbine_generator",
+    #        "name": "micro_turbine_generator",
+    #		"settings":
+    #		{
+    #			"training_data_file": "./component_example_training_data/CapstoneTurndownData.json"
+    #		}
+    #     },
+    #     {
+    #        "type": "static_fuel_cell",
+    #        "name": "fuel_cell",
+    #		"settings":
+    #		{
+    #			"mat": [0.553388269906111, 0.00770880111175251],
+    #			"xmax": 408.200000000000,
+    #			"xmin": 20.5100000000000,
+    #			"capacity": 500.0
+    #		}
+    #     },
+         {
+            "type": "fuel_cell",
+            "name": "fuel_cell",
+            "settings":
+            {
+                "training_data_file": "./component_example_training_data/Gen2.csv"
+            }
+         },
+    #     {
+    #        "type": "heat_exchanger",
+    #        "name": "heat_recovery_unit",
+    #		"settings":
+    #		{
+    #			"input_type": "waste_heat",
+    #			"output_type": ["heat", "heated_water"]
+    #		}
+    #     },
+    #     {
+    #        "type": "heat_exchanger",
+    #        "name": "air_handlers",
+    #		"settings":
+    #		{
+    #			"input_type": ["heated_water","chilled_water"],
+    #			"output_type": ["heated_air", "cooled_air"]
+    #		}
+    #     },
+         {
+            "type": "absorption_chiller",
+            "name": "absorption_chiller",
+            "settings":
+            {
+                "history_data_file": "./component_example_training_data/CH-Abs-Historical-Data.json",
+                "capacity": 464.0,
+                "min_off": 3,
+                "min_on": 3
+            }
+         },
+    #     {
+    #        "type": "static_absorption_chiller",
+    #        "name": "absorption_chiller",
+    #		"settings":
+    #		{
+    #			"mat_abschill": [1.42355081496335, 0.426344465964358],
+    #			"xmax_abschill": 7.91954964176049,
+    #			"xmin_abschill": 6.55162743091095
+    #		}
+    #   },
+    #     {
+    #        "type": "static_boiler",
+    #        "name": "boiler",
+    #		"settings":
+    #		{
+    #			"mat_boiler": [[1.02338001783412, -5.47472301330830, -11.2128369305035],
+    #						 [1.25837185026029, 1.52937309060521, 1.65693038866453]],
+    #			"xmax_boiler": [23.9781302213668, 44.9845991134643, 61.2098989486694],
+    #			"xmin_boiler": [0.149575993418693, 23.9781302213668, 44.9845991134643]
+    #		}
+    #     }
+         {
+            "type": "boiler",
+            "name": "boiler",
+            "settings":
+            {
+                "history_data_file": "./component_example_training_data/Boiler-Historical-Data.json",
+                "capacity": 8.0
+            }
+         }
+        ],
+
+        "connections": []
+    #    [
+    #        ["natural_gas_meter", "micro_turbine_generator"],
+    #        ["micro_turbine_generator", "heat_recovery_unit"],
+    #        ["heat_recovery_unit", "absorption_chiller"],
+    #        ["heat_recovery_unit", "air_handlers"],
+    #        ["absorption_chiller", "air_handlers"],
+    #        ["electric_meter", "chiller"],
+    #        ["chiller", "air_handlers"],
+    #        ["air_handlers", "building_load"],
+    #        ["electric_meter", "building_load"],
+    #        ["micro_turbine_generator", "electric_meter"],
+    #        ["natural_gas_meter", "boiler"],
+    #        ["boiler", "air_handlers"]
+    #    ]
+    }
+
+}
