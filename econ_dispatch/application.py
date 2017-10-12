@@ -163,9 +163,8 @@ def build_model_from_config(config):
     return system_model
 
 class Application(object):
-    def __init__(self, model_config={}, **kwargs):
-        super(Application, self).__init__(**kwargs)
-        self.model = build_model_from_config(model_config)
+    def __init__(self, **kwargs):
+        self.model = build_model_from_config(kwargs)
 
     @classmethod
     def output_format(cls):
