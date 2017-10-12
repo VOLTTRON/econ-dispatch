@@ -1,23 +1,15 @@
 {
     "device": {
         "campus": "PNNL",
-        "building": "2400_STEVENS",
-        "unit": {
-        	"HEATER1": {
-                "subdevices": []
-            }
-        },
-        "analysis_name": "WaterHeater_Agent"
+        "building": "ISB1",
+        "unit": ["centrifugal_chiller", "fuel_cell", "absorption_chiller", "boiler"],
+        "analysis_name": "Econ_Dispatch_Agent"
     },
-    "output_file": "./waterheater_output.csv",
+    "output_file": "./agent_command_output.csv",
     "mode": "PASSIVE",
     "conversion_map": {
         "statussetpoint*": "bool",
         "temperature*": "float"
-    },
-    "unittype_map": {
-        "statussetpoint*": "On/Off",
-        "temperature*": "Farenheit"
     },
 
     "arguments": {

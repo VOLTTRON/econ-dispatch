@@ -94,7 +94,6 @@ def driven_agent(config_path, **kwargs):
     config = utils.load_config(config_path)
     arguments = config.get('arguments')
     mode = True if config.get('mode', 'PASSIVE') == 'ACTIVE' else False
-    multiple_devices = isinstance(config['device']['unit'], dict)
     campus_building_config = config['device']
     analysis_name = campus_building_config.get('analysis_name', 'analysis_name')
     analysis_dict = {'analysis_name': analysis_name}
@@ -104,12 +103,10 @@ def driven_agent(config_path, **kwargs):
     campus_building = dict((key, campus_building_config[key]) for key in ['campus', 'building'])
     analysis = deepcopy(campus_building)
     analysis.update(analysis_dict)
-    device_config = config['device']['unit']
-    command_devices = device_config.keys()
+    device_config = campus_building_config['unit']
+    command_devices = device_config[:]
     device_topic_dict = {}
     device_topic_list = []
-    subdevices_list = []
-    from_file = config.get('from_file')
     for device_name in device_config:
         device_topic = topics.DEVICES_VALUE(campus=campus_building.get('campus'),
                                             building=campus_building.get('building'),
@@ -118,17 +115,6 @@ def driven_agent(config_path, **kwargs):
                                             point='all')
         device_topic_dict.update({device_topic: device_name})
         device_topic_list.append(device_name)
-        if multiple_devices:
-            for subdevice in device_config[device_name]['subdevices']:
-                subdevices_list.append(subdevice)
-                subdevice_topic = topics.DEVICES_VALUE(campus=campus_building.get('campus'),
-                                                       building=campus_building.get('building'),
-                                                       unit=device_name,
-                                                       path=subdevice,
-                                                       point='all')
-                subdevice_name = device_name + "/" + subdevice
-                device_topic_dict.update({subdevice_topic: subdevice_name})
-                device_topic_list.append(subdevice_name)
 
     base_actuator_path = topics.RPC_DEVICE_PATH(campus=campus_building.get('campus', ''),
                                                building=campus_building.get('building', ''),
@@ -249,9 +235,6 @@ def driven_agent(config_path, **kwargs):
                     field_names[k.lower() if isinstance(k, str) else k] = v
                 if not converter.initialized and conversion_map is not None:
                     converter.setup_conversion_map(map_names, field_names)
-                if from_file:
-                    _timestamp = parse(headers.get('Date'))
-                    self.received_input_datetime = _timestamp
                 else:
                     _timestamp = dt.now()
                     self.received_input_datetime = dt.utcnow()
