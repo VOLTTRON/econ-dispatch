@@ -376,6 +376,10 @@ def get_optimization_problem(forecast, parameters={}):
 
     # time lock constraints need to look at multiple state variables
     def lock_on_constraints(label_template, min_lock_time, state_variables, state_history):
+        # don't do anything if the lock is not needed
+        if min_lock_time < 1:
+            return
+
         window_states = state_history[-min_lock_time:] + state_variables
         window_size = min_lock_time + 1
 
@@ -391,6 +395,10 @@ def get_optimization_problem(forecast, parameters={}):
             constraints.append((exp, label))
 
     def lock_off_constraints(label_template, min_lock_time, state_variables, state_history):
+        # don't do anything if the lock is not needed
+        if min_lock_time < 1:
+            return
+
         window_states = state_history[-min_lock_time:] + state_variables
         window_size = min_lock_time + 1
 
