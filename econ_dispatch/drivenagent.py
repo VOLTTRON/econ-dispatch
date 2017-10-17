@@ -121,14 +121,10 @@ def driven_agent(config_path, **kwargs):
                                                unit=None,
                                                path='',
                                                point=None)
-    conversion_map = config.get('conversion_map')
-    map_names = {}
-    for key, value in conversion_map.items():
-        map_names[key.lower() if isinstance(key, str) else key] = value
-    converter = ConversionMapper()
+
     output_file_prefix = config.get('output_file')
-    #unittype_map = config.get('unittype_map', None)
-    #assert unittype_map
+
+    make_reservations = config.get("make_reservations", False)
 
     # This instances is used to call the applications run method when
     # data comes in on the message bus.  It is constructed here
@@ -233,13 +229,11 @@ def driven_agent(config_path, **kwargs):
                 field_names = {}
                 for k, v in self._device_values.items():
                     field_names[k.lower() if isinstance(k, str) else k] = v
-                if not converter.initialized and conversion_map is not None:
-                    converter.setup_conversion_map(map_names, field_names)
-                else:
-                    _timestamp = dt.now()
-                    self.received_input_datetime = dt.utcnow()
 
-                device_data = converter.process_row(field_names)
+                _timestamp = utils.parse_timestamp_string(headers[headers_mod.TIMESTAMP])
+                self.received_input_datetime = _timestamp
+
+                device_data = field_names
                 results = app_instance.run(_timestamp, device_data)
                 # results = app_instance.run(
                 # dateutil.parser.parse(self._subdevice_values['Timestamp'],
@@ -264,7 +258,9 @@ def driven_agent(config_path, **kwargs):
                     _log.debug("COMMAND TABLE: {}->{}".format(device_tag, new_value))
                     if mode:
                         _log.debug("ACTUATE ON DEVICE.")
-                        results, actuator_error = self.actuator_request(results)
+                        actuator_error = False
+                        if make_reservations:
+                            results, actuator_error = self.actuator_request(results)
                         if not actuator_error:
                             self.actuator_set(results)
                 return results
