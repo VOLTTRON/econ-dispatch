@@ -250,7 +250,7 @@ class Publisher(Agent):
             else:
                 now = datetime.datetime.now().isoformat(' ')
 
-            headers = {HEADER_NAME_DATE: now}
+            headers = {HEADER_NAME_DATE: now, HEADER_NAME_TIMESTAMP: now}
             row.pop('Timestamp', None)
 
             publish_dict = self.build_publishes(row)
