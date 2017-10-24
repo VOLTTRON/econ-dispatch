@@ -64,15 +64,18 @@ import sys
 
 from volttron.platform.vip.agent import *
 from volttron.platform.agent import utils
-from volttron.platform.agent.utils import jsonapi
 from volttron.platform.messaging.utils import normtopic
 from volttron.platform.messaging import headers as headers_mod
+import gevent
+
+from collections import defaultdict
 
 utils.setup_logging()
 _log = logging.getLogger(__name__)
 __version__ = '4.0.0'
 
 HEADER_NAME_DATE = headers_mod.DATE
+HEADER_NAME_TIMESTAMP = headers_mod.TIMESTAMP
 HEADER_NAME_CONTENT_TYPE = headers_mod.CONTENT_TYPE
 SCHEDULE_RESPONSE_SUCCESS = 'SUCCESS'
 SCHEDULE_RESPONSE_FAILURE = 'FAILURE'
@@ -124,9 +127,11 @@ class Publisher(Agent):
         '''Initialize data publisher class attributes.'''
         super(Publisher, self).__init__(**kwargs)
 
-        self._unit_types = {}
-        self._topic_map = {}
-        self._data = []
+        self._meta_data = {}  # maps from device topic to meta data map.
+        self._name_map = {}  # maps from column name to (device topic, point name)
+        self._data = []  # incoming data
+        self._publish_interval = publish_interval
+        self._use_timestamp = use_timestamp
 
         _log.info('Publishing Starting')
 
@@ -141,16 +146,19 @@ class Publisher(Agent):
         self.vip.config.subscribe(self.config_error, actions=["UPDATE"], pattern="config")
 
     def config_error(self, config_name, action, contents):
-        _log.error("Currently the data publisher must be restarted for changed to take effect.")
+        _log.error("Currently the data publisher must be restarted for changes to take effect.")
 
     def configure(self, config_name, action, contents):
         config = self.default_config.copy()
         config.update(contents)
 
-        base_path = config.get("basepath", "")
+        base_path = config.get("base_path", "")
         unittype_map = config.get("unittype_map", {})
 
         input_data = config.get("input_data", [])
+
+        self._publish_interval = config.get("publish_interval", 5.0)
+        self._use_timestamp = config.get("use_timestamp", False)
 
         names = []
         if isinstance(input_data, list):
@@ -163,23 +171,33 @@ class Publisher(Agent):
             self._data = csv.DictReader(handle)
             names = self._data.fieldnames[:]
 
+        self._name_map = self.build_maps(names, base_path)
+        self._meta_data = self.build_metadata(names, unittype_map)
 
-        self.build_topic_map(names, base_path)
-        self.build_metadata(names, unittype_map)
+    @staticmethod
+    def build_metadata(name_map, unittype_map):
+        results = defaultdict(dict)
+        for topic, point in name_map.itervalues():
+            unit_type = Publisher._get_unit(point, unittype_map)
+            results[topic][point] = unit_type
+        return results
 
-
-
-    def build_metadata(self, names, unittype_map):
+    @staticmethod
+    def build_maps(names, base_path):
+        results = {}
         for name in names:
-            unit_type = self._get_unit(name, unittype_map)
-            self._unit_types[name] = unit_type
+            if name == "Timestamp":
+                continue
+            name_parts = name.split("_")
+            point = name_parts[-1]
+            topic = normtopic(base_path + '/' + name_parts[:-1])
 
-    def build_topic_map(self, names, base_path):
-        for name in names:
-            topic = normtopic(base_path + '/' + name)
+            results[name] = (topic, point)
 
+        return results
 
-    def _get_unit(self, point, unittype_map):
+    @staticmethod
+    def _get_unit(point, unittype_map):
         ''' Get a unit type based upon the regular expression in the config file.
 
             if NOT found returns percent as a default unit.
@@ -189,132 +207,44 @@ class Publisher(Agent):
                 return v
         return 'percent'
 
-    def _publish_point(self, topic, point, data):
+    def _publish_point_all(self, topic, data, meta_data, headers):
         # makesure topic+point gives a true value.
-        if not topic.endswith('/') and not point.startswith('/'):
-            topic += '/'
+        all_topic = topic + "/all"
 
-        # Transform the values into floats rather than the read strings.
-        if not isinstance(data, dict):
-            data = {point: float(data)}
-
-        # Create metadata with the type, tz ... in it.
-        meta = {}
-        topic_point = topic + point
-        for p, v in data.items():
-            meta[p] = {'type': 'float', 'tz': 'US/Pacific', 'units': self._get_unit(p)}
-
-        # Message will always be a list of two elements.  The first element
-        # is set with the data to be published.  The second element is meta
-        # data.  The meta data must hold a type element in order for the
-        # historians to work properly.
-        message = [data, meta]
+        message = [data, meta_data]
 
         self.vip.pubsub.publish(peer='pubsub',
-                                topic=topic_point,
+                                topic=all_topic,
                                 message=message,  # [data, {'source': 'publisher3'}],
                                 headers=headers).get(timeout=2)
 
+    def build_publishes(self, row):
+        results = defaultdict(dict)
+        for name, value in row.iteritems():
+            topic, point = self._name_map[name]
+            parsed_value = float(value)
+            results[topic][point] = parsed_value
+        return results
 
     @Core.receiver('onstart')
     def onstart(self):
         '''Publish data from file to message bus.'''
-        data = {}
 
-
-        if self._src_file_handle is not None \
-                and not self._src_file_handle.closed:
-
-            try:
-                data = self._reader.next()
-                self._line_on+=1
-                if remember_playback:
-                    self.store_line_on()
-            except StopIteration:
-                if replay_data:
-                    _log.info('Restarting player at the begining of the file.')
-                    self._src_file_handle.seek(0)
-                    self._line_on = 0
-                    if remember_playback:
-                        self.store_line_on()
-                else:
-                    self._src_file_handle.close()
-                    self._src_file_handle = None
-                    _log.info("Completed publishing all records for file!")
-                    self.core.stop()
-
-                    return
-            # break out if no data is left to be found.
-            if not data:
-                self._src_file_handle.close()
-                self._src_file_handle = None
-                return
-
-            if use_timestamp:
-                headers = {HEADER_NAME_DATE: data['Timestamp']}
+        for row in self._data:
+            if self._use_timestamp and "Timestamp" in row:
+                headers = {HEADER_NAME_DATE: row['Timestamp']}
             else:
                 now = datetime.datetime.now().isoformat(' ')
                 headers = {HEADER_NAME_DATE: now}
 
+            row.pop('Timestamp', None)
 
-            data.pop('Timestamp', None)
+            publish_dict = self.build_publishes(row)
 
-            # if a string then topics are string path
-            # using device path and the data point.
-            if isinstance(unit, str):
-                # publish the all point
-                self._publish_point(device_root, 'all', data)
-            else:
-                # dictionary of "all" level containers.
-                all_publish = {}
-                # Loop over data from the csv file.
-                for sensor, value in data.items():
-                    # if header_point_map isn't described then
-                    # we are going to attempt to publish all of hte
-                    # points based upon the column headings.
-                    if not header_point_map:
-                        if value:
-                            sensor_name = sensor.split('/')[-1]
-                            # container should start with a /
-                            container = '/' + '/'.join(sensor.split('/')[:-1])
+            for topic, message in publish_dict.iteritems():
+                self._publish_point_all(topic, message, self._meta_data, headers)
 
-                            publish_point(device_root+container,
-                                                  sensor_name, value)
-                            if container not in all_publish.keys():
-                                all_publish[container] = {}
-                            all_publish[container][sensor_name] = value
-                    else:
-                        # Loop over mapping from the config file
-                        for prefix, container in header_point_map.items():
-                            if sensor.startswith(prefix):
-                                try:
-                                    _, sensor_name = sensor.split('_')
-                                except:
-                                    sensor_name = sensor
-
-                                # make sure that there is an actual value not
-                                # just an empty string.
-                                if value:
-                                    if value == '0.0':
-                                        pass
-                                    # Attempt to publish as a float.
-                                    try:
-                                        value = float(value)
-                                    except:
-                                        pass
-
-                                    self._publish_point(device_root+container,
-                                                  sensor_name, value)
-
-                                    if container not in all_publish.keys():
-                                        all_publish[container] = {}
-                                    all_publish[container][sensor_name] = value
-
-                                # move on to the next data point in the file.
-                                break
-
-                for _all, values in all_publish.items():
-                    self._publish_point(device_root, _all+"/all", values)
+            gevent.sleep(self._publish_interval)
 
 
 
