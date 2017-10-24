@@ -97,16 +97,18 @@ def DataPub(config_path, **kwargs):
     'use_timestamp' - True will use timestamp in input file.
     timestamps. False will use the current now time and publish using it.
     '''
+
     conf = utils.load_config(config_path)
+    _log.debug(str(conf))
     use_timestamp = conf.get('use_timestamp', True)
     remember_playback = conf.get('remember_playback', False)
     reset_playback = conf.get('reset_playback', False)
 
-    pub_interval = float(conf.get('publish_interval', 5))
+    publish_interval = float(conf.get('publish_interval', 5))
 
     base_path = conf.get('basepath', "")
 
-    input_data = conf.get('input_data')
+    input_data = conf.get('input_data', [])
 
     # unittype_map maps the point name to the proper units.
     unittype_map = conf.get('unittype_map', {})
@@ -114,7 +116,12 @@ def DataPub(config_path, **kwargs):
     # should we keep playing the file over and over again.
     replay_data = conf.get('replay_data', False)
 
-    return Publisher(**kwargs)
+    return Publisher(use_timestamp=use_timestamp,
+                     publish_interval=publish_interval,
+                     base_path=base_path,
+                     input_data=input_data,
+                     unittype_map=unittype_map,
+                     **kwargs)
 
 
 class Publisher(Agent):
@@ -123,7 +130,7 @@ class Publisher(Agent):
     Configuration consists of csv file and publish topic
     '''
     def __init__(self, use_timestamp=False,
-                 publish_interval=5, base_path="", input_data=[], unittype_map={}, **kwargs):
+                 publish_interval=5.0, base_path="", input_data=[], unittype_map={}, **kwargs):
         '''Initialize data publisher class attributes.'''
         super(Publisher, self).__init__(**kwargs)
 
@@ -132,8 +139,9 @@ class Publisher(Agent):
         self._data = []  # incoming data
         self._publish_interval = publish_interval
         self._use_timestamp = use_timestamp
+        self._loop_greenlet = None
 
-        _log.info('Publishing Starting')
+
 
         self.default_config = {"use_timestamp": use_timestamp,
                                "publish_interval": publish_interval,
@@ -151,6 +159,11 @@ class Publisher(Agent):
     def configure(self, config_name, action, contents):
         config = self.default_config.copy()
         config.update(contents)
+
+        if self._loop_greenlet is not None:
+            self._loop_greenlet.kill()
+
+        _log.info('Config Data: {}'.format(config))
 
         base_path = config.get("base_path", "")
         unittype_map = config.get("unittype_map", {})
@@ -172,7 +185,9 @@ class Publisher(Agent):
             names = self._data.fieldnames[:]
 
         self._name_map = self.build_maps(names, base_path)
-        self._meta_data = self.build_metadata(names, unittype_map)
+        self._meta_data = self.build_metadata(self._name_map, unittype_map)
+
+        self._loop_greenlet = self.core.spawn(self.publish_loop)
 
     @staticmethod
     def build_metadata(name_map, unittype_map):
@@ -190,7 +205,7 @@ class Publisher(Agent):
                 continue
             name_parts = name.split("_")
             point = name_parts[-1]
-            topic = normtopic(base_path + '/' + name_parts[:-1])
+            topic = normtopic(base_path + '/' + "/".join(name_parts[:-1]))
 
             results[name] = (topic, point)
 
@@ -226,20 +241,21 @@ class Publisher(Agent):
             results[topic][point] = parsed_value
         return results
 
-    @Core.receiver('onstart')
-    def onstart(self):
-        '''Publish data from file to message bus.'''
 
+    def publish_loop(self):
+        '''Publish data from file to message bus.'''
         for row in self._data:
             if self._use_timestamp and "Timestamp" in row:
-                headers = {HEADER_NAME_DATE: row['Timestamp']}
+                now = row['Timestamp']
             else:
                 now = datetime.datetime.now().isoformat(' ')
-                headers = {HEADER_NAME_DATE: now}
 
+            headers = {HEADER_NAME_DATE: now}
             row.pop('Timestamp', None)
 
             publish_dict = self.build_publishes(row)
+
+            _log.debug("Publishing data for timestamp: {}".format(now))
 
             for topic, message in publish_dict.iteritems():
                 self._publish_point_all(topic, message, self._meta_data, headers)
@@ -248,13 +264,13 @@ class Publisher(Agent):
 
 
 
-    @Core.receiver('onfinish')
-    def finish(self, sender):
-        if self._src_file_handle is not None:
-            try:
-                self._src_file_handle.close()
-            except Exception as e:
-                _log.error(e.message)
+    # @Core.receiver('onfinish')
+    # def finish(self, sender):
+    #     if self._src_file_handle is not None:
+    #         try:
+    #             self._src_file_handle.close()
+    #         except Exception as e:
+    #             _log.error(e.message)
 
 
 
