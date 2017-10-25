@@ -122,7 +122,9 @@ def driven_agent(config_path, **kwargs):
                                                path='',
                                                point=None)
 
-    output_file_prefix = config.get('output_file')
+    output_file_prefix = config.get('output_file_prefix')
+
+    command_output_file = config.get('command_output_file')
 
     make_reservations = config.get("make_reservations", False)
 
@@ -276,6 +278,8 @@ def driven_agent(config_path, **kwargs):
                 _log.debug("TABLE: {}->{}".format(key, value))
             if output_file_prefix is not None:
                 results = self.create_file_output(results)
+            if command_output_file is not None:
+                results = self.create_command_file_output(results)
             if len(results.table_output.keys()):
                 results = self.publish_analysis_results(results)
             return results
@@ -324,6 +328,10 @@ def driven_agent(config_path, **kwargs):
                                         }]
                             self.vip.pubsub.publish(
                                 'pubsub', analysis_topic, headers, message)
+            return results
+
+        def create_command_file_output(self, results):
+            
             return results
         
         def create_file_output(self, results):
