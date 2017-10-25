@@ -262,7 +262,38 @@ class Publisher(Agent):
 
             gevent.sleep(self._publish_interval)
 
+    @RPC.export
+    def set_point(self, requester_id, topic, value, **kwargs):
+        requester_id = bytes(self.vip.rpc.context.vip_message.peer)
+        _log.info("Set point: {} {} {}".format(requester_id, topic, value))
+        return None
 
+    @RPC.export
+    def set_multiple_points(self, requester_id, topics_values, **kwargs):
+        devices = defaultdict(list)
+        for topic, value in topics_values:
+            topic = topic.strip('/')
+            self.set_point(requester_id, topic, value)
+
+        results = {}
+
+        return results
+
+    @RPC.export
+    def request_new_schedule(self, requester_id, task_id, priority, requests):
+        results = {'result': 'SUCCESS',
+                   'data': {},
+                   'info': ""}
+
+        return results
+
+    @RPC.export
+    def request_cancel_schedule(self, requester_id, task_id):
+        results = {'result': 'SUCCESS',
+                   'data': {},
+                   'info': ""}
+
+        return results
 
     # @Core.receiver('onfinish')
     # def finish(self, sender):
