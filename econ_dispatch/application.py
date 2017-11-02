@@ -76,7 +76,9 @@ class Results(object):
         self.table_output = defaultdict(list)
 
     def command(self, point, value, device=""):
-        if device not in self.devices:`
+        if device not in self.devices:
+            self.devices[device] = OrderedDict()
+        self.devices[device][point] = value
 
     def log(self, message, level=logging.DEBUG):
         self.log_messages.append((level, message))
