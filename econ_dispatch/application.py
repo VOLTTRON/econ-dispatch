@@ -75,19 +75,8 @@ class Results(object):
         self._terminate = terminate
         self.table_output = defaultdict(list)
 
-    def command(self, point, value, device=None):
-        if device is None:
-            self.commands[point] = value
-        else:
-            if device not in self.devices.keys():
-                self.devices[device] = OrderedDict()
-            self.devices[device][point] = value
-        if self.devices is None:
-            self.commands[point]=value
-        else:
-            if  device not in self.devices.keys():
-                self.devices[device] = OrderedDict()
-            self.devices[device][point]=value
+    def command(self, point, value, device=""):
+        if device not in self.devices:`
 
     def log(self, message, level=logging.DEBUG):
         self.log_messages.append((level, message))
