@@ -75,19 +75,10 @@ class Results(object):
         self._terminate = terminate
         self.table_output = defaultdict(list)
 
-    def command(self, point, value, device=None):
-        if device is None:
-            self.commands[point] = value
-        else:
-            if device not in self.devices.keys():
-                self.devices[device] = OrderedDict()
-            self.devices[device][point] = value
-        if self.devices is None:
-            self.commands[point]=value
-        else:
-            if  device not in self.devices.keys():
-                self.devices[device] = OrderedDict()
-            self.devices[device][point]=value
+    def command(self, point, value, device=""):
+        if device not in self.devices:
+            self.devices[device] = OrderedDict()
+        self.devices[device][point] = value
 
     def log(self, message, level=logging.DEBUG):
         self.log_messages.append((level, message))
@@ -163,9 +154,8 @@ def build_model_from_config(config):
     return system_model
 
 class Application(object):
-    def __init__(self, model_config={}, **kwargs):
-        super(Application, self).__init__(**kwargs)
-        self.model = build_model_from_config(model_config)
+    def __init__(self, **kwargs):
+        self.model = build_model_from_config(kwargs)
 
     @classmethod
     def output_format(cls):

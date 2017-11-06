@@ -117,7 +117,7 @@ def main(config_file, start, end,
          output_csv_file):
     overall_start_time = time.time()
     config = parse_json_config(config_file.read())
-    application = Application(model_config=config)
+    application = Application(**config)
 
     if write_dot:
         networkx.drawing.nx_pydot.write_dot(application.model.component_graph, config_file.name + ".dot")
