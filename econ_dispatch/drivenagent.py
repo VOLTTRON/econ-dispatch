@@ -242,12 +242,12 @@ def driven_agent(config_path, **kwargs):
                 # results = app_instance.run(
                 # dateutil.parser.parse(self._subdevice_values['Timestamp'],
                 #                       fuzzy=True), self._subdevice_values)
-                self._process_results(results)
+                self._process_results(_timestamp, results)
                 self._initialize_devices()
             else:
                 _log.info("Still need {} before running.".format(self._needed_devices))
 
-        def _process_results(self, results):
+        def _process_results(self, timestamp, results):
             """
             Runs driven application with converted data. Calls appropriate 
                 methods to process commands, log and table_data in results.
@@ -277,7 +277,7 @@ def driven_agent(config_path, **kwargs):
             if output_file_prefix is not None:
                 results = self.create_file_output(results)
             if command_output_file is not None:
-                self.create_command_file_output(topic_value)
+                self.create_command_file_output(timestamp, topic_value)
             # if len(results.table_output.keys()):
             #     results = self.publish_analysis_results(results)
             return results
@@ -328,12 +328,18 @@ def driven_agent(config_path, **kwargs):
         #                         'pubsub', analysis_topic, headers, message)
         #     return results
 
-        def create_command_file_output(self, topic_value):
-            # for _device, value in topic_value:
-            #     actuation_device = base_actuator_path(unit=_device, point='')
-            # if self._command_output_csv is None:
-            #     self._command_output_csv
-            return
+        def create_command_file_output(self, timestamp, topic_value):
+            if not topic_value:
+                return
+
+            if self._command_output_csv is None:
+                field_names = ["timestamp"] + list(topic_value.keys())
+                self._command_output_csv = csv.DictWriter(command_output_file, field_names)
+                self._command_output_csv.writeheader()
+
+            tv_copy = topic_value.copy()
+            tv_copy["timestamp"] = str(timestamp)
+            self._command_output_csv.writerow(tv_copy)
         
         def create_file_output(self, results):
             """
@@ -442,7 +448,7 @@ def driven_agent(config_path, **kwargs):
             for device, point_value_dict in results.devices.items():
                 for point, new_value in point_value_dict.items():
                     point_path = base_actuator_path(unit=device, point=point)
-                    topic_values[point_path] = new_value
+                    topic_values[str(point_path)] = new_value
             return topic_values
 
     DrivenAgent.__name__ = 'DrivenLoggerAgent'
