@@ -258,11 +258,11 @@ def driven_agent(config_path, **kwargs):
             if mode:
                 _log.debug("ACTUATE ON DEVICE.")
                 actuator_error = False
-                if make_reservations:
+                if make_reservations and results.devices:
                     results, actuator_error = self.actuator_request(results)
                 if not actuator_error:
                     self.actuator_set(topic_value)
-                if make_reservations and not actuator_error:
+                if make_reservations and results.devices and not actuator_error:
                     self.actuator_cancel()
 
             for value in results.log_messages:
@@ -365,7 +365,6 @@ def driven_agent(config_path, **kwargs):
                         file_output.writerow(row)
                     file_to_write.close()
             return results
-
         
         def actuator_request(self, results):
             """
@@ -395,7 +394,7 @@ def driven_agent(config_path, **kwargs):
             schedule_request = []
             for _device in results.devices:
                 actuation_device = base_actuator_path(unit=_device, point='')
-                schedule_request = schedule_request.append([actuation_device, str_now, str_end])
+                schedule_request.append([actuation_device, str_now, str_end])
 
             try:
                 result = self.vip.rpc.call('platform.actuator',
