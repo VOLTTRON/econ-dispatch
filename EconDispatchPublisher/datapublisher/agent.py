@@ -116,11 +116,14 @@ def DataPub(config_path, **kwargs):
     # should we keep playing the file over and over again.
     replay_data = conf.get('replay_data', False)
 
+    max_data_frequency = conf.get("max_data_frequency")
+
     return Publisher(use_timestamp=use_timestamp,
                      publish_interval=publish_interval,
                      base_path=base_path,
                      input_data=input_data,
                      unittype_map=unittype_map,
+                     max_data_frequency=max_data_frequency,
                      **kwargs)
 
 
@@ -130,7 +133,9 @@ class Publisher(Agent):
     Configuration consists of csv file and publish topic
     '''
     def __init__(self, use_timestamp=False,
-                 publish_interval=5.0, base_path="", input_data=[], unittype_map={}, **kwargs):
+                 publish_interval=5.0, base_path="", input_data=[], unittype_map={},
+                 max_data_frequency=None,
+                 **kwargs):
         '''Initialize data publisher class attributes.'''
         super(Publisher, self).__init__(**kwargs)
 
@@ -140,6 +145,8 @@ class Publisher(Agent):
         self._publish_interval = publish_interval
         self._use_timestamp = use_timestamp
         self._loop_greenlet = None
+        self._next_allowed_publish = None
+        self._max_data_frequency = None
 
 
 
@@ -147,7 +154,8 @@ class Publisher(Agent):
                                "publish_interval": publish_interval,
                                "base_path": base_path,
                                "input_data": input_data,
-                               "unittype_map": unittype_map}
+                               "unittype_map": unittype_map,
+                               "max_data_frequency": max_data_frequency}
 
         self.vip.config.set_default("config", self.default_config)
         self.vip.config.subscribe(self.configure, actions=["NEW"], pattern="config")
@@ -172,6 +180,11 @@ class Publisher(Agent):
 
         self._publish_interval = config.get("publish_interval", 5.0)
         self._use_timestamp = config.get("use_timestamp", False)
+
+        self._max_data_frequency = config.get("max_data_frequency", None)
+
+        if self._max_data_frequency is not None:
+            self._max_data_frequency = datetime.timedelta(seconds=self._max_data_frequency)
 
         names = []
         if isinstance(input_data, list):
@@ -242,11 +255,37 @@ class Publisher(Agent):
         return results
 
 
+    def check_frequency(self, now):
+        """Check to see if the passed in timestamp exceeds the configured
+        max_data_frequency."""
+        if self._max_data_frequency is None:
+            return True
+
+        now = parser.parse(now)
+
+        if self._next_allowed_publish is None:
+            midnight = now.date()
+            midnight = datetime.datetime.combine(midnight, datetime.time.min)
+            self._next_allowed_publish = midnight
+            while now > self._next_allowed_publish:
+                self._next_allowed_publish += self._max_data_frequency
+
+        if now < self._next_allowed_publish:
+            return False
+
+        while now >= self._next_allowed_publish:
+            self._next_allowed_publish += self._max_data_frequency
+
+        return True
+
+
     def publish_loop(self):
-        '''Publish data from file to message bus.'''
+        """Publish data from file to message bus."""
         for row in self._data:
             if self._use_timestamp and "Timestamp" in row:
                 now = row['Timestamp']
+                if not self.check_frequency(now):
+                    continue
             else:
                 now = datetime.datetime.now().isoformat(' ')
 

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*- {{{
 # vim: set fenc=utf-8 ft=python sw=4 ts=4 sts=4 et:
 
-# Copyright (c) 2015, Battelle Memorial Institute
+# Copyright (c) 2017, Battelle Memorial Institute
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -57,18 +57,12 @@
 import csv
 from datetime import datetime as dt, timedelta as td
 import logging
-import sys
-import re
 from copy import deepcopy
 import sys
-from dateutil.parser import parse
 
-from volttron.platform.messaging import topics
 from volttron.platform.agent import utils
-from volttron.platform.agent.utils import jsonapi, setup_logging
 from volttron.platform.vip.agent import Agent, Core
 from volttron.platform.jsonrpc import RemoteError
-from volttron.platform.agent.driven import ConversionMapper
 from volttron.platform.messaging import (headers as headers_mod, topics)
 
 from application import Application
@@ -78,6 +72,7 @@ __version__ = '3.0.0'
 __author1__ = 'Craig Allwardt <craig.allwardt@pnnl.gov>'
 __author2__ = 'Robert Lutes <robert.lutes@pnnl.gov>'
 __author3__ = 'Poorva Sharma <poorva.sharma@pnnl.gov>'
+__author4__ = 'Kyle Monson <kyle.monson@pnnl.gov'
 __copyright__ = 'Copyright (c) 2015, Battelle Memorial Institute'
 __license__ = 'FreeBSD'
 DATE_FORMAT = '%m-%d-%y %H:%M'
