@@ -331,7 +331,7 @@ class Publisher(Agent):
     @RPC.export
     def request_cancel_schedule(self, requester_id, task_id):
         requester_id = bytes(self.vip.rpc.context.vip_message.peer)
-        _log.info("Schedule requested: {} {}".format(requester_id, task_id))
+        _log.info("Schedule canceled: {} {}".format(requester_id, task_id))
         results = {'result': 'SUCCESS',
                    'data': {},
                    'info': ""}
