@@ -124,6 +124,7 @@ def DataPub(config_path, **kwargs):
                      input_data=input_data,
                      unittype_map=unittype_map,
                      max_data_frequency=max_data_frequency,
+                     replay_data=replay_data,
                      **kwargs)
 
 
@@ -134,7 +135,7 @@ class Publisher(Agent):
     '''
     def __init__(self, use_timestamp=False,
                  publish_interval=5.0, base_path="", input_data=[], unittype_map={},
-                 max_data_frequency=None,
+                 max_data_frequency=None, replay_data=False,
                  **kwargs):
         '''Initialize data publisher class attributes.'''
         super(Publisher, self).__init__(**kwargs)
@@ -147,6 +148,8 @@ class Publisher(Agent):
         self._loop_greenlet = None
         self._next_allowed_publish = None
         self._max_data_frequency = None
+        self._replay_data = False
+        self._input_data = None
 
 
 
@@ -155,6 +158,7 @@ class Publisher(Agent):
                                "base_path": base_path,
                                "input_data": input_data,
                                "unittype_map": unittype_map,
+                               "replay_data": replay_data,
                                "max_data_frequency": max_data_frequency}
 
         self.vip.config.set_default("config", self.default_config)
@@ -176,24 +180,26 @@ class Publisher(Agent):
         base_path = config.get("base_path", "")
         unittype_map = config.get("unittype_map", {})
 
-        input_data = config.get("input_data", [])
+        self._input_data = config.get("input_data", [])
 
         self._publish_interval = config.get("publish_interval", 5.0)
         self._use_timestamp = config.get("use_timestamp", False)
 
         self._max_data_frequency = config.get("max_data_frequency", None)
 
+        self._replay_data = bool(config.get("replay_data", False))
+
         if self._max_data_frequency is not None:
             self._max_data_frequency = datetime.timedelta(seconds=self._max_data_frequency)
 
         names = []
-        if isinstance(input_data, list):
-            if input_data:
-                item = input_data[0]
+        if isinstance(self._input_data, list):
+            if self._input_data:
+                item = self._input_data[0]
                 names = item.keys()
-            self._data = input_data
+            self._data = self._input_data
         else:
-            handle = open(input_data, 'rb')
+            handle = open(self._input_data, 'rb')
             self._data = csv.DictReader(handle)
             names = self._data.fieldnames[:]
 
@@ -261,7 +267,7 @@ class Publisher(Agent):
         if self._max_data_frequency is None:
             return True
 
-        now = parser.parse(now)
+        now = utils.parse_timestamp_string(now)
 
         if self._next_allowed_publish is None:
             midnight = now.date()
@@ -278,28 +284,39 @@ class Publisher(Agent):
 
         return True
 
-
     def publish_loop(self):
         """Publish data from file to message bus."""
-        for row in self._data:
-            if self._use_timestamp and "Timestamp" in row:
-                now = row['Timestamp']
-                if not self.check_frequency(now):
-                    continue
-            else:
-                now = datetime.datetime.now().isoformat(' ')
+        while True:
+            for row in self._data:
+                if self._use_timestamp and "Timestamp" in row:
+                    now = row['Timestamp']
+                    if not self.check_frequency(now):
+                        continue
+                else:
+                    now = datetime.datetime.now().isoformat(' ')
 
-            headers = {HEADER_NAME_DATE: now, HEADER_NAME_TIMESTAMP: now}
-            row.pop('Timestamp', None)
+                headers = {HEADER_NAME_DATE: now, HEADER_NAME_TIMESTAMP: now}
+                row.pop('Timestamp', None)
 
-            publish_dict = self.build_publishes(row)
+                publish_dict = self.build_publishes(row)
 
-            _log.debug("Publishing data for timestamp: {}".format(now))
+                _log.debug("Publishing data for timestamp: {}".format(now))
 
-            for topic, message in publish_dict.iteritems():
-                self._publish_point_all(topic, message, self._meta_data, headers)
+                for topic, message in publish_dict.iteritems():
+                    self._publish_point_all(topic, message, self._meta_data, headers)
 
-            gevent.sleep(self._publish_interval)
+                gevent.sleep(self._publish_interval)
+
+            if not self._replay_data:
+                break
+
+            # Reset the csv reader if we are reading from a file.
+            _log.debug("Restarting playback.")
+            # Reset data frequency counter.
+            self._next_allowed_publish = None
+            if not isinstance(self._input_data, list):
+                handle = open(self._input_data, 'rb')
+                self._data = csv.DictReader(handle)
 
     @RPC.export
     def set_point(self, requester_id, topic, value, **kwargs):
