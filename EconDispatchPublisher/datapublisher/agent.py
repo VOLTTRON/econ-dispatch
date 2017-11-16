@@ -82,6 +82,8 @@ SCHEDULE_RESPONSE_FAILURE = 'FAILURE'
 SCHEDULE_ACTION_NEW = 'NEW_SCHEDULE'
 SCHEDULE_ACTION_CANCEL = 'CANCEL_SCHEDULE'
 
+LINE_MARKER_CONFIG = "line_marker"
+
 __authors__ = ['Robert Lutes <robert.lutes@pnnl.gov>',
                'Kyle Monson <kyle.monson@pnnl.gov>',
                'Craig Allwardt <craig.allwardt@pnnl.gov>']
@@ -125,6 +127,8 @@ def DataPub(config_path, **kwargs):
                      unittype_map=unittype_map,
                      max_data_frequency=max_data_frequency,
                      replay_data=replay_data,
+                     remember_playback=remember_playback,
+                     reset_playback=reset_playback,
                      **kwargs)
 
 
@@ -135,7 +139,8 @@ class Publisher(Agent):
     '''
     def __init__(self, use_timestamp=False,
                  publish_interval=5.0, base_path="", input_data=[], unittype_map={},
-                 max_data_frequency=None, replay_data=False,
+                 max_data_frequency=None, replay_data=False, remember_playback=False,
+                 reset_playback=False,
                  **kwargs):
         '''Initialize data publisher class attributes.'''
         super(Publisher, self).__init__(**kwargs)
@@ -149,9 +154,10 @@ class Publisher(Agent):
         self._next_allowed_publish = None
         self._max_data_frequency = None
         self._replay_data = False
+        self._remember_playback = bool(remember_playback)
+        self._reset_playback = bool(reset_playback)
         self._input_data = None
-
-
+        self._line_marker = 0
 
         self.default_config = {"use_timestamp": use_timestamp,
                                "publish_interval": publish_interval,
@@ -159,7 +165,9 @@ class Publisher(Agent):
                                "input_data": input_data,
                                "unittype_map": unittype_map,
                                "replay_data": replay_data,
-                               "max_data_frequency": max_data_frequency}
+                               "max_data_frequency": max_data_frequency,
+                               "remember_playback": self._remember_playback,
+                               "reset_playback": self._reset_playback}
 
         self.vip.config.set_default("config", self.default_config)
         self.vip.config.subscribe(self.configure, actions=["NEW"], pattern="config")
@@ -187,10 +195,20 @@ class Publisher(Agent):
 
         self._max_data_frequency = config.get("max_data_frequency", None)
 
-        self._replay_data = bool(config.get("replay_data", False))
-
         if self._max_data_frequency is not None:
             self._max_data_frequency = datetime.timedelta(seconds=self._max_data_frequency)
+
+        self._replay_data = bool(config.get("replay_data", False))
+        # If this is false we have to wait until the publish loop to reset
+        # the position in the config store.
+        self._remember_playback = bool(config.get("remember_playback", False))
+        # Reset anyway, even if remember_playback is true.
+        self._reset_playback = bool(config.get("reset_playback", False))
+
+        try:
+            self._line_marker = int(self.vip.config.get(LINE_MARKER_CONFIG))
+        except (KeyError, ValueError, TypeError, IndexError) as e:
+            self._line_marker = 0
 
         names = []
         if isinstance(self._input_data, list):
@@ -286,14 +304,30 @@ class Publisher(Agent):
 
     def publish_loop(self):
         """Publish data from file to message bus."""
+        # We cannot reset the value in the config until we are in a separate greenlet.
+        # We cannot call set in a config handler.
+
+        if self._reset_playback:
+            self._line_marker = 0
+            if self._remember_playback:
+                self.vip.config.set(LINE_MARKER_CONFIG, str(0), send_update=False)
+
         while True:
+            current_line = -1
             for row in self._data:
+                current_line += 1
+
+                if current_line < self._line_marker:
+                    continue
+
+                self._line_marker += 1
+
                 if self._use_timestamp and "Timestamp" in row:
                     now = row['Timestamp']
                     if not self.check_frequency(now):
                         continue
                 else:
-                    now = datetime.datetime.now().isoformat(' ')
+                    now = utils.format_timestamp(datetime.datetime.now())
 
                 headers = {HEADER_NAME_DATE: now, HEADER_NAME_TIMESTAMP: now}
                 row.pop('Timestamp', None)
@@ -305,9 +339,17 @@ class Publisher(Agent):
                 for topic, message in publish_dict.iteritems():
                     self._publish_point_all(topic, message, self._meta_data, headers)
 
+                if self._remember_playback:
+                    self.vip.config.set(LINE_MARKER_CONFIG, str(self._line_marker), send_update=False)
+
                 gevent.sleep(self._publish_interval)
 
+            # Reset line marker.
+            self._line_marker = 0
+            if self._remember_playback:
+                self.vip.config.set(LINE_MARKER_CONFIG, str(self._line_marker), send_update=False)
             if not self._replay_data:
+                sys.exit(0)
                 break
 
             # Reset the csv reader if we are reading from a file.

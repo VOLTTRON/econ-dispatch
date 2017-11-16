@@ -57,6 +57,10 @@ local_settings.py
 instance/
 .webassets-cache
 
+#econ dispatch stuff:
+command_output.csv
+agent_command_output.csv
+
 # Scrapy stuff:
 .scrapy
 

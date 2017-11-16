@@ -333,7 +333,7 @@ def driven_agent(config_path, **kwargs):
                 self._command_output_csv.writeheader()
 
             tv_copy = topic_value.copy()
-            tv_copy["timestamp"] = str(timestamp)
+            tv_copy["timestamp"] = utils.format_timestamp(timestamp)
             self._command_output_csv.writerow(tv_copy)
         
         def create_file_output(self, results):
