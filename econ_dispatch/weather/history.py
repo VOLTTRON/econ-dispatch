@@ -71,7 +71,20 @@ class Weather(HistoryModelBase):
         self.hours_forecast = hours_forecast
 
     def get_weather_forecast(self, now):
-        results = self.get_historical_data(now)
+        # The Solar Radiation model needs the current weather data as
+        # well as data from 24 hours ago. We return a dictionary that
+        # has both. Keys for yesterday's data are suffixed with -24
+
+        def merge_results(today, yesterday):
+            for k, v in yesterday.items():
+                k = k + "-24"
+                today[k] = v
+            return today
+
+        results_current = self.get_historical_data(now)
+        results_minus24h = self.get_historical_data(now - dt.timedelta(hours=24))
+
+        results = [merge_results(t, y) for t, y in zip(results_current, results_minus24h)]
 
         return results
 
@@ -88,8 +101,3 @@ class Weather(HistoryModelBase):
             now = now.replace(year=self.history_year)
 
         return results
-
-
-
-
-

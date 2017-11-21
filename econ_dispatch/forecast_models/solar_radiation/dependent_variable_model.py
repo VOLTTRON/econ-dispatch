@@ -67,21 +67,19 @@ training_data = [25, 45, 65, 85, 95]
 
 
 class Model(ForecastModelBase):
-    def __init__(self, training_csv=None, deployment_csv=None):
+    def __init__(self, training_csv=None):
         self.training_csv = training_csv
-        self.deployment_csv = deployment_csv
         self.model1, self.model2 = self._training()
 
     def derive_variables(self, now, independent_variable_values={}):
-        pr4, pr24, ci = self._deployment(now)
 
-        solar_radiation = [0 for _ in range(24)]
-            
-        for i, prediction in enumerate(pr24, start=8):
-            solar_radiation[i] = prediction
+        cloud_cover = independent_variable_values["Total Sky Cover {.1}"]
+        cloud_cover_yesterday = independent_variable_values["Total Sky Cover {.1}-24"]
+        irradiance_yesterday = independent_variable_values["Horizontal Infrared Radiation Intensity from Sky {Wh/m2}-24"]
 
-        hour_of_day = now.hour
-        return {"solar_radiation": solar_radiation[hour_of_day]}
+        solar_radiation = self._deployment(now, cloud_cover, cloud_cover_yesterday, irradiance_yesterday)
+        
+        return {"solar_radiation": solar_radiation}
 
     def add_training_data(self, now, variable_values={}):
         """Do nothing for now."""
@@ -181,144 +179,23 @@ class Model(ForecastModelBase):
 
         return model1, model2
 
-    def _deployment(self, now):
-        #getting the current time which determines how the prediction method should
-        #work
+    def _deployment(self, now, cloud_cover, cloud_cover_yesterday, irradiance_yesterday):
 
-        # a = clock
-        # t2 = a(4)
-        t2 = now.hour
+        hour_of_day = now.hour
 
-        #----------------------------------------------------------------------
-        #Reading input variable values from Data file
-        data = pd.read_csv(self.deployment_csv, header=0)
+        # the original model would only predict values for times between 8:00 and 19:00
+        if hour_of_day < 8 or hour_of_day > 19:
+            return 0
 
-        t = data["Time"].values
-        cc = data["CC"].values
-        cc24 = data["CC t-24"].values
-        I = data["I"].values
-        I24 = data["I t-24"].values
+        # select model and adjust for indexes by zero
+        mo2 = self.model2[now.month - 1]
 
-        # pr4 = xlsread('Deployment_Data.xlsx', 'f2:bI13')
-        h1 = data["1-Hour Ahead Prediction"].values
-        h2 = data["2-Hour Ahead Prediction"].values
-        h3 = data["3-Hour Ahead Prediction"].values
-        h4 = data["4-Hour Ahead Prediction"].values
-        pr4 = np.column_stack((h1, h2, h3, h4))
+        data = np.array([1,
+                         hour_of_day,
+                         cloud_cover,
+                         cloud_cover_yesterday,
+                         irradiance_yesterday])
 
-        ci = data["Current Index"].values
+        pr24 = max(np.dot(data, mo2), 0)
 
-        #Specifying the number of predictions that will be made for each time period
-        n_predictions = [2, 2, 4, 4, 4, 4, 4, 4, 4, 3, 2, 1]
-
-        #-------------------------------------------------------------------
-        #Telling to model the current month. This will be used to choose model.
-        # v = datevec(now)
-        # month = v(2)
-        month = now.month
-
-        # adjust for indexes by zero
-        month = month - 1
-
-        #selecting appropriate models
-        # mo1 = model1(month, 1:9)
-        # mo2 = model2(month, 1:5)
-        mo1 = self.model1[month]
-        mo2 = self.model2[month]
-
-
-        #------------------------------------------------
-        #Defining zero matrices and vectors
-        le = np.zeros((4, 2))
-        e = np.zeros((4, 4))
-        data = np.zeros((12, 9))
-        pr24 = np.zeros(12)
-
-        #--------------------------------------------------
-        #fiiling the first column of data with 1's
-        data[:,0] = np.ones(12)
-
-        #Putting input variables into the data matrix
-        data[:, 1] = t
-        data[:, 2] = cc
-        data[:, 3] = cc24
-        data[:, 4] = I24
-
-        #-----------------------------------------
-        #calculating and filling in the first lag of cloud covre and radiarion
-        data[1:, 5] = cc[:-1]
-        data[1:, 7] = I[:-1]
-
-        #calculating and filling the second lag of cloud cover and radiation
-        data[2:, 6] = cc[:-2]
-        data[2:, 8] = I[:-2]
-
-        #-------------------------------------------------------
-        #calculating 24-hours predictions
-        for i in range(12):
-            pr24[i] = max(np.dot(data[i, 0:5], mo2), 0)
-
-
-        #obtaining i as the index, adjusted for zero indexes
-        i = t2 - 7 - 1
-
-        #-----------------------
-        #x = data(time-7, 1:9)
-
-        x = np.zeros(9)
-        if t2 >= 10 and t2 <= 19:
-           #setting the number of predictions that will be made at ach time
-           k = n_predictions[i]
-           #-------------------------------------------------------------------
-           for j in range(k):
-               #The following lines of code update the last estimate for the time period of interest
-               if j == 0:
-
-                   pr4[i, ci[i]] = max(np.dot(data[i], mo1), 0)
-                   ci[i] = ci[i]+1
-               else:
-                   x[0:7] = data[t2 - 7 + j - 1, 0:7]
-                   x[7] = pr4[i+j-1, ci[i+j-1] - 1]
-                   x[8] = pr4[i+j-2, ci[i+j-2] - 1]
-
-                   pr4[i+j, ci[i+j]] = max(np.dot(x, mo1), 0)
-                   ci[i+j] = ci[i+j] + 1
-
-        elif t2 == 8:
-            ci[i] = ci[i]+1
-            pr4[i, ci[i]-1] = max(np.dot(data[i, 0:5], mo2), 0)
-
-            ci[i+1] = ci[i+1]+1
-            pr4[i+1, ci[i]-1] = max(np.dot(data[i+1, 0:5], mo2), 0)
-
-            x[0:7] = data[i+2, 0:7]
-            x[7] = pr4[i+1, ci[i+1]-1]
-            x[8] = pr4[i, ci[i]-1]
-            ci[i+2] = ci[i+2]+1
-            pr4[i+2, ci[i+2]-1] = max(np.dot(x, mo1), 0)
-
-            x[0:7] = data[i+3, 0:7]
-            x[7] = pr4[i+2, ci[i+2]-1]
-            x[8] = pr4[i+1, ci[i+1]-1]
-            ci[i+3] = ci[i+3]+1
-            pr4[i+3, ci[i+3]-1] = max(np.dot(x, mo1), 0)
-
-        elif t2 == 9:
-            ci[i+1] = ci[i+1]+1
-            pr4[i+1, ci[i+1]-1] = max(np.dot(data[i+1, 0:9], mo1), 0)
-
-            x[0:7] = data[i+2, 0:7]
-            x[7] = pr4[i+1, ci[i+1]-1]
-            x[8] = pr4[i, ci[i+2]-1]
-            ci[i+2] = ci[i+2]+1
-            pr4[i+2, ci[i+2]-1] = max(np.dot(x, mo1), 0)
-
-            x[0:7] = data[i+3, 0:7]
-            x[7] = pr4[i+2, ci[i+2]-1]
-            x[8] = pr4[i+1, ci[i+2]-1]
-            ci[i+3] = ci[i+3]+1
-            pr4[i+3, ci[i+3]-1] = max(np.dot(x, mo1), 0)
-
-        return pr4, pr24, ci
-
-    
+        return pr24
