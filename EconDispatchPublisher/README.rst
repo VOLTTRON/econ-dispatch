@@ -30,7 +30,7 @@ Configuration
 
         # Only publish data at most once every max_data_frequency seconds.
         # Extra data is skipped.
-        # The windows are normalized from midnight.
+        # The time windows are normalized from midnight.
         # ie 900 will publish one value for every 15 minute window starting from
         # midnight of when the agent was started.
         # Only used if timestamp in input file is used.
@@ -57,7 +57,7 @@ Configuration
         # Publish interval in seconds
         "publish_interval": 1,
 
-        # Tell the playback to maintain the location in the file in the config store.
+        # Tell the playback to maintain the location a the file in the config store.
         # Playback will be resumed from this point
         # at agent startup even if this setting is changed to false before restarting.
         # Saves the current line in line_marker in the DataPublishers's config store
@@ -65,12 +65,12 @@ Configuration
         # default false
         "remember_playback": true,
 
-        # Start playback from 0 even though remember playback may be set.
+        # Start playback from 0 even if the line_marker configuration is set a non 0 value.
         # default false
         "reset_playback": false,
 
         # Repeat data from the start if this flag is true.
-        # Useful for data that does not include a timestamp and is played back in realtime.
+        # Useful for data that does not include a timestamp and is played back in real time.
         "replay_data": false
     }
 
