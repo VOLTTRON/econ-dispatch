@@ -7,7 +7,7 @@ DataPublisher
 This is a simple agent that plays back data either from the config
 store or a CSV to the configured topic. It can also provide basic
 emulation of the actuator agent for testing agents that expect to
-be able to set points on a device.
+be able to set points on a device in response to device publishes.
 
 Installation notes
 ------------------
