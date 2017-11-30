@@ -117,23 +117,11 @@ class Model(ForecastModelBase):
         # "power-Output" and write the results (DC Power) on it along with date and
         # time stamps
 
-        # ******** Reading Forecasted Solar and Ambient Temperatures ************
-        # data_file = os.path.join(os.path.dirname(__file__), 'solar_pv_dynamic_inputs.json')
-        # with open(self.dynamic_data_file, 'r') as f:
-        #     dynamic_inputs = json.load(f)
-
-        # ITf = dynamic_inputs["ITf"] # Forecasted Total solar irradiance on tilted plane or POA irradiance, [W/m2]
-        # Taf = dynamic_inputs["Taf"] # Forecasted ambient temperature, [Degrees C]
-        # TOD = dynamic_inputs["time_placeholder"] # Time of the day as a numbers between 0 and 1
-        # raw = dynamic_inputs["date"]# Dates as an array of strings
-
         # ******** PV Mount, User inputs *******
         theta_p = self.plane_tilt_angle #Plane tilt angle
         theta_p = theta_p * (pi / 180) #converting degrees to radians
         phi_p = self.plane_azimuth_angle #Plane azimuth angle
         phi_p = phi_p * (pi / 180)#converting degrees to radians
-
-
 
         # ******** Location Info, User Input OR obtain somehow from zip code or other smart means ************
         _lambda = self.local_latitude #Location latitude
@@ -141,7 +129,6 @@ class Model(ForecastModelBase):
 
         Lloc = self.local_longitude #Local longitude
         Lstd = self.time_zone_longitude #Time zone longitude
-
 
         # ********************************************************
         Pdc = 0 # PV power output, DC
@@ -158,10 +145,8 @@ class Model(ForecastModelBase):
         Ketta = 0 # Incidence angle modifier
         omegaS = 0 # sunrise and sunset hour angle
         cos_omega_S = 0 # cos of omegaS
-        daylightindicator = 0 # indicates whether sun is above the horizon or not
         omegaSprime = 0 # sunset and sunrise hour angle over the panel surface
         cos_omegaS_prime = 0 # cos of omegaSprime
-        daylightindicatorT = 0 # indicates whether sun is above the edge of the panel or not (sunrise and sunset over the panel surface)
 
         #********* Calculating n (day number) **********
         # for a in range(24): # MIKE INDEXES
