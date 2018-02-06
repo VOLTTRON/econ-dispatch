@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*- {{{
-# vim: set fenc = utf-8 ft = python sw = 4 ts = 4 sts = 4 et:
+# vim: set fenc=utf-8 ft=python sw=4 ts=4 sts=4 et:
 
 # Copyright (c) 2017, Battelle Memorial Institute
 # All rights reserved.
@@ -80,17 +80,17 @@ class ChillerIGV(object):
         self.b_chiller = b_chiller
         self.xmax_chiller = xmax_chiller
 
-        self.state_variables = {}
+        self.state_variable = {}
         self.chiller_elec = {}
         self.q_chiller = {}
         self.q_chiller_aux = {}
 
     def get_state_variable(self, hour):
         try:
-            Schiller = self.state_variables[hour]
+            Schiller = self.state_variable[hour]
         except KeyError:
             Schiller = binary_var("Schiller{}_hour{}".format(self.name, hour))
-            self.state_variables[hour] = Schiller
+            self.state_variable[hour] = Schiller
 
         return Schiller
 
@@ -99,7 +99,6 @@ class ChillerIGV(object):
             E_chillerelec = self.chiller_elec[hour]
         except KeyError:
             E_chillerelec = LpVariable("E_chillerelec{}_hour{}".format(self.name, hour), 0)
-            print "E_chillerelec{}_hour{}".format(self.name, hour)
             self.chiller_elec[hour] = E_chillerelec
 
         return E_chillerelec
@@ -152,6 +151,97 @@ class ChillerIGV(object):
 
         return constraints
 
+
+class AbsChiller(object):
+    def __init__(self, name=None,
+                 xmin_abschiller=None,
+                 a_abs=None,
+                 b_abs=None,
+                 xmax_abschiller=None,
+                 history=None,
+                 min_on_time=None,
+                 min_off_time=None):
+        self.name = name
+        self.xmin_abschiller = xmin_abschiller
+        self.a_abs = a_abs
+        self.b_abs = b_abs
+        self.xmax_abschiller = xmax_abschiller
+        self.history = history
+        self.min_on_time = min_on_time
+        self.min_off_time = min_off_time
+
+        self.state_variable = {}
+        self.q_abs = {}
+        self.q_abs_aux = {}
+
+    def get_swap_dc(self, hour):
+        try:
+            swap = self.swap_dc[hour]
+        except KeyError:
+
+            self.swap_dc[hour] = swap
+
+        return swap
+
+    def get_state_variable(self, hour):
+        try:
+            Sabs = self.state_variable[hour]
+        except KeyError:
+            Sabs = binary_var("Sabs{}_hour{}".format(self.name, hour))
+            self.state_variable[hour] = Sabs
+
+        return Sabs
+
+    def get_q_abs(self, hour):
+        try:
+            Q_abs = self.q_abs[hour]
+        except KeyError:
+            Q_abs = LpVariable("Q_abs{}_hour{}".format(self.name, hour), 0)
+            self.q_abs[hour] = Q_abs
+
+        return Q_abs
+
+    def get_q_abs_aux(self, hour):
+        try:
+            Q_abs_aux = self.q_abs_aux[hour]
+        except KeyError:
+            Q_abs_aux = [LpVariable("Q_abs{}_hour{}_aux0".format(self.name, hour), 0)]
+            self.q_abs_aux[hour] = Q_abs_aux
+
+        return Q_abs_aux
+
+    def get_constraints(self, hour, Q_Gencooling):
+        Sabs = self.get_state_variable(hour)
+        Q_abs = self.get_q_abs(hour)
+        Q_abs_aux = self.get_q_abs_aux(hour)
+
+        constraints = []
+
+        label = "AbsChillerHeatCoolConsume{}_{}".format(self.name, hour)
+        exp = Q_Gencooling
+        for q in Q_abs_aux:
+            exp = exp - self.a_abs * q
+        exp = exp - self.b_abs * Sabs
+        exp = exp == 0
+        constraints.append((exp, label))
+
+        label = "AbsChillerHeatGenerate{}_{}".format(self.name, hour)
+        exp = Q_abs
+        for q in Q_abs_aux:
+            exp = exp - q
+        exp = exp - self.xmin_abschiller * Sabs
+        exp = exp == 0
+        constraints.append((exp, label))
+
+        label = "AbschillerQlower{}_{}".format(self.name, hour)
+        exp = Q_abs - self.xmin_abschiller * Sabs >= 0
+        constraints.append((exp, label))
+
+        label = "AbschillerQupper{}_{}".format(self.name, hour)
+        exp = Q_abs - self.xmax_abschiller * Sabs <= 0
+        constraints.append((exp, label))
+
+        return constraints
 
 def get_optimization_problem(forecast, parameters = {}):
     # get the model parameters and bounds for variables
@@ -214,7 +304,8 @@ def get_optimization_problem(forecast, parameters = {}):
 
         chillers_igv.append(chiller)
 
-    for absorption_chiller_name, parameters in absorption_chiller_params.items():
+    absorption_chillers = []
+    for i, (name, parameters) in enumerate(absorption_chiller_params.items()):
         mat_abschiller = parameters["mat_abschiller"]
         xmax_abschiller = parameters["xmax_abschiller"]
         xmin_abschiller = parameters["xmin_abschiller"]
@@ -224,11 +315,22 @@ def get_optimization_problem(forecast, parameters = {}):
         cap_abs = parameters["cap_abs_chiller"]
         cap_abs = cap_abs / 293.1  # kW -> mmBtu/hr
 
-        # flagabs = True
         xmin_AbsChiller = cap_abs * 0.15
         a_abs = mat_abschiller[1]
         b_abs = mat_abschiller[0] + a_abs * xmin_AbsChiller
         xmax_AbsChiller = cap_abs
+
+        abs_chiller = AbsChiller(name=name,
+                                 xmin_abschiller=xmin_AbsChiller,
+                                 a_abs=a_abs,
+                                 b_abs=b_abs,
+                                 xmax_abschiller=xmax_AbsChiller,
+                                 history=abs_chiller_history,
+                                 min_on_time=min_on_abs_chiller,
+                                 min_off_time=min_off_abs_chiller)
+
+        absorption_chillers.append(abs_chiller)
+
 
     # heat recovery unit
     a_hru = 0.8
@@ -237,7 +339,6 @@ def get_optimization_problem(forecast, parameters = {}):
 
     objective_component = []
     constraints = []
-    absorption_chiller_state = []
     for hour, forecast_hour in enumerate(forecast):
         hour = str(hour).zfill(2)
 
@@ -245,9 +346,6 @@ def get_optimization_problem(forecast, parameters = {}):
         Sturbine = binary_var("Sturbine_hour{}".format(hour))
 
         Sboiler = binary_var("Sboiler_hour{}".format(hour))
-
-        Sabs = binary_var("Sabs_hour{}".format(hour))
-        absorption_chiller_state.append(Sabs)
 
         # free variables
         E_gridelec = LpVariable("E_gridelec_hour{}".format(hour))
@@ -272,9 +370,6 @@ def get_optimization_problem(forecast, parameters = {}):
         for i in range(len(xmax_boiler)):
             var = LpVariable("Q_boiler_hour{}_aux{}".format(hour, i), 0, xmax_boiler[i] - xmin_boiler[i])
             Q_boiler_aux.append(var)
-
-        Q_abs = LpVariable("Q_abs_hour{}".format(hour), 0)
-        Q_abs_aux = [LpVariable("Q_abs_hour{}_aux0".format(hour), 0)]
 
         Q_HRUheating = LpVariable("Q_HRUheating_hour{}".format(hour), 0)
         Q_Genheating = LpVariable("Q_Genheating_hour{}".format(hour), 0)
@@ -309,9 +404,11 @@ def get_optimization_problem(forecast, parameters = {}):
 
         # cooling balance
         label = "CoolBalance{}".format(hour)
-        exp = Q_abs
-        for q_chill in [c.get_q_chiller(hour) for c in chillers_igv]:
-            exp = exp + q_chill
+        exp = pulp.lpSum([a.get_q_abs(hour) for a in absorption_chillers] +
+                         [c.get_q_chiller(hour) for c in chillers_igv])
+        # exp = Q_abs
+        # for q_chill in :
+        #     exp = exp + q_chill
 
         exp = exp + Cool_unserve - Cool_dump
         exp = exp == forecast_hour["cool_load"]
@@ -369,31 +466,9 @@ def get_optimization_problem(forecast, parameters = {}):
         for chiller in chillers_igv:
             constraints.extend(chiller.get_constraints(hour))
 
-
         # abschiller
-        label = "AbsChillerHeatCoolConsume{}".format(hour)
-        exp = Q_Gencooling
-        for q in Q_abs_aux:
-            exp = exp - a_abs * q
-        exp = exp - b_abs * Sabs
-        exp = exp == 0
-        constraints.append((exp, label))
-
-        label = "AbsChillerHeatGenerate{}".format(hour)
-        exp = Q_abs
-        for q in Q_abs_aux:
-            exp = exp - q
-        exp = exp - xmin_AbsChiller * Sabs
-        exp = exp == 0
-        constraints.append((exp, label))
-
-        label = "AbschillerQlower{}".format(hour)
-        exp = Q_abs - xmin_AbsChiller * Sabs >= 0
-        constraints.append((exp, label))
-
-        label = "AbschillerQupper{}".format(hour)
-        exp = Q_abs - xmax_AbsChiller * Sabs <= 0
-        constraints.append((exp, label))
+        for abs_chiller in absorption_chillers:
+            constraints.extend(abs_chiller.get_constraints(hour, Q_Gencooling))
 
         # HRU
         label = "HRUWasteheat{}".format(hour)
@@ -408,7 +483,7 @@ def get_optimization_problem(forecast, parameters = {}):
         constraints.append((exp, label))
 
     # time lock constraints need to look at multiple state variables
-    def lock_on_constraints(label_template, min_lock_time, state_variables, state_history):
+    def lock_on_constraints(label_template, name, min_lock_time, state_variables, state_history):
         # don't do anything if the lock is not needed
         if min_lock_time < 1:
             return
@@ -424,10 +499,10 @@ def get_optimization_problem(forecast, parameters = {}):
 
             exp = pulp.lpSum(window[:-1]) >= min_lock_time * (last_time - current_time)
 
-            label = label_template.format(hour)
+            label = label_template.format(name, hour)
             constraints.append((exp, label))
 
-    def lock_off_constraints(label_template, min_lock_time, state_variables, state_history):
+    def lock_off_constraints(label_template, name, min_lock_time, state_variables, state_history):
         # don't do anything if the lock is not needed
         if min_lock_time < 1:
             return
@@ -445,11 +520,20 @@ def get_optimization_problem(forecast, parameters = {}):
 
             exp = pulp.lpSum(window[:-1]) >= min_lock_time * (last_time - current_time)
 
-            label = label_template.format(hour)
+            label = label_template.format(name, hour)
             constraints.append((exp, label))
 
-    lock_on_constraints("AbsLockOn{}", min_on_abs_chiller,
-                        absorption_chiller_state, abs_chiller_history)
+    for abs_chiller in absorption_chillers:
+        name = abs_chiller.name
+        history = abs_chiller.history
+        min_on_time = abs_chiller.min_on_time
+
+        state_variables = list(abs_chiller.state_variable.items())
+        state_variables = sorted(state_variables, key=lambda x: int(x[0]))
+        state_variables = [x[1] for x in state_variables]
+
+        lock_on_constraints("AbsLockOn{}_{}", name, min_on_time,
+                            state_variables, history)
 
 
     # Build the optimization problem

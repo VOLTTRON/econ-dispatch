@@ -109,7 +109,7 @@ class Component(ComponentBase):
         # Set to True whenever something happens that causes us to need to recalculate
         # the optimization parameters.
         self.opt_params_dirty = True
-        
+
         # Gordon-Ng model coefficients
         # self.a0, self.a1 = self.train()
 
@@ -127,7 +127,7 @@ class Component(ComponentBase):
         return [u"heat"]
 
     def get_commands(self, component_loads):
-        abs_chller_load_mmBTU = component_loads["Q_abs_hour00"]
+        abs_chller_load_mmBTU = component_loads["Q_abs{}_hour00".format(self.name)]
         abs_chiller_load_kW = abs_chller_load_mmBTU*1000/3.412
         mass_flow_rate_abs =  abs_chiller_load_kW / (SPECIFIC_HEAT_WATER*(self.Tchr-self.Tcho))
         vol_flow_rate_setpoint_abs = mass_flow_rate_abs / DENSITY_WATER
@@ -144,7 +144,7 @@ class Component(ComponentBase):
 
         Qch = self.historical_data["Qch(tons)"] * (3.517 / 293.1) # chiller cooling output in mmBTU/hr (converted from cooling Tons)
         Qin = self.historical_data["Qin(MMBtu/h)"] # chiller heat input in mmBTU/hr
-    
+
         n1 = np.nonzero(Qch < 8)[-1]
         Xdata = Qch[n1]
         Ydata = Qin[n1]

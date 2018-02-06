@@ -130,7 +130,7 @@ class Component(ComponentBase):
 
         # chiller power input in kW
         P = self.historical_data["P(kW)"]
-    
+
         m_ChillerIGV = least_squares_regression(inputs=Qch, output=P)
         xmax_ChillerIGV = max(Qch)
         xmin_ChillerIGV = min(Qch)
@@ -208,4 +208,3 @@ class Component(ComponentBase):
     #     AA = least_squares_regression(inputs=regression_columns, output=y)
     #
     #     return AA
-    
