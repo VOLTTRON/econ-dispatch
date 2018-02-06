@@ -158,11 +158,15 @@ class SystemModel(object):
         return results
 
     def get_parameters(self, now, inputs):
-        results = defaultdict(dict)
+        results= {}
+
         for type_name, component_dict in self.type_map.iteritems():
-            for name, component in component_dict:
+            for name, component in component_dict.iteritems():
                 parameters = component.get_optimization_parameters()
-                results[type_name][name] = parameters
+                try:
+                    results[type_name][name] = parameters
+                except KeyError:
+                    results[type_name] = {name: parameters}
 
         return results
 

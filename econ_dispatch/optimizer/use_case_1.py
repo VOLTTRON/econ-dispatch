@@ -74,22 +74,44 @@ def binary_var(name):
 def get_optimization_problem(forecast, parameters={}):
     # get the model parameters and bounds for variables
     # load FuelCellPara.mat
-
     _log.debug("Parameters:\n"+pformat(parameters))
 
     try:
+        fuel_cell_params = parameters["fuel_cell"]
+        boiler_params = parameters["boiler"]
+        centrifugal_chiller_igv_params = parameters["centrifugal_chiller_igv"]
+        absorption_chiller_params = parameters["absorption_chiller"]
+    except KeyError:
+        raise RuntimeError("Missing needed configuration parameter: " + e.message)
+
+    # prime mover (fuel cell/micro turbine generator)
+    for fuel_cell_name, parameters in fuel_cell_params.items():
         mat_prime_mover = parameters["mat_prime_mover"]
-        #xmax_prime_mover = parameters["xmax_prime_mover"]
-        #xmin_prime_mover = parameters["xmin_prime_mover"]
         cap_prime_mover = parameters["cap_prime_mover"]
 
-        # load BoilerPara.mat
+        xmin_prime_mover = cap_prime_mover * 0.3
+        a_E_primer_mover = mat_prime_mover[1]
+        b_E_prime_mover = mat_prime_mover[0] + a_E_primer_mover * xmin_prime_mover
+        xmax_prime_mover = cap_prime_mover
+
+        a_Q_primer_mover = a_E_primer_mover - 1 / 293.1
+        b_Q_primer_mover = b_E_prime_mover - xmin_prime_mover / 293.1
+
+    for boiler_name, parameters in boiler_params.items():
         mat_boiler = parameters["mat_boiler"]
         xmax_boiler =  parameters["xmax_boiler"]
         xmin_boiler =  parameters["xmin_boiler"]
         cap_boiler = parameters["cap_boiler"]
+        xmin_boiler[0] = cap_boiler * 0.15 # !!!need to consider cases when xmin is not in the first section of the training data
+        Nsection = np.where(xmax_boiler > cap_boiler)[0][0]
+        Nsection = Nsection + 1
+        xmin_boiler = xmin_boiler[:Nsection]
+        xmax_boiler = xmax_boiler[:Nsection]
+        a_boiler = mat_boiler[1][:Nsection]
+        b_boiler = mat_boiler[0][0] + a_boiler[0] * xmin_boiler[0]
+        xmax_boiler[-1] = cap_boiler
 
-        # load ChillerIGVPara.mat
+    for centrifugal_chiller_name, parameters in centrifugal_chiller_igv_params.items():
         mat_chillerIGV = parameters["mat_chillerIGV"]
         xmax_chillerIGV = parameters["xmax_chillerIGV"]
         xmin_chillerIGV = parameters["xmin_chillerIGV"]
@@ -97,7 +119,17 @@ def get_optimization_problem(forecast, parameters={}):
         cap_chiller = cap_chiller * 3.517 / 293.1  # ton -> mmBtu/hr
         n_chiller = parameters["chiller_count"]
 
-        # load AbsChillerPara.mat
+        xmin_Chiller= []
+        a_chiller = []
+        b_chiller = []
+        xmax_Chiller = []
+        for i in range(n_chiller):
+            xmin_Chiller.append(cap_chiller * 0.15)
+            a_chiller.append(mat_chillerIGV[1] + i * 0.01)  # adding 0.01 to the slopes to differentiate the chillers
+            b_chiller.append(mat_chillerIGV[0] + a_chiller[i] * xmin_chillerIGV)
+            xmax_Chiller.append(cap_chiller)
+
+    for absorption_chiller_name, parameters in absorption_chiller_params.items():
         mat_abschiller = parameters["mat_abschiller"]
         xmax_abschiller = parameters["xmax_abschiller"]
         xmin_abschiller = parameters["xmin_abschiller"]
@@ -106,46 +138,12 @@ def get_optimization_problem(forecast, parameters={}):
         abs_chiller_history = parameters["abs_chiller_history"]
         cap_abs = parameters["cap_abs_chiller"]
         cap_abs = cap_abs / 293.1  # kW -> mmBtu/hr
-    except KeyError as e:
-        raise RuntimeError("Missing needed configuration parameter: " + e.message)
 
-    ## compute the parameters for the optimization
-    # boiler
-    xmin_boiler[0] = cap_boiler * 0.15 # !!!need to consider cases when xmin is not in the first section of the training data
-    Nsection = np.where(xmax_boiler > cap_boiler)[0][0]
-    Nsection = Nsection + 1
-    xmin_boiler = xmin_boiler[:Nsection]
-    xmax_boiler = xmax_boiler[:Nsection]
-    a_boiler = mat_boiler[1][:Nsection]
-    b_boiler = mat_boiler[0][0] + a_boiler[0] * xmin_boiler[0]
-    xmax_boiler[-1] = cap_boiler
-
-    # absorption chiller
-    flagabs = True
-    xmin_AbsChiller = cap_abs * 0.15
-    a_abs = mat_abschiller[1]
-    b_abs = mat_abschiller[0] + a_abs * xmin_AbsChiller
-    xmax_AbsChiller = cap_abs
-
-    # chiller
-    xmin_Chiller= []
-    a_chiller = []
-    b_chiller = []
-    xmax_Chiller = []
-    for i in range(n_chiller):
-        xmin_Chiller.append(cap_chiller * 0.15)
-        a_chiller.append(mat_chillerIGV[1] + i * 0.01)  # adding 0.01 to the slopes to differentiate the chillers
-        b_chiller.append(mat_chillerIGV[0] + a_chiller[i] * xmin_chillerIGV)
-        xmax_Chiller.append(cap_chiller)
-
-    # prime mover (fuel cell/micro turbine generator)
-    xmin_prime_mover = cap_prime_mover * 0.3
-    a_E_primer_mover = mat_prime_mover[1]
-    b_E_prime_mover = mat_prime_mover[0] + a_E_primer_mover * xmin_prime_mover
-    xmax_prime_mover = cap_prime_mover
-
-    a_Q_primer_mover = a_E_primer_mover - 1 / 293.1
-    b_Q_primer_mover = b_E_prime_mover - xmin_prime_mover / 293.1
+        flagabs = True
+        xmin_AbsChiller = cap_abs * 0.15
+        a_abs = mat_abschiller[1]
+        b_abs = mat_abschiller[0] + a_abs * xmin_AbsChiller
+        xmax_AbsChiller = cap_abs
 
     # heat recovery unit
     a_hru = 0.8
@@ -177,7 +175,6 @@ def get_optimization_problem(forecast, parameters={}):
         E_gridelec = LpVariable("E_gridelec_hour{}".format(hour))
 
         # regular variables
-
         E_unserve = LpVariable("E_unserve_hour{}".format(hour), 0)
         E_dump = LpVariable("E_dump_hour{}".format(hour), 0)
         Heat_unserve = LpVariable("Heat_unserve_hour{}".format(hour), 0)
@@ -415,14 +412,8 @@ def get_optimization_problem(forecast, parameters={}):
             label = label_template.format(hour)
             constraints.append((exp, label))
 
-    # s0_boiler = [1 for _ in range(24)]
-    # lock_on_constraints("BoilerLockOn{}", 3, boiler_state, s0_boiler)
-    # lock_off_constraints("BoilerLockOff{}", 3, boiler_state, s0_boiler)
-
     lock_on_constraints("AbsLockOn{}", min_on_abs_chiller,
                         absorption_chiller_state, abs_chiller_history)
-    # lock_off_constraints("AbsLockOff{}", min_off_abs_chiller,
-    #                      absorption_chiller_state, abs_chiller_history)
 
 
     # Build the optimization problem
