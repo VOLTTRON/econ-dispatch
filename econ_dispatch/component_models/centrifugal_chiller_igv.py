@@ -113,7 +113,7 @@ class Component(ComponentBase):
         points = {}
         commands = {self.name: points}
         for i in xrange(self.count):
-            if component_loads["E_chillerelec{}_hour00".format(i)] > 0.0:
+            if component_loads["E_chillerelec{}_hour00".format(self.name)] > 0.0:
                 points["chiller{}_on".format(i)] = True
             else:
                 points["chiller{}_on".format(i)] = False

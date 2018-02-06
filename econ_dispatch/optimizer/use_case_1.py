@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*- {{{
-# vim: set fenc=utf-8 ft=python sw=4 ts=4 sts=4 et:
+# vim: set fenc = utf-8 ft = python sw = 4 ts = 4 sts = 4 et:
 
 # Copyright (c) 2017, Battelle Memorial Institute
 # All rights reserved.
@@ -71,7 +71,89 @@ UNSERVE_LIMIT = 10000
 def binary_var(name):
     return LpVariable(name, 0, 1, pulp.LpInteger)
 
-def get_optimization_problem(forecast, parameters={}):
+
+class ChillerIGV(object):
+    def __init__(self, name=None, xmin_chiller=None, a_chiller=None, b_chiller=None, xmax_chiller=None):
+        self.name = name
+        self.xmin_chiller = xmin_chiller
+        self.a_chiller = a_chiller
+        self.b_chiller = b_chiller
+        self.xmax_chiller = xmax_chiller
+
+        self.state_variables = {}
+        self.chiller_elec = {}
+        self.q_chiller = {}
+        self.q_chiller_aux = {}
+
+    def get_state_variable(self, hour):
+        try:
+            Schiller = self.state_variables[hour]
+        except KeyError:
+            Schiller = binary_var("Schiller{}_hour{}".format(self.name, hour))
+            self.state_variables[hour] = Schiller
+
+        return Schiller
+
+    def get_e_chiller_elec(self, hour):
+        try:
+            E_chillerelec = self.chiller_elec[hour]
+        except KeyError:
+            E_chillerelec = LpVariable("E_chillerelec{}_hour{}".format(self.name, hour), 0)
+            print "E_chillerelec{}_hour{}".format(self.name, hour)
+            self.chiller_elec[hour] = E_chillerelec
+
+        return E_chillerelec
+
+    def get_q_chiller(self, hour):
+        try:
+            Q_chiller = self.q_chiller[hour]
+        except KeyError:
+            Q_chiller = LpVariable("Q_chiller{}_hour{}".format(self.name, hour), 0)
+            self.q_chiller[hour] = Q_chiller
+
+        return Q_chiller
+
+    def get_q_chiller_aux(self, hour):
+        try:
+            Q_chiller_aux = self.q_chiller_aux[hour]
+        except KeyError:
+            Q_chiller_aux = LpVariable("Q_chiller{}_hour{}_aux{}".format(self.name, hour, 1), 0, self.xmax_chiller - self.xmin_chiller)
+            self.q_chiller_aux[hour] = Q_chiller_aux
+
+        return Q_chiller_aux
+
+    def get_constraints(self, hour):
+        Schiller = self.get_state_variable(hour)
+        E_chillerelec = self.get_e_chiller_elec(hour)
+        Q_chiller = self.get_q_chiller(hour)
+        Q_chiller_aux = self.get_q_chiller_aux(hour)
+
+        constraints = []
+
+        label = "ChillerElecConsume{}_{}".format(self.name, hour)
+        exp = E_chillerelec - self.a_chiller * Q_chiller_aux
+        exp = exp - self.b_chiller * Schiller
+        exp = exp == 0
+        constraints.append((exp, label))
+
+        label = "ChillerCoolGenerate{}_{}".format(self.name, hour)
+        exp = Q_chiller - Q_chiller_aux
+        exp = exp - self.xmin_chiller * Schiller
+        exp = exp == 0
+        constraints.append((exp, label))
+
+        label = "ChillerQlower{}_{}".format(self.name, hour)
+        exp = Q_chiller - self.xmin_chiller * Schiller >= 0
+        constraints.append((exp, label))
+
+        label = "ChillerQupper{}_{}".format(self.name, hour)
+        exp = Q_chiller - self.xmax_chiller * Schiller <= 0
+        constraints.append((exp, label))
+
+        return constraints
+
+
+def get_optimization_problem(forecast, parameters = {}):
     # get the model parameters and bounds for variables
     # load FuelCellPara.mat
     _log.debug("Parameters:\n"+pformat(parameters))
@@ -111,7 +193,8 @@ def get_optimization_problem(forecast, parameters={}):
         b_boiler = mat_boiler[0][0] + a_boiler[0] * xmin_boiler[0]
         xmax_boiler[-1] = cap_boiler
 
-    for centrifugal_chiller_name, parameters in centrifugal_chiller_igv_params.items():
+    chillers_igv = []
+    for i, (name, parameters) in enumerate(centrifugal_chiller_igv_params.items()):
         mat_chillerIGV = parameters["mat_chillerIGV"]
         xmax_chillerIGV = parameters["xmax_chillerIGV"]
         xmin_chillerIGV = parameters["xmin_chillerIGV"]
@@ -119,15 +202,17 @@ def get_optimization_problem(forecast, parameters={}):
         cap_chiller = cap_chiller * 3.517 / 293.1  # ton -> mmBtu/hr
         n_chiller = parameters["chiller_count"]
 
-        xmin_Chiller= []
-        a_chiller = []
-        b_chiller = []
-        xmax_Chiller = []
-        for i in range(n_chiller):
-            xmin_Chiller.append(cap_chiller * 0.15)
-            a_chiller.append(mat_chillerIGV[1] + i * 0.01)  # adding 0.01 to the slopes to differentiate the chillers
-            b_chiller.append(mat_chillerIGV[0] + a_chiller[i] * xmin_chillerIGV)
-            xmax_Chiller.append(cap_chiller)
+        xmin_chiller = cap_chiller * 0.15
+        a_chiller = mat_chillerIGV[1] + i * 0.01
+        b_chiller = mat_chillerIGV[0] + a_chiller * xmin_chillerIGV
+        xmax_chiller = cap_chiller
+        chiller = ChillerIGV(name=name,
+                             xmin_chiller=xmin_chiller,
+                             a_chiller=a_chiller,
+                             b_chiller=b_chiller,
+                             xmax_chiller=xmax_chiller)
+
+        chillers_igv.append(chiller)
 
     for absorption_chiller_name, parameters in absorption_chiller_params.items():
         mat_abschiller = parameters["mat_abschiller"]
@@ -139,7 +224,7 @@ def get_optimization_problem(forecast, parameters={}):
         cap_abs = parameters["cap_abs_chiller"]
         cap_abs = cap_abs / 293.1  # kW -> mmBtu/hr
 
-        flagabs = True
+        # flagabs = True
         xmin_AbsChiller = cap_abs * 0.15
         a_abs = mat_abschiller[1]
         b_abs = mat_abschiller[0] + a_abs * xmin_AbsChiller
@@ -148,28 +233,21 @@ def get_optimization_problem(forecast, parameters={}):
     # heat recovery unit
     a_hru = 0.8
 
-
     ################################################################################
 
     objective_component = []
     constraints = []
-    boiler_state = []
     absorption_chiller_state = []
     for hour, forecast_hour in enumerate(forecast):
         hour = str(hour).zfill(2)
+
         # binary variables
         Sturbine = binary_var("Sturbine_hour{}".format(hour))
 
         Sboiler = binary_var("Sboiler_hour{}".format(hour))
-        boiler_state.append(Sboiler)
 
         Sabs = binary_var("Sabs_hour{}".format(hour))
         absorption_chiller_state.append(Sabs)
-
-        Schiller = []
-        for i in range(n_chiller):
-            var = binary_var("Schiller{}_hour{}".format(i, hour))
-            Schiller.append(var)
 
         # free variables
         E_gridelec = LpVariable("E_gridelec_hour{}".format(hour))
@@ -195,20 +273,6 @@ def get_optimization_problem(forecast, parameters={}):
             var = LpVariable("Q_boiler_hour{}_aux{}".format(hour, i), 0, xmax_boiler[i] - xmin_boiler[i])
             Q_boiler_aux.append(var)
 
-        E_chillerelec = []
-        for i in range(n_chiller):
-            var = LpVariable("E_chillerelec{}_hour{}".format(i, hour), 0)
-            E_chillerelec.append(var)
-
-        Q_chiller = []
-        Q_chiller_aux = []
-        for i in range(n_chiller):
-            var = LpVariable("Q_chiller{}_hour{}".format(i, hour), 0)
-            Q_chiller.append(var)
-
-            aux = LpVariable("Q_chiller{}_hour{}_aux{}".format(i, hour, 1), 0, xmax_Chiller[i] - xmin_Chiller[i])
-            Q_chiller_aux.append(aux)
-
         Q_abs = LpVariable("Q_abs_hour{}".format(hour), 0)
         Q_abs_aux = [LpVariable("Q_abs_hour{}_aux0".format(hour), 0)]
 
@@ -232,7 +296,7 @@ def get_optimization_problem(forecast, parameters={}):
         # electric energy balance
         label = "ElecBalance{}".format(hour)
         exp = E_prime_mover_elec + E_gridelec
-        for e_chill in E_chillerelec:
+        for e_chill in [c.get_e_chiller_elec(hour) for c in chillers_igv]:
             exp = exp - e_chill
         exp = exp + E_unserve - E_dump
         exp = exp == forecast_hour["elec_load"] - forecast_hour["solar_kW"]
@@ -245,14 +309,9 @@ def get_optimization_problem(forecast, parameters={}):
 
         # cooling balance
         label = "CoolBalance{}".format(hour)
-        if flagabs:
-            exp = Q_abs
-            for q_chill in Q_chiller:
-                exp = exp + q_chill
-        else:
-            exp = Q_chiller[0]
-            for q_chill in Q_chiller[1:]:
-                exp = exp + q_chill
+        exp = Q_abs
+        for q_chill in [c.get_q_chiller(hour) for c in chillers_igv]:
+            exp = exp + q_chill
 
         exp = exp + Cool_unserve - Cool_dump
         exp = exp == forecast_hour["cool_load"]
@@ -307,30 +366,8 @@ def get_optimization_problem(forecast, parameters={}):
         constraints.append((exp, label))
 
         # chillers
-        for chiller in range(n_chiller):
-            label = "ChillerElecConsume{}_{}".format(chiller, hour)
-            exp = E_chillerelec[chiller] - a_chiller[chiller] * Q_chiller_aux[chiller]
-            # for a_chill, aux in zip(a_chiller, Q_chiller_aux):
-            #     exp = exp - a_chill * aux
-            exp = exp - b_chiller[chiller] * Schiller[chiller]
-            exp = exp == 0
-            constraints.append((exp, label))
-
-            label = "ChillerCoolGenerate{}_{}".format(chiller, hour)
-            exp = Q_chiller[chiller] - Q_chiller_aux[chiller]
-            # for q_chill_aux in Q_chiller_aux:
-            #     exp = exp - q_chill_aux
-            exp = exp - xmin_Chiller[chiller] * Schiller[chiller]
-            exp = exp == 0
-            constraints.append((exp, label))
-
-            label = "ChillerQlower{}_{}".format(chiller, hour)
-            exp = Q_chiller[chiller] - xmin_Chiller[chiller] * Schiller[chiller] >= 0
-            constraints.append((exp, label))
-
-            label = "ChillerQupper{}_{}".format(chiller, hour)
-            exp = Q_chiller[chiller] - xmax_Chiller[chiller] * Schiller[chiller] <= 0
-            constraints.append((exp, label))
+        for chiller in chillers_igv:
+            constraints.extend(chiller.get_constraints(hour))
 
 
         # abschiller
@@ -361,8 +398,7 @@ def get_optimization_problem(forecast, parameters={}):
         # HRU
         label = "HRUWasteheat{}".format(hour)
         exp = Q_Genheating
-        if flagabs:
-            exp = exp + Q_Gencooling
+        exp = exp + Q_Gencooling
         exp = exp - Q_prime_mover
         exp = exp == 0
         constraints.append((exp, label))
