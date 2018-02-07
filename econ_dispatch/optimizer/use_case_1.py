@@ -321,6 +321,111 @@ class Boiler(object):
 
         return constraints
 
+
+class PrimeMover(object):
+    def __init__(self,
+                 name=None,
+                 xmin_prime_mover=None,
+                 a_E_primer_mover=None,
+                 b_E_prime_mover=None,
+                 xmax_prime_mover=None,
+                 a_Q_primer_mover=None,
+                 b_Q_primer_mover=None):
+
+        self.name = name
+        self.xmin_prime_mover = xmin_prime_mover
+        self.a_E_primer_mover = a_E_primer_mover
+        self.b_E_prime_mover = b_E_prime_mover
+        self.xmax_prime_mover = xmax_prime_mover
+        self.a_Q_primer_mover = a_Q_primer_mover
+        self.b_Q_primer_mover = b_Q_primer_mover
+
+        self.state_variable = {}
+        self.e_prime_mover_fuel = {}
+        self.q_prime_mover = {}
+        self.e_prime_mover_elec = {}
+        self.e_prime_mover_elec_aux = {}
+
+    def get_state_variable(self, hour):
+        try:
+            Sturbine = self.state_variable[hour]
+        except KeyError:
+            Sturbine = binary_var("Sturbine{}_hour{}".format(self.name, hour))
+            self.state_variable[hour] = Sturbine
+
+        return Sturbine
+
+    def get_e_prime_mover_fuel(self, hour, xmin_boiler):
+        try:
+            E_prime_mover_fuel = self.e_prime_mover_fuel[hour]
+        except KeyError:
+            E_prime_mover_fuel = LpVariable("E_prime_mover_fuel{}_hour{}".format(self.name, hour), xmin_boiler[0])
+            self.e_prime_mover_fuel[hour] = E_prime_mover_fuel
+
+        return E_prime_mover_fuel
+
+    def get_q_prime_mover(self, hour):
+        try:
+            Q_prime_mover = self.q_prime_mover[hour]
+        except KeyError:
+            Q_prime_mover = LpVariable("Q_prime_mover{}_hour{}".format(self.name, hour), 0)
+            self.q_prime_mover[hour] = Q_prime_mover
+
+        return Q_prime_mover
+
+    def get_e_prime_mover_elec(self, hour):
+        try:
+            E_prime_mover_elec = self.e_prime_mover_elec[hour]
+        except KeyError:
+            E_prime_mover_elec = LpVariable("E_prime_mover_elec{}_hour{}".format(self.name, hour), 0)
+            self.e_prime_mover_elec[hour] = E_prime_mover_elec
+
+        return E_prime_mover_elec
+
+    def get_e_prime_mover_elec_aux(self, hour):
+        try:
+            E_prime_mover_elec_aux = self.e_prime_mover_elec_aux[hour]
+        except KeyError:
+            E_prime_mover_elec_aux = LpVariable("E_prime_mover_elec{}_hour{}_aux{}".format(self.name, hour, 1), 0, self.xmax_prime_mover - self.xmin_prime_mover)
+            self.e_prime_mover_elec_aux[hour] = E_prime_mover_elec_aux
+
+        return E_prime_mover_elec_aux
+
+    def get_constraints(self, hour, xmin_boiler):
+        Sturbine = self.get_state_variable(hour)
+        E_prime_mover_fuel = self.get_e_prime_mover_fuel(hour, xmin_boiler)
+        Q_prime_mover = self.get_q_prime_mover(hour)
+        E_prime_mover_elec = self.get_e_prime_mover_elec(hour)
+        E_prime_mover_elec_aux = self.get_e_prime_mover_elec_aux(hour)
+
+        constraints = []
+
+        # generator gas
+        label = "PrimeMoverFuelConsume{}_{}".format(self.name, hour)
+        exp = E_prime_mover_fuel - self.a_E_primer_mover * E_prime_mover_elec_aux - self.b_E_prime_mover * Sturbine == 0
+        constraints.append((exp, label))
+
+        # generator heat
+        label = "PrimeMoverHeatGenerate{}_{}".format(self.name, hour)
+        exp = Q_prime_mover - self.a_Q_primer_mover * E_prime_mover_elec_aux - self.b_Q_primer_mover * Sturbine == 0
+        constraints.append((exp, label))
+
+        # microturbine elec
+        label = "PrimeMoverElecGenerate{}_{}".format(self.name, hour)
+        exp = E_prime_mover_elec - E_prime_mover_elec_aux - self.xmin_prime_mover * Sturbine == 0
+        constraints.append((exp, label))
+
+        label = "PrimeMoverElower{}_{}".format(self.name, hour)
+        exp = E_prime_mover_elec - self.xmin_prime_mover * Sturbine >= 0
+        constraints.append((exp, label))
+
+        label = "PrimeMoverEupper{}_{}".format(self.name, hour)
+        exp = E_prime_mover_elec - self.xmax_prime_mover * Sturbine <= 0
+        constraints.append((exp, label))
+
+        return constraints
+
+
 def get_optimization_problem(forecast, parameters = {}):
     # get the model parameters and bounds for variables
     # load FuelCellPara.mat
@@ -335,7 +440,8 @@ def get_optimization_problem(forecast, parameters = {}):
         raise RuntimeError("Missing needed configuration parameter: " + e.message)
 
     # prime mover (fuel cell/micro turbine generator)
-    for fuel_cell_name, parameters in fuel_cell_params.items():
+    prime_movers = []
+    for i, (name, parameters) in enumerate(fuel_cell_params.items()):
         mat_prime_mover = parameters["mat_prime_mover"]
         cap_prime_mover = parameters["cap_prime_mover"]
 
@@ -347,8 +453,21 @@ def get_optimization_problem(forecast, parameters = {}):
         a_Q_primer_mover = a_E_primer_mover - 1 / 293.1
         b_Q_primer_mover = b_E_prime_mover - xmin_prime_mover / 293.1
 
+        prime_mover = PrimeMover(
+            name=name,
+            xmin_prime_mover=xmin_prime_mover,
+            a_E_primer_mover=a_E_primer_mover,
+            b_E_prime_mover=b_E_prime_mover,
+            xmax_prime_mover=xmax_prime_mover,
+            a_Q_primer_mover=a_Q_primer_mover,
+            b_Q_primer_mover=b_Q_primer_mover
+        )
+
+        prime_movers.append(prime_mover)
+
+
     boilers = []
-    for name, parameters in boiler_params.items():
+    for i, (name, parameters) in enumerate(boiler_params.items()):
         mat_boiler = parameters["mat_boiler"]
         xmax_boiler =  parameters["xmax_boiler"]
         xmin_boiler =  parameters["xmin_boiler"]
@@ -427,10 +546,7 @@ def get_optimization_problem(forecast, parameters = {}):
     constraints = []
     for hour, forecast_hour in enumerate(forecast):
         hour = str(hour).zfill(2)
-
-        # binary variables
-        Sturbine = binary_var("Sturbine_hour{}".format(hour))
-
+        
         # free variables
         E_gridelec = LpVariable("E_gridelec_hour{}".format(hour))
 
@@ -442,22 +558,13 @@ def get_optimization_problem(forecast, parameters = {}):
         Cool_unserve = LpVariable("Cool_unserve_hour{}".format(hour), 0)
         Cool_dump = LpVariable("Cool_dump_hour{}".format(hour), 0)
 
-        # how does this change for multiple boilers?
-        E_prime_mover_fuel = LpVariable("E_prime_mover_fuel_hour{}".format(hour), xmin_boiler[0])
-        Q_prime_mover = LpVariable("Q_prime_mover_hour{}".format(hour), 0)
-        E_prime_mover_elec = LpVariable("E_prime_mover_elec_hour{}".format(hour), 0)
-        E_prime_mover_elec_aux = LpVariable("E_prime_mover_elec_hour{}_aux{}".format(hour, 1), 0, xmax_prime_mover - xmin_prime_mover)
-
         Q_HRUheating = LpVariable("Q_HRUheating_hour{}".format(hour), 0)
         Q_Genheating = LpVariable("Q_Genheating_hour{}".format(hour), 0)
         Q_Gencooling = LpVariable("Q_Gencooling_hour{}".format(hour), 0)
 
         # constraints
         objective_component += [
-            forecast_hour["natural_gas_cost"]* E_prime_mover_fuel,
             forecast_hour["electricity_cost"] * E_gridelec,
-
-            # should these be added in only once?
             UNSERVE_LIMIT * E_unserve,
             UNSERVE_LIMIT * E_dump,
             UNSERVE_LIMIT * Heat_unserve,
@@ -466,13 +573,16 @@ def get_optimization_problem(forecast, parameters = {}):
             UNSERVE_LIMIT * Cool_dump
         ]
 
-        # add in boiler gas cost
         objective_component += [forecast_hour["natural_gas_cost"]
                                 * b.get_e_boilergas(hour) for b in boilers]
 
+        objective_component += [forecast_hour["natural_gas_cost"]
+                                * p.get_e_prime_mover_fuel(hour, xmin_boiler) for p in prime_movers]
+
         # electric energy balance
         label = "ElecBalance{}".format(hour)
-        exp = E_prime_mover_elec + E_gridelec
+        exp = E_gridelec
+        exp += pulp.lpSum([p.get_e_prime_mover_elec(hour) for p in prime_movers])
         for e_chill in [c.get_e_chiller_elec(hour) for c in chillers_igv]:
             exp = exp - e_chill
         exp = exp + E_unserve - E_dump
@@ -494,28 +604,9 @@ def get_optimization_problem(forecast, parameters = {}):
         exp = exp == forecast_hour["cool_load"]
         constraints.append((exp, label))
 
-        # generator gas
-        label = "PrimeMoverFuelConsume{}".format(hour)
-        exp = E_prime_mover_fuel - a_E_primer_mover * E_prime_mover_elec_aux - b_E_prime_mover * Sturbine == 0
-        constraints.append((exp, label))
-
-        # generator heat
-        label = "PrimeMoverHeatGenerate{}".format(hour)
-        exp = Q_prime_mover - a_Q_primer_mover * E_prime_mover_elec_aux - b_Q_primer_mover * Sturbine == 0
-        constraints.append((exp, label))
-
-        # microturbine elec
-        label = "PrimeMoverElecGenerate{}".format(hour)
-        exp = E_prime_mover_elec - E_prime_mover_elec_aux - xmin_prime_mover * Sturbine == 0
-        constraints.append((exp, label))
-
-        label = "PrimeMoverElower{}".format(hour)
-        exp = E_prime_mover_elec - xmin_prime_mover * Sturbine >= 0
-        constraints.append((exp, label))
-
-        label = "PrimeMoverEupper{}".format(hour)
-        exp = E_prime_mover_elec - xmax_prime_mover * Sturbine <= 0
-        constraints.append((exp, label))
+        # prime_mover
+        for prime_mover in prime_movers:
+            constraints.extend(prime_mover.get_constraints(hour, xmin_boiler))
 
         # boiler
         for boiler in boilers:
@@ -533,7 +624,7 @@ def get_optimization_problem(forecast, parameters = {}):
         label = "HRUWasteheat{}".format(hour)
         exp = Q_Genheating
         exp = exp + Q_Gencooling
-        exp = exp - Q_prime_mover
+        exp = exp - pulp.lpSum([p.get_q_prime_mover(hour) for p in prime_movers])
         exp = exp == 0
         constraints.append((exp, label))
 
