@@ -174,15 +174,6 @@ class AbsChiller(object):
         self.q_abs = {}
         self.q_abs_aux = {}
 
-    def get_swap_dc(self, hour):
-        try:
-            swap = self.swap_dc[hour]
-        except KeyError:
-
-            self.swap_dc[hour] = swap
-
-        return swap
-
     def get_state_variable(self, hour):
         try:
             Sabs = self.state_variable[hour]
@@ -243,6 +234,93 @@ class AbsChiller(object):
 
         return constraints
 
+
+class Boiler(object):
+    def __init__(self, name=None, xmin_boiler=None, a_boiler=None, b_boiler=None, xmax_boiler=None):
+        self.name = name
+        self.xmin_boiler = xmin_boiler
+        self.a_boiler = a_boiler
+        self.b_boiler = b_boiler
+        self.xmax_boiler = xmax_boiler
+        self.state_variable = {}
+        self.e_boilergas = {}
+        self.q_boiler = {}
+        self.q_boiler_aux = {}
+
+    def get_state_variable(self, hour):
+        try:
+            Sboiler = self.state_variable[hour]
+        except KeyError:
+            Sboiler = binary_var("Sboiler{}_hour{}".format(self.name, hour))
+            self.state_variable[hour] = Sboiler
+
+        return Sboiler
+
+    def get_e_boilergas(self, hour):
+        try:
+            E_boilergas = self.e_boilergas[hour]
+        except KeyError:
+            E_boilergas = LpVariable("E_boilergas{}_hour{}".format(self.name, hour), 0)
+            self.e_boilergas[hour] = E_boilergas
+
+        return E_boilergas
+
+    def get_q_boiler(self, hour):
+        try:
+            Q_boiler = self.q_boiler[hour]
+        except KeyError:
+            Q_boiler = LpVariable("Q_boiler{}_hour{}".format(self.name, hour), 0)
+            self.q_boiler[hour] = Q_boiler
+
+        return Q_boiler
+
+    def get_q_boiler_aux(self, hour):
+        try:
+            Q_boiler_aux = self.q_boiler_aux[hour]
+        except KeyError:
+            Q_boiler_aux = []
+            for i in range(len(self.xmax_boiler)):
+                var = LpVariable("Q_boiler{}_hour{}_aux{}".format(self.name, hour, i), 0, self.xmax_boiler[i] - self.xmin_boiler[i])
+                Q_boiler_aux.append(var)
+
+            self.q_boiler_aux[hour] = Q_boiler_aux
+
+        return Q_boiler_aux
+
+    def get_constraints(self, hour):
+        Sboiler = self.get_state_variable(hour)
+        E_boilergas = self.get_e_boilergas(hour)
+        Q_boiler = self.get_q_boiler(hour)
+        Q_boiler_aux = self.get_q_boiler_aux(hour)
+
+        constraints = []
+
+        label = "BoilerGasConsume{}_{}".format(self.name, hour)
+        exp = E_boilergas
+        for a, q_boil in zip(self.a_boiler, Q_boiler_aux):
+            exp = exp - a * q_boil
+        exp = exp - self.b_boiler * Sboiler
+        exp = exp == 0
+        constraints.append((exp, label))
+
+        label = "BoilerHeatGenerate{}_{}".format(self.name, hour)
+        exp = Q_boiler
+        for q in Q_boiler_aux:
+            exp = exp - q
+        exp = exp - self.xmin_boiler[0] * Sboiler
+        exp = exp == 0
+        constraints.append((exp, label))
+
+        label = "BoilerQlower{}_{}".format(self.name, hour)
+        exp = Q_boiler - self.xmin_boiler[0] * Sboiler >= 0
+        constraints.append((exp, label))
+
+        label = "BoilerQupper{}_{}".format(self.name, hour)
+        exp = Q_boiler - self.xmax_boiler[-1] * Sboiler <= 0
+        constraints.append((exp, label))
+
+        return constraints
+
 def get_optimization_problem(forecast, parameters = {}):
     # get the model parameters and bounds for variables
     # load FuelCellPara.mat
@@ -269,7 +347,8 @@ def get_optimization_problem(forecast, parameters = {}):
         a_Q_primer_mover = a_E_primer_mover - 1 / 293.1
         b_Q_primer_mover = b_E_prime_mover - xmin_prime_mover / 293.1
 
-    for boiler_name, parameters in boiler_params.items():
+    boilers = []
+    for name, parameters in boiler_params.items():
         mat_boiler = parameters["mat_boiler"]
         xmax_boiler =  parameters["xmax_boiler"]
         xmin_boiler =  parameters["xmin_boiler"]
@@ -282,6 +361,13 @@ def get_optimization_problem(forecast, parameters = {}):
         a_boiler = mat_boiler[1][:Nsection]
         b_boiler = mat_boiler[0][0] + a_boiler[0] * xmin_boiler[0]
         xmax_boiler[-1] = cap_boiler
+
+        boiler = Boiler(name=name,
+                        xmin_boiler=xmin_boiler,
+                        a_boiler=a_boiler,
+                        b_boiler=b_boiler,
+                        xmax_boiler=xmax_boiler)
+        boilers.append(boiler)
 
     chillers_igv = []
     for i, (name, parameters) in enumerate(centrifugal_chiller_igv_params.items()):
@@ -345,8 +431,6 @@ def get_optimization_problem(forecast, parameters = {}):
         # binary variables
         Sturbine = binary_var("Sturbine_hour{}".format(hour))
 
-        Sboiler = binary_var("Sboiler_hour{}".format(hour))
-
         # free variables
         E_gridelec = LpVariable("E_gridelec_hour{}".format(hour))
 
@@ -358,18 +442,11 @@ def get_optimization_problem(forecast, parameters = {}):
         Cool_unserve = LpVariable("Cool_unserve_hour{}".format(hour), 0)
         Cool_dump = LpVariable("Cool_dump_hour{}".format(hour), 0)
 
+        # how does this change for multiple boilers?
         E_prime_mover_fuel = LpVariable("E_prime_mover_fuel_hour{}".format(hour), xmin_boiler[0])
         Q_prime_mover = LpVariable("Q_prime_mover_hour{}".format(hour), 0)
         E_prime_mover_elec = LpVariable("E_prime_mover_elec_hour{}".format(hour), 0)
         E_prime_mover_elec_aux = LpVariable("E_prime_mover_elec_hour{}_aux{}".format(hour, 1), 0, xmax_prime_mover - xmin_prime_mover)
-
-        E_boilergas = LpVariable("E_boilergas_hour{}".format(hour), 0)
-
-        Q_boiler = LpVariable("Q_boiler_hour{}".format(hour), 0)
-        Q_boiler_aux = []
-        for i in range(len(xmax_boiler)):
-            var = LpVariable("Q_boiler_hour{}_aux{}".format(hour, i), 0, xmax_boiler[i] - xmin_boiler[i])
-            Q_boiler_aux.append(var)
 
         Q_HRUheating = LpVariable("Q_HRUheating_hour{}".format(hour), 0)
         Q_Genheating = LpVariable("Q_Genheating_hour{}".format(hour), 0)
@@ -378,8 +455,9 @@ def get_optimization_problem(forecast, parameters = {}):
         # constraints
         objective_component += [
             forecast_hour["natural_gas_cost"]* E_prime_mover_fuel,
-            forecast_hour["natural_gas_cost"] * E_boilergas,
             forecast_hour["electricity_cost"] * E_gridelec,
+
+            # should these be added in only once?
             UNSERVE_LIMIT * E_unserve,
             UNSERVE_LIMIT * E_dump,
             UNSERVE_LIMIT * Heat_unserve,
@@ -387,6 +465,10 @@ def get_optimization_problem(forecast, parameters = {}):
             UNSERVE_LIMIT * Cool_unserve,
             UNSERVE_LIMIT * Cool_dump
         ]
+
+        # add in boiler gas cost
+        objective_component += [forecast_hour["natural_gas_cost"]
+                                * b.get_e_boilergas(hour) for b in boilers]
 
         # electric energy balance
         label = "ElecBalance{}".format(hour)
@@ -399,16 +481,14 @@ def get_optimization_problem(forecast, parameters = {}):
 
         # heating balance
         label = "HeatBalance{}".format(hour)
-        exp = Q_boiler + Q_HRUheating + Heat_unserve - Heat_dump == forecast_hour["heat_load"]
+        exp = pulp.lpSum([b.get_q_boiler(hour) for b in boilers])
+        exp = exp + Q_HRUheating + Heat_unserve - Heat_dump == forecast_hour["heat_load"]
         constraints.append((exp, label))
 
         # cooling balance
         label = "CoolBalance{}".format(hour)
         exp = pulp.lpSum([a.get_q_abs(hour) for a in absorption_chillers] +
                          [c.get_q_chiller(hour) for c in chillers_igv])
-        # exp = Q_abs
-        # for q_chill in :
-        #     exp = exp + q_chill
 
         exp = exp + Cool_unserve - Cool_dump
         exp = exp == forecast_hour["cool_load"]
@@ -438,29 +518,8 @@ def get_optimization_problem(forecast, parameters = {}):
         constraints.append((exp, label))
 
         # boiler
-        label = "BoilerGasConsume{}".format(hour)
-        exp = E_boilergas
-        for a, q_boil in zip(a_boiler, Q_boiler_aux):
-            exp = exp - a * q_boil
-        exp = exp - b_boiler * Sboiler
-        exp = exp == 0
-        constraints.append((exp, label))
-
-        label = "BoilerHeatGenerate{}".format(hour)
-        exp = Q_boiler
-        for q in Q_boiler_aux:
-            exp = exp - q
-        exp = exp - xmin_boiler[0] * Sboiler
-        exp = exp == 0
-        constraints.append((exp, label))
-
-        label = "BoilerQlower{}".format(hour)
-        exp = Q_boiler - xmin_boiler[0] * Sboiler >= 0
-        constraints.append((exp, label))
-
-        label = "BoilerQupper{}".format(hour)
-        exp = Q_boiler - xmax_boiler[-1] * Sboiler <= 0
-        constraints.append((exp, label))
+        for boiler in boilers:
+            constraints.extend(boiler.get_constraints(hour))
 
         # chillers
         for chiller in chillers_igv:
