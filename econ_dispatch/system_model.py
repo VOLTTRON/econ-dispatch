@@ -56,7 +56,6 @@
 # }}}
 
 import logging
-_log = logging.getLogger(__name__)
 
 import networkx as nx
 
@@ -64,10 +63,15 @@ import datetime
 
 from pprint import pformat
 
+from collections import defaultdict
+
+_log = logging.getLogger(__name__)
+
 class SystemModel(object):
     def __init__(self, optimizer, weather_model, optimization_frequency, optimizer_debug_csv=None):
         self.component_graph = nx.MultiDiGraph()
         self.instance_map = {}
+        self.type_map = defaultdict(dict)
 
         self.forecast_models = {}
 
@@ -83,7 +87,9 @@ class SystemModel(object):
         self.forecast_models[name] = model
 
     def add_component(self, component, type_name):
-        self.component_graph.add_node(component.name, type = type_name)
+        self.component_graph.add_node(component.name, type=type_name)
+
+        self.type_map[type_name][component.name] = component
 
         if component.name in self.instance_map:
             _log.warning("Duplicate component names: " + component.name)
@@ -102,7 +108,6 @@ class SystemModel(object):
         except KeyError:
             _log.error("No component named {}".format(input_component_name))
             raise
-
 
         output_types = output_component.get_output_metadata()
         input_types = input_component.get_input_metadata()
@@ -137,7 +142,6 @@ class SystemModel(object):
 
         return forecasts
 
-
     def update_components(self, now, inputs):
         _log.debug("Updating Components")
         _log.debug("Inputs:\n"+pformat(inputs))
@@ -154,11 +158,15 @@ class SystemModel(object):
         return results
 
     def get_parameters(self, now, inputs):
+        results= {}
 
-        results = {}
-        for component in self.instance_map.itervalues():
-            parameters = component.get_optimization_parameters()
-            results.update(parameters)
+        for type_name, component_dict in self.type_map.iteritems():
+            for name, component in component_dict.iteritems():
+                parameters = component.get_optimization_parameters()
+                try:
+                    results[type_name][name] = parameters
+                except KeyError:
+                    results[type_name] = {name: parameters}
 
         return results
 

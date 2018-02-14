@@ -113,7 +113,7 @@ class Component(ComponentBase):
         points = {}
         commands = {self.name: points}
         for i in xrange(self.count):
-            if component_loads["E_chillerelec{}_hour00".format(i)] > 0.0:
+            if component_loads["E_chillerelec{}_hour00".format(self.name)] > 0.0:
                 points["chiller{}_on".format(i)] = True
             else:
                 points["chiller{}_on".format(i)] = False
@@ -130,7 +130,7 @@ class Component(ComponentBase):
 
         # chiller power input in kW
         P = self.historical_data["P(kW)"]
-    
+
         m_ChillerIGV = least_squares_regression(inputs=Qch, output=P)
         xmax_ChillerIGV = max(Qch)
         xmin_ChillerIGV = min(Qch)
@@ -208,4 +208,3 @@ class Component(ComponentBase):
     #     AA = least_squares_regression(inputs=regression_columns, output=y)
     #
     #     return AA
-    
