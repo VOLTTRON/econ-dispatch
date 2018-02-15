@@ -150,7 +150,6 @@ def build_model_from_config(config):
         except Exception as e:
             _log.error("Error adding connection: " + str(e))
 
-
     return system_model
 
 class Application(object):

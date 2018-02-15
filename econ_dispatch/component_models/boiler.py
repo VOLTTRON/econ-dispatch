@@ -116,7 +116,7 @@ class Component(ComponentBase):
         return [u"natural_gas"]
 
     def get_commands(self, component_loads):
-        return {self.name:{"boiler_on":(component_loads["Q_boiler_hour00"]>0.0)}}
+        return {self.name:{"boiler_on":(component_loads["Q_boiler{}_hour00".format(self.name)]>0.0)}}
 
     def get_optimization_parameters(self):
 

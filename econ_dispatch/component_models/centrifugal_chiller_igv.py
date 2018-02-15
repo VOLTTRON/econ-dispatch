@@ -104,7 +104,7 @@ class Component(ComponentBase):
         return [u"electricity"]
 
     def get_commands(self, component_loads):
-        points = {}
+        points = dict()
         points["chiller_command"] = component_loads["E_chillerelec_{}_hour00".format(self.name)] > 0.0
         return points
 
@@ -219,4 +219,3 @@ class Component(ComponentBase):
     #     AA = least_squares_regression(inputs=regression_columns, output=y)
     #
     #     return AA
-    
