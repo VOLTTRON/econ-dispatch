@@ -58,8 +58,9 @@
 import abc
 import logging
 import pkgutil
+from copy import deepcopy
 
-_componentList = [name for _, name, _ in pkgutil.iter_modules(__path__)]
+_componentList = [x for _, x, _ in pkgutil.iter_modules(__path__)]
 
 _componentDict = {}
 
@@ -74,8 +75,17 @@ valid_io_types = set([u"heated_water",
 
 class ComponentBase(object):
     __metaclass__ = abc.ABCMeta
-    def __init__(self, name="MISSING_NAME", **kwargs):
+
+    def __init__(self, name="MISSING_NAME",
+                 default_parameters=None,
+                 training_window=365,
+                 training_sources={},
+                 outputs={}):
         self.name = name
+        self.parameters = default_parameters
+        self.training_window = int(training_window)
+        self.training_sources = training_sources
+        self.output_map = outputs
 
     def get_input_metadata(self):
         """Must return a string describing the required input for this component.
@@ -108,34 +118,55 @@ class ComponentBase(object):
         return []
 
     def get_commands(self, component_loads):
-        """Get the set points for a component based on the optimized component load
-        and the current state of the component.
+        """Override this to return the new set points on the device based
+        on the received component loads and the current state of the component.
         Return values must take the form:
 
-        {"device1": {"command1": 50.0, "command2": True},
-         "device2": {"command3": 22.0}}
+        {"output1": value1,
+         "output2": value2}
 
         Typically a component will only provide command for a single device.
+
+        Using the outputs map from the configuration file the agent will
+        translate the output name to the actuation point on the platform.
         """
         return {}
 
-    @abc.abstractmethod
-    def get_optimization_parameters(self):
-        """Get the current parameters of the component for the optimizer.
-        Returned values must take the form of a dictionary."""
+    def process_input(self, name, value, timestamp):
+        """Override this to process input data from the platform.
+        Components will typically want the current state of the device as input.
+
+        timestamp - Timestamp of input.
+        name - Name of the input from the configuration file.
+        value - value of the input from the message bus.
+        """
         pass
 
-    @abc.abstractmethod
-    def update_parameters(self, timestamp, inputs):
-        """Update the internal parameters of the component based on the input values."""
+    def train(self, training_data):
+        """Override this to use training data to update parameters
+        training_data takes the form:
+
+        {
+         "input_name1": [value1, value2,...],
+         "input_name2": [value1, value2,...]
+        }
+        """
         pass
+
+    def get_optimization_parameters(self):
+        """Get the current parameters of the component for the optimizer.
+        Returned values must take the form of a dictionary.
+
+        If something more sophisticated needs to happen this can be overridden."""
+        return deepcopy(self.parameters)
+
 
     def __str__(self):
         return '"Component: ' + self.name + '"'
 
 for componentName in _componentList:
     try:
-        module = __import__(componentName,globals(),locals(),['Component'], 1)
+        module = __import__(componentName, globals(), locals(), ['Component'], 1)
         klass = module.Component
     except Exception as e:
         logging.error('Module {name} cannot be imported. Reason: {ex}'.format(name=componentName, ex=e))

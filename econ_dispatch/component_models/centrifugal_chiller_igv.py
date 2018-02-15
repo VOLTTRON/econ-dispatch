@@ -55,8 +55,6 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
-import json
-import os
 import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
@@ -69,39 +67,35 @@ DEFAULT_QCH_KW = 500
 
 
 class Component(ComponentBase):
-    def __init__(self, training_data_file=None,
-                 capacity_per_chiller = 200.0,
-                 count = 3, **kwargs):
+    def __init__(self,
+                 capacity=200.0, **kwargs):
         super(Component, self).__init__(**kwargs)
+
+        self.parameters["capacity"] = capacity
         # Chilled water temperature setpoint outlet from chiller
-        self.Tcho = DEFAULT_TCHO
+        # self.Tcho = DEFAULT_TCHO
 
         # Condenser water temperature inlet temperature to chiller from condenser in F
         # Note that this fixed value of 75F is a placeholder.  We will ultimately
         # need a means of forecasting the condenser water inlet temperature.
-        self.Tcdi = DEFAULT_TCDI
+        # self.Tcdi = DEFAULT_TCDI
 
         # building cooling load ASSIGNED TO THIS CHILLER in kW
-        self.Qch_kW = DEFAULT_QCH_KW
+        # self.Qch_kW = DEFAULT_QCH_KW
 
-        self.capacity = float(capacity_per_chiller)
-        self.count = int(count)
+        self.capacity = float(capacity)
 
-        self.training_data_file = training_data_file
-        self.historical_data = {}
-        self.cached_parameters = {}
-
-        # Set to True whenever seomthing happens that causes us to need to recalculate
+        # Set to True whenever something happens that causes us to need to recalculate
         # the optimization parameters.
-        self.opt_params_dirty = True
-        self.setup_historical_data()
+        #self.opt_params_dirty = True
+        #self.setup_historical_data()
 
-    def setup_historical_data(self):
-        with open(self.training_data_file, 'r') as f:
-            historical_data = json.load(f)
-
-        self.historical_data["P(kW)"] = np.array(historical_data["P(kW)"])
-        self.historical_data["Qch(tons)"] = np.array(historical_data["Qch(tons)"])
+    # def setup_historical_data(self):
+    #     with open(self.training_data_file, 'r') as f:
+    #         historical_data = json.load(f)
+    #
+    #     self.historical_data["P(kW)"] = np.array(historical_data["P(kW)"])
+    #     self.historical_data["Qch(tons)"] = np.array(historical_data["Qch(tons)"])
 
     def get_output_metadata(self):
         return [u"chilled_water"]
@@ -111,44 +105,61 @@ class Component(ComponentBase):
 
     def get_commands(self, component_loads):
         points = {}
-        commands = {self.name: points}
-        for i in xrange(self.count):
-            if component_loads["E_chillerelec{}_hour00".format(i)] > 0.0:
-                points["chiller{}_on".format(i)] = True
-            else:
-                points["chiller{}_on".format(i)] = False
+        points["chiller_command"] = component_loads["E_chillerelec_{}_hour00".format(self.name)] > 0.0
+        return points
 
-        return commands
-
-    def get_optimization_parameters(self):
-
-        if not self.opt_params_dirty:
-            return self.cached_parameters.copy()
+    def train(self, training_data):
+        historical_data = dict()
+        historical_data["P(kW)"] = np.array(training_data["P(kW)"])
+        historical_data["Qch(tons)"] = np.array(training_data["Qch(tons)"])
 
         # chiller cooling output in mmBtu/hr (converted from cooling Tons)
-        Qch = np.array(self.historical_data["Qch(tons)"]) * 3.517 / 293.1
+        Qch = np.array(historical_data["Qch(tons)"]) * 3.517 / 293.1
 
         # chiller power input in kW
-        P = self.historical_data["P(kW)"]
-    
+        P = historical_data["P(kW)"]
+
         m_ChillerIGV = least_squares_regression(inputs=Qch, output=P)
         xmax_ChillerIGV = max(Qch)
         xmin_ChillerIGV = min(Qch)
 
-        self.cached_parameters = {
-                                    "mat_chillerIGV": m_ChillerIGV.tolist(),
-                                    "xmax_chillerIGV": xmax_ChillerIGV,
-                                    "xmin_chillerIGV": xmin_ChillerIGV,
-                                    "capacity_per_chiller": self.capacity,
-                                    "chiller_count": self.count
-                                }
-        self.opt_params_dirty = False
-        return self.cached_parameters.copy()
+        self.parameters = {
+            "mat_chillerIGV": m_ChillerIGV.tolist(),
+            "xmax_chillerIGV": xmax_ChillerIGV,
+            "xmin_chillerIGV": xmin_ChillerIGV,
+            "capacity": self.capacity
+        }
 
-    def update_parameters(self, timestamp, inputs):
-        self.Tcho = inputs.get("Tcho", DEFAULT_TCHO)
-        self.Tcdi = inputs.get("Tcdi", DEFAULT_TCDI)
-        self.Qch_kW = inputs.get("Qch_kW", DEFAULT_QCH_KW)
+    # def get_optimization_parameters(self):
+    #
+    #     if not self.opt_params_dirty:
+    #         return self.cached_parameters.copy()
+    #
+    #     # chiller cooling output in mmBtu/hr (converted from cooling Tons)
+    #     Qch = np.array(self.historical_data["Qch(tons)"]) * 3.517 / 293.1
+    #
+    #     # chiller power input in kW
+    #     P = self.historical_data["P(kW)"]
+    #
+    #     m_ChillerIGV = least_squares_regression(inputs=Qch, output=P)
+    #     xmax_ChillerIGV = max(Qch)
+    #     xmin_ChillerIGV = min(Qch)
+    #
+    #     self.cached_parameters = {
+    #                                 "mat_chillerIGV": m_ChillerIGV.tolist(),
+    #                                 "xmax_chillerIGV": xmax_ChillerIGV,
+    #                                 "xmin_chillerIGV": xmin_ChillerIGV,
+    #                                 "capacity_per_chiller": self.capacity,
+    #                                 "chiller_count": self.count
+    #                             }
+    #     self.opt_params_dirty = False
+    #     return self.cached_parameters.copy()
+
+
+    # def update_parameters(self, timestamp, inputs):
+    #     self.Tcho = inputs.get("Tcho", DEFAULT_TCHO)
+    #     self.Tcdi = inputs.get("Tcdi", DEFAULT_TCDI)
+    #     self.Qch_kW = inputs.get("Qch_kW", DEFAULT_QCH_KW)
 
     # def predict(self):
     #     # Regression models were built separately (Training Module) and
