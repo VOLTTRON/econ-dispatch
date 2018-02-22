@@ -60,6 +60,8 @@ import logging
 import pkgutil
 from copy import deepcopy
 
+_log = logging.getLogger(__name__)
+
 _componentList = [x for _, x, _ in pkgutil.iter_modules(__path__)]
 
 _componentDict = {}
@@ -77,14 +79,16 @@ class ComponentBase(object):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self, name="MISSING_NAME",
-                 default_parameters=None,
+                 default_parameters={},
                  training_window=365,
                  training_sources={},
+                 inputs={},
                  outputs={}):
         self.name = name
         self.parameters = default_parameters
         self.training_window = int(training_window)
         self.training_sources = training_sources
+        self.input_map = inputs
         self.output_map = outputs
 
     def get_input_metadata(self):
@@ -117,24 +121,20 @@ class ComponentBase(object):
         """
         return []
 
-    def get_commands(self, component_loads):
+    def get_mapped_commands(self, component_loads):
         """Override this to return the new set points on the device based
         on the received component loads and the current state of the component.
         Return values must take the form:
 
         {"output1": value1,
          "output2": value2}
-
-        Typically a component will only provide command for a single device.
-
-        Using the outputs map from the configuration file the agent will
-        translate the output name to the actuation point on the platform.
         """
         return {}
 
     def process_input(self, name, value, timestamp):
         """Override this to process input data from the platform.
-        Components will typically want the current state of the device as input.
+        Components will typically want the current state of the device they
+        represent as input.
 
         timestamp - Timestamp of input.
         name - Name of the input from the configuration file.
@@ -153,6 +153,28 @@ class ComponentBase(object):
         """
         pass
 
+    def get_commands(self, component_loads):
+        """Returns the commands for this component mapped to the topics specified
+        in the configuration file."""
+        mapped_commands = self.get_mapped_commands(component_loads)
+        results = {}
+        for output_name, topic in self.output_map.iteritems():
+            value = mapped_commands.pop(output_name, None)
+            if value is not None:
+                results[topic] = value
+
+        for name in mapped_commands:
+            _log.error("NO MAPPED TOPIC FOR {}. DROPPING COMMAND".format(name))
+
+        return results
+
+    def process_inputs(self, now, inputs):
+        for topic, input_name in self.inputs.iteritems():
+            value = inputs.get(topic)
+            if value is not None:
+                _log.debug("{} processing input from topic {}".format(self.name, topic))
+                self.process_input(input_name, value, now)
+
     def get_optimization_parameters(self):
         """Get the current parameters of the component for the optimizer.
         Returned values must take the form of a dictionary.
@@ -169,13 +191,13 @@ for componentName in _componentList:
         module = __import__(componentName, globals(), locals(), ['Component'], 1)
         klass = module.Component
     except Exception as e:
-        logging.error('Module {name} cannot be imported. Reason: {ex}'.format(name=componentName, ex=e))
+        _log.error('Module {name} cannot be imported. Reason: {ex}'.format(name=componentName, ex=e))
         continue
 
     #Validation of Algorithm class
 
     if not issubclass(klass, ComponentBase):
-        logging.warning('The implementation of {name} does not inherit from econ_dispatch.component_models.ComponentBase.'.format(name=componentName))
+        _log.warning('The implementation of {name} does not inherit from econ_dispatch.component_models.ComponentBase.'.format(name=componentName))
 
     _componentDict[componentName] = klass
 

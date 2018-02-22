@@ -142,11 +142,11 @@ class SystemModel(object):
 
         return forecasts
 
-    def update_components(self, now, inputs):
+    def process_inputs(self, now, inputs):
         _log.debug("Updating Components")
         _log.debug("Inputs:\n"+pformat(inputs))
         for component in self.instance_map.itervalues():
-            component.update_parameters(now, inputs)
+            component.process_inputs(now, input)
 
     def run_general_optimizer(self, now, predicted_loads, parameters):
         _log.debug("Running General Optimizer")
@@ -179,8 +179,27 @@ class SystemModel(object):
                 result[device] = commands
         return result
 
+    def get_component_input_topics(self):
+        results = set()
+        for component in self.instance_map.itervalues():
+            results.add(component.inputs.keys())
+
+        return results
+
+    def get_training_parameters(self):
+        results = dict()
+        for name, component in self.instance_map.iteritems():
+            results[name] = (component.training_window, component.training_sources)
+
+        return results
+
+    def apply_training_data(self, training_data):
+        for name, data in training_data.iteritems():
+            component = self.instance_map[name]
+            component.train(data)
+
     def run(self, now, inputs):
-        self.update_components(now, inputs)
+        self.process_inputs(now, inputs)
 
         if self.next_optimization is None:
             self.next_optimization = self.find_starting_datetime(now)

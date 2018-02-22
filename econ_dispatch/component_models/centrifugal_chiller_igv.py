@@ -103,7 +103,7 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return [u"electricity"]
 
-    def get_commands(self, component_loads):
+    def get_mapped_commands(self, component_loads):
         points = dict()
         points["chiller_command"] = component_loads["E_chillerelec_{}_hour00".format(self.name)] > 0.0
         return points
@@ -114,7 +114,7 @@ class Component(ComponentBase):
         historical_data["Qch(tons)"] = np.array(training_data["Qch(tons)"])
 
         # chiller cooling output in mmBtu/hr (converted from cooling Tons)
-        Qch = np.array(historical_data["Qch(tons)"]) * 3.517 / 293.1
+        Qch = historical_data["Qch(tons)"] * 3.517 / 293.1
 
         # chiller power input in kW
         P = historical_data["P(kW)"]

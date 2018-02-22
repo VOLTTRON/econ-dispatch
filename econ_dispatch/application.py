@@ -133,7 +133,13 @@ def build_model_from_config(config):
             continue
 
         try:
-            component = klass(name=component_name, **component_dict.get("settings", {}))
+            component = klass(name=component_name,
+                              default_parameters=component_dict.get("default_parameters", {}),
+                              training_window=component_dict.get("training_window", 365),
+                              training_sources=component_dict.get("training_sources", {}),
+                              inputs=component_dict.get("inputs", {}),
+                              outputs=component_dict.get("outputs", {}),
+                              **component_dict.get("settings", {}))
         except Exception as e:
             _log.exception("Error creating component " + klass_name)
             continue
