@@ -63,6 +63,9 @@ from econ_dispatch.utils import OptimizerCSVOutput
 from collections import OrderedDict, defaultdict
 import datetime
 import logging
+import csv
+import simplejson as json
+from collections import defaultdict
 _log = logging.getLogger(__name__)
 
 
@@ -158,6 +161,30 @@ def build_model_from_config(config):
 
     return system_model
 
+def normalize_training_data(data):
+    if isinstance(data, list):
+        if not data:
+            return {}
+        # Assume list of dicts from CSV file
+        keys = data[0].keys()
+        result = {key:[item[key] for item in data] for key in keys }
+        return result
+
+    if isinstance(data,str):
+        # Assume file name
+        if data.endswith("csv"):
+            with open(data, "rb") as f:
+                return normalize_training_data([x for x in csv.DictReader(f)])
+
+        if data.endswith("json"):
+            with open(data, "rb") as f:
+                return normalize_training_data(json.load(f))
+
+    # TODO: handle data returned from historian.
+    
+    # Assume dict of lists.
+    return data
+
 class Application(object):
     def __init__(self, **kwargs):
         self.model = build_model_from_config(kwargs)
@@ -175,4 +202,18 @@ class Application(object):
                 results.command(point, value, device)
 
         return results
+
+    def process_inputs(self, now, inputs):
+        self.model.process_inputs(now, inputs)
+
+    def get_training_parameters(self):
+        return self.model.get_training_parameters()
+
+    def get_component_input_topics(self):
+        return self.model.get_component_input_topics()
+
+    def apply_training_data(self, training_data):
+        normalized = {}
+        for name, data in training_data.iteritems():
+            normalized[name] = normalize_training_data(data)
 
