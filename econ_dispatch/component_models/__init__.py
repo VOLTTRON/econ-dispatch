@@ -84,6 +84,9 @@ class ComponentBase(object):
                  training_sources={},
                  inputs={},
                  outputs={}):
+
+        if not default_parameters:
+            _log.info("No default parameters supplied for component: {}".format(name))
         self.name = name
         self.parameters = default_parameters
         self.training_window = int(training_window)
@@ -152,6 +155,14 @@ class ComponentBase(object):
         }
         """
         pass
+
+    def validate_parameters(self):
+        """Returns true if parameters exist for this component. False otherwise.
+
+        If more a sophisticated method for parameter validation is desired this
+        may be overridden.
+        """
+        return bool(self.parameters)
 
     def get_commands(self, component_loads):
         """Returns the commands for this component mapped to the topics specified

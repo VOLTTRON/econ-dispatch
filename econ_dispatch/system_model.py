@@ -193,10 +193,25 @@ class SystemModel(object):
 
         return results
 
-    def apply_training_data(self, training_data):
+    def apply_all_training_data(self, training_data):
         for name, data in training_data.iteritems():
             component = self.instance_map[name]
             component.train(data)
+
+    def invalid_parameters_list(self):
+        results = []
+        for name, component in self.instance_map:
+            if not component.validate_parameters():
+                results.append(name)
+        return results
+
+    def run_optimizer(self, now, inputs):
+        forecasts = self.get_forecasts(now)
+        parameters = self.get_parameters(now, inputs)
+        component_loads = self.run_general_optimizer(now, forecasts, parameters)
+        commands = self.get_commands(component_loads)
+
+        return commands
 
     def run(self, now, inputs):
         self.process_inputs(now, inputs)
@@ -208,11 +223,12 @@ class SystemModel(object):
         if (self.next_optimization <= now):
             _log.info("Running optimizer: " + str(now))
             self.next_optimization = self.next_optimization + self.optimization_frequency
-            forecasts = self.get_forecasts(now)
-            parameters = self.get_parameters(now, inputs)
-            component_loads = self.run_general_optimizer(now, forecasts, parameters)
-            commands = self.get_commands(component_loads)
-
+            invalid_components = self.invalid_parameters_list()
+            if invalid_components:
+                _log.error("The following components are unable to provide valid optimization parameters: {}".format(invalid_components))
+                _log.error("THE OPTIMIZER WILL NOT BE RUN AT THIS TIME.")
+            else:
+                commands = self.run_optimizer(now, inputs)
         return commands
 
     def find_starting_datetime(self, now):

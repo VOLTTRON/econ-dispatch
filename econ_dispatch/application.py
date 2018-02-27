@@ -59,12 +59,11 @@ from system_model import SystemModel
 from econ_dispatch.component_models import get_component_class
 from econ_dispatch.forecast_models import get_forecast_model_class
 from econ_dispatch.optimizer import get_optimization_function
-from econ_dispatch.utils import OptimizerCSVOutput
+from econ_dispatch.utils import OptimizerCSVOutput, normalize_training_data
 from collections import OrderedDict, defaultdict
 import datetime
 import logging
-import csv
-import simplejson as json
+
 from collections import defaultdict
 _log = logging.getLogger(__name__)
 
@@ -147,43 +146,27 @@ def build_model_from_config(config):
             _log.exception("Error creating component " + klass_name)
             continue
 
+        training_data = component_dict.get("initial_training_data")
+        if training_data is not None:
+            _log.info("Applying config supplied training data for {}".format(component_name))
+            component.train(training_data)
+
+        if not component.parameters:
+            _log.warning("Component {} has no parameters to after initialization.".format(component_name))
+
         system_model.add_component(component, klass_name)
 
-    for output_component_name, input_component_name in connections:
-
-        _log.debug("Adding connection: {} -> {}".format(output_component_name, input_component_name))
-
-        try:
-            if not system_model.add_connection(output_component_name, input_component_name):
-                _log.error("No compatible outputs/inputs")
-        except Exception as e:
-            _log.error("Error adding connection: " + str(e))
+    # for output_component_name, input_component_name in connections:
+    #
+    #     _log.debug("Adding connection: {} -> {}".format(output_component_name, input_component_name))
+    #
+    #     try:
+    #         if not system_model.add_connection(output_component_name, input_component_name):
+    #             _log.error("No compatible outputs/inputs")
+    #     except Exception as e:
+    #         _log.error("Error adding connection: " + str(e))
 
     return system_model
-
-def normalize_training_data(data):
-    if isinstance(data, list):
-        if not data:
-            return {}
-        # Assume list of dicts from CSV file
-        keys = data[0].keys()
-        result = {key:[item[key] for item in data] for key in keys }
-        return result
-
-    if isinstance(data,str):
-        # Assume file name
-        if data.endswith("csv"):
-            with open(data, "rb") as f:
-                return normalize_training_data([x for x in csv.DictReader(f)])
-
-        if data.endswith("json"):
-            with open(data, "rb") as f:
-                return normalize_training_data(json.load(f))
-
-    # TODO: handle data returned from historian.
-    
-    # Assume dict of lists.
-    return data
 
 class Application(object):
     def __init__(self, **kwargs):
@@ -212,8 +195,9 @@ class Application(object):
     def get_component_input_topics(self):
         return self.model.get_component_input_topics()
 
-    def apply_training_data(self, training_data):
+    def apply_all_training_data(self, training_data):
         normalized = {}
         for name, data in training_data.iteritems():
             normalized[name] = normalize_training_data(data)
 
+        self.model.apply_training_data(training_data)

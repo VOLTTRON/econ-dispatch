@@ -2,6 +2,7 @@ import numpy as np
 import random
 import csv
 import re
+import simplejson as json
 
 
 def least_squares_regression(inputs=None, output=None):
@@ -22,6 +23,30 @@ def least_squares_regression(inputs=None, output=None):
 
 def atoi(text):
     return int(text) if text.isdigit() else text
+
+def normalize_training_data(data):
+    if isinstance(data, list):
+        if not data:
+            return {}
+        # Assume list of dicts from CSV file
+        keys = data[0].keys()
+        result = {key:[item[key] for item in data] for key in keys }
+        return result
+
+    if isinstance(data,str):
+        # Assume file name
+        if data.endswith("csv"):
+            with open(data, "rb") as f:
+                return normalize_training_data([x for x in csv.DictReader(f)])
+
+        if data.endswith("json"):
+            with open(data, "rb") as f:
+                return normalize_training_data(json.load(f))
+
+    # TODO: handle data returned from historian.
+
+    # Assume dict of lists.
+    return data
 
 def natural_keys(text):
     '''
