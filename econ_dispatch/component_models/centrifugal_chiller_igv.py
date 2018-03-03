@@ -71,7 +71,7 @@ class Component(ComponentBase):
                  capacity=200.0, **kwargs):
         super(Component, self).__init__(**kwargs)
 
-        self.parameters["capacity"] = capacity
+
         # Chilled water temperature setpoint outlet from chiller
         # self.Tcho = DEFAULT_TCHO
 
@@ -84,6 +84,7 @@ class Component(ComponentBase):
         # self.Qch_kW = DEFAULT_QCH_KW
 
         self.capacity = float(capacity)
+        self.parameters["capacity"] = self.capacity
 
         # Set to True whenever something happens that causes us to need to recalculate
         # the optimization parameters.

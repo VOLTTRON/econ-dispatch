@@ -1,8 +1,10 @@
 import numpy as np
+import pandas as pd
 import random
 import csv
 import re
 import simplejson as json
+from cStringIO import StringIO
 
 
 def least_squares_regression(inputs=None, output=None):
@@ -24,29 +26,62 @@ def least_squares_regression(inputs=None, output=None):
 def atoi(text):
     return int(text) if text.isdigit() else text
 
+def records_fix(data):
+    results = {}
+    keys = data[0].keys()
+    with StringIO() as f:
+        w = csv.DictWriter(f, keys)
+        w.writeheader()
+        w.writerows(data)
+        f.seek(0)
+        results = csv_file_fix(f)
+
+    return results
+
+def csv_file_fix(file_obj):
+    results = {}
+    frame = pd.read_csv(file_obj, header=0)
+    for k in frame:
+        results[k] = frame[k].values
+
+    return results
+
+
+def historian_data_fix(data):
+    results = {}
+    for key, values in data:
+        
+
 def normalize_training_data(data):
+    if not data:
+        return {}
+
     if isinstance(data, list):
-        if not data:
-            return {}
         # Assume list of dicts from CSV file
-        keys = data[0].keys()
-        result = {key:[item[key] for item in data] for key in keys }
-        return result
+        return records_fix(data)
 
     if isinstance(data,str):
         # Assume file name
         if data.endswith("csv"):
-            with open(data, "rb") as f:
-                return normalize_training_data([x for x in csv.DictReader(f)])
+            return csv_file_fix(data)
 
         if data.endswith("json"):
             with open(data, "rb") as f:
                 return normalize_training_data(json.load(f))
 
-    # TODO: handle data returned from historian.
+    if isinstance(data, dict):
+        values = data.get("values")
+        if isinstance(values, dict):
+            # Data returned from historian.
+            pass
+
+        else:
+            # Probably a json file from the config store.
+            result = {k: np.array(v) for k,v in data.iteritems()}
+        return result
 
     # Assume dict of lists.
-    return data
+    return None
 
 def natural_keys(text):
     '''

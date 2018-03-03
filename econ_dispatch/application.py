@@ -152,7 +152,7 @@ def build_model_from_config(config):
             component.train(training_data)
 
         if not component.parameters:
-            _log.warning("Component {} has no parameters to after initialization.".format(component_name))
+            _log.warning("Component {} has no parameters after initialization.".format(component_name))
 
         system_model.add_component(component, klass_name)
 
