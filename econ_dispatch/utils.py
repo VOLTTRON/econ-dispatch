@@ -50,6 +50,15 @@ def csv_file_fix(file_obj):
 def historian_data_fix(data):
     results = {}
     for key, values in data:
+        time_stamps = pd.to_datetime(x[0] for x in values)
+        readings = pd.Series(([1] for x in values), index=time_stamps)
+
+        #TODO: Can we fill missing data with NaNs or leave them out?
+        normalized = readings.asfreq("1Hour", method="bfill")
+
+        results[key] = normalized.values
+
+    return results
         
 
 def normalize_training_data(data):
@@ -73,14 +82,12 @@ def normalize_training_data(data):
         values = data.get("values")
         if isinstance(values, dict):
             # Data returned from historian.
-            pass
-
+            historian_data_fix(values)
         else:
             # Probably a json file from the config store.
             result = {k: np.array(v) for k,v in data.iteritems()}
         return result
 
-    # Assume dict of lists.
     return None
 
 def natural_keys(text):
