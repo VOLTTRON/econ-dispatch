@@ -127,19 +127,19 @@ class Component(ComponentBase):
         Xdata = Power[sort_indexes]
         Ydata = FuelFlow[sort_indexes] * 171.11  # fuel: kg/s -> mmBtu/hr
 
-        xmin_prime_mover = min(Xdata)
-        xmax_prime_mover = max(Xdata)
+        xmin = min(Xdata)
+        xmax = max(Xdata)
 
-        n1 = np.nonzero(Xdata <= xmin_prime_mover + (xmax_prime_mover - xmin_prime_mover) * 0.3)[-1][-1]
-        n2 = np.nonzero(Xdata <= xmin_prime_mover + (xmax_prime_mover - xmin_prime_mover) * 0.6)[-1][-1]
+        n1 = np.nonzero(Xdata <= xmin + (xmax - xmin) * 0.3)[-1][-1]
+        n2 = np.nonzero(Xdata <= xmin + (xmax - xmin) * 0.6)[-1][-1]
 
-        mat_prime_mover = least_squares_regression(inputs=Xdata[n1:n2 + 1], output=Ydata[n1:n2 + 1])
+        mat = least_squares_regression(inputs=Xdata[n1:n2 + 1], output=Ydata[n1:n2 + 1])
 
         self.parameters = {
-            "mat_prime_mover": mat_prime_mover.tolist(),
-            "xmax_prime_mover": xmax_prime_mover,
-            "xmin_prime_mover": xmin_prime_mover,
-            "cap_prime_mover": self.capacity
+            "mat": mat.tolist(),
+            "xmax": xmax,
+            "xmin": xmin,
+            "cap": self.capacity
         }
 
     def get_commands(self, component_loads):
@@ -172,18 +172,18 @@ class Component(ComponentBase):
     #     Xdata = Power[sort_indexes]
     #     Ydata = FuelFlow[sort_indexes] * 171.11 # fuel: kg/s -> mmBtu/hr
     #
-    #     xmin_prime_mover = min(Xdata)
-    #     xmax_prime_mover = max(Xdata)
+    #     xmin = min(Xdata)
+    #     xmax = max(Xdata)
     #
-    #     n1 = np.nonzero(Xdata <= xmin_prime_mover + (xmax_prime_mover - xmin_prime_mover) * 0.3)[-1][-1]
-    #     n2 = np.nonzero(Xdata <= xmin_prime_mover + (xmax_prime_mover - xmin_prime_mover) * 0.6)[-1][-1]
+    #     n1 = np.nonzero(Xdata <= xmin + (xmax - xmin) * 0.3)[-1][-1]
+    #     n2 = np.nonzero(Xdata <= xmin + (xmax - xmin) * 0.6)[-1][-1]
     #
-    #     mat_prime_mover = least_squares_regression(inputs=Xdata[n1:n2+1], output=Ydata[n1:n2+1])
+    #     mat = least_squares_regression(inputs=Xdata[n1:n2+1], output=Ydata[n1:n2+1])
     #
     #     self.cached_parameters = {
-    #         "mat_prime_mover": mat_prime_mover.tolist(),
-    #         "xmax_prime_mover": xmax_prime_mover,
-    #         "xmin_prime_mover": xmin_prime_mover,
+    #         "mat": mat.tolist(),
+    #         "xmax": xmax,
+    #         "xmin": xmin,
     #         "cap_prime_mover": self.capacity
     #     }
     #
@@ -212,7 +212,7 @@ class Component(ComponentBase):
         Current = Coef.Area * (Coef.NominalCurrent[0] * nPower**2 + Coef.NominalCurrent[1] * nPower + Coef.NominalCurrent[2]) #first guess of current
         HeatLoss = Power * Coef.StackHeatLoss
         AncillaryPower = 0.1 * Power
-        for i in xrange(4):
+        for _ in xrange(4):
             Voltage = cells * (self.nominal_ocv - Current * ASR / Coef.Area)
             Current = Coef.gain * (Power + AncillaryPower) * 1000 / Voltage - (Coef.gain - 1) * Current
             FuelFlow = m_fuel * cells * Current / (n * 1000 * FARADAY_CONSTANT * Utilization)

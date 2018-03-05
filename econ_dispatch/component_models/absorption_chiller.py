@@ -159,7 +159,7 @@ class Component(ComponentBase):
             "xmax": xmax_AbsChiller,
             "xmin": xmin_AbsChiller,
             "mat": m_AbsChiller.tolist(),
-            "cap_abs_chiller": self.capacity,
+            "capacity": self.capacity,
             "min_on": self.min_on,
             "min_off": self.min_off,
             "command_history": self.command_history

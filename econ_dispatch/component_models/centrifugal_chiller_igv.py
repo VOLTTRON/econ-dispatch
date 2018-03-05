@@ -124,9 +124,9 @@ class Component(ComponentBase):
         xmin_ChillerIGV = min(Qch)
 
         self.parameters = {
-            "mat_chillerIGV": m_ChillerIGV.tolist(),
-            "xmax_chillerIGV": xmax_ChillerIGV,
-            "xmin_chillerIGV": xmin_ChillerIGV,
+            "mat": m_ChillerIGV.tolist(),
+            "xmax": xmax_ChillerIGV,
+            "xmin": xmin_ChillerIGV,
             "capacity": self.capacity
         }
 
