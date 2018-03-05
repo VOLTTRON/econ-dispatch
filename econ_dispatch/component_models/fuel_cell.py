@@ -83,28 +83,21 @@ Coef.ExhaustTemperature = np.array([0.0, 0.0, 0.0])
 Coef.gain = 1.4
 
 class Component(ComponentBase):
-    def __init__(self, training_data_file=None, capacity=500.0, **kwargs):
+    def __init__(self, capacity=500.0,
+                 fuel_type="CH4",
+                 nominal_power=402.0,
+                 nominal_ocv=0.8,
+                 **kwargs):
         super(Component, self).__init__(**kwargs)
-        self.fuel_type= 'CH4'
-        self.nominal_power = 402.0
-        self.nominal_ocv = 0.8
-
-        self.power = 300.0
-        self.T_amb = 20.0
-        self.gen_start = 5.0
-        self.gen_hours = 7000.0
-
         self.capacity = capacity
+        self.fuel_type = fuel_type
+        self.nominal_power = nominal_power
+        self.nominal_ocv = nominal_ocv
 
-        self.training_data = {}
-        self.cached_parameters = {}
-
-        self.setup_training_data(training_data_file)
-
-        # Set to True whenever something happens that causes us to need to recalculate
-        # the optimization parameters.
-        self.opt_params_dirty = True
-
+        #self.power = 300
+        #self.T_amb = 20.0
+        #self.gen_start = 5.0
+        #self.gen_hours = 7000.0
         
     def get_output_metadata(self):
         return [u"electricity", u"waste_heat"]
@@ -112,65 +105,99 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return [u"natural_gas"]
 
-    def setup_training_data(self, training_data_file):
-        self.training_data = pd.read_csv(training_data_file, header=0)
+    def train(self, training_data):
+        Valid = training_data['Valid']
 
-    def get_optimization_parameters(self):
-        if not self.opt_params_dirty:
-            return self.cached_parameters.copy()
-
-        Valid = self.training_data['Valid'].values
-
-        Power = self.training_data['Power'].values
+        Power = training_data['Power']
         Power = Power[Valid]
 
-        AmbTemperature = self.training_data['AmbTemperature'].values
+        AmbTemperature = training_data['AmbTemperature']
         AmbTemperature = AmbTemperature[Valid]
-        
-        Start = self.training_data['Start'].values
+
+        Start = training_data['Start']
         Start = Start[Valid]
-        
-        Hours = self.training_data['Hours'].values
+
+        Hours = training_data['Hours']
         Hours = Hours[Valid]
 
-        FuelFlow, ExhaustFlow, ExhaustTemperature, NetEfficiency = self.FuelCell_Operate(Coef, Power, AmbTemperature, Start, Hours)
+        FuelFlow, ExhaustFlow, ExhaustTemperature, NetEfficiency = self.FuelCell_Operate(Coef, Power, AmbTemperature,
+                                                                                         Start, Hours)
 
         sort_indexes = np.argsort(Power)
         Xdata = Power[sort_indexes]
-        Ydata = FuelFlow[sort_indexes] * 171.11 # fuel: kg/s -> mmBtu/hr
-    
+        Ydata = FuelFlow[sort_indexes] * 171.11  # fuel: kg/s -> mmBtu/hr
+
         xmin_prime_mover = min(Xdata)
         xmax_prime_mover = max(Xdata)
 
         n1 = np.nonzero(Xdata <= xmin_prime_mover + (xmax_prime_mover - xmin_prime_mover) * 0.3)[-1][-1]
         n2 = np.nonzero(Xdata <= xmin_prime_mover + (xmax_prime_mover - xmin_prime_mover) * 0.6)[-1][-1]
 
-        mat_prime_mover = least_squares_regression(inputs=Xdata[n1:n2+1], output=Ydata[n1:n2+1])
+        mat_prime_mover = least_squares_regression(inputs=Xdata[n1:n2 + 1], output=Ydata[n1:n2 + 1])
 
-        self.cached_parameters = {
+        self.parameters = {
             "mat_prime_mover": mat_prime_mover.tolist(),
             "xmax_prime_mover": xmax_prime_mover,
             "xmin_prime_mover": xmin_prime_mover,
             "cap_prime_mover": self.capacity
         }
 
-        self.opt_params_dirty = False
-        return self.cached_parameters.copy()
-
     def get_commands(self, component_loads):
         return {self.name:
-                    {"fuel_cell_set_point":
+                    {"set_point":
                          component_loads["Q_prime_mover{}_hour00".format(self.name)]*293.1}}
 
-    def update_parameters(self, timestamp, inputs):
-        pass
+
+    # def get_optimization_parameters(self):
+    #     if not self.opt_params_dirty:
+    #         return self.cached_parameters.copy()
+    #
+    #     Valid = self.training_data['Valid'].values
+    #
+    #     Power = self.training_data['Power'].values
+    #     Power = Power[Valid]
+    #
+    #     AmbTemperature = self.training_data['AmbTemperature'].values
+    #     AmbTemperature = AmbTemperature[Valid]
+    #
+    #     Start = self.training_data['Start'].values
+    #     Start = Start[Valid]
+    #
+    #     Hours = self.training_data['Hours'].values
+    #     Hours = Hours[Valid]
+    #
+    #     FuelFlow, ExhaustFlow, ExhaustTemperature, NetEfficiency = self.FuelCell_Operate(Coef, Power, AmbTemperature, Start, Hours)
+    #
+    #     sort_indexes = np.argsort(Power)
+    #     Xdata = Power[sort_indexes]
+    #     Ydata = FuelFlow[sort_indexes] * 171.11 # fuel: kg/s -> mmBtu/hr
+    #
+    #     xmin_prime_mover = min(Xdata)
+    #     xmax_prime_mover = max(Xdata)
+    #
+    #     n1 = np.nonzero(Xdata <= xmin_prime_mover + (xmax_prime_mover - xmin_prime_mover) * 0.3)[-1][-1]
+    #     n2 = np.nonzero(Xdata <= xmin_prime_mover + (xmax_prime_mover - xmin_prime_mover) * 0.6)[-1][-1]
+    #
+    #     mat_prime_mover = least_squares_regression(inputs=Xdata[n1:n2+1], output=Ydata[n1:n2+1])
+    #
+    #     self.cached_parameters = {
+    #         "mat_prime_mover": mat_prime_mover.tolist(),
+    #         "xmax_prime_mover": xmax_prime_mover,
+    #         "xmin_prime_mover": xmin_prime_mover,
+    #         "cap_prime_mover": self.capacity
+    #     }
+    #
+    #     self.opt_params_dirty = False
+    #     return self.cached_parameters.copy()
+
+
 
     def FuelCell_Operate(self, Coef, Power, Tin, Starts, NetHours):
-        if self.fuel_type == "CH4":
+        if self.fuel_type.lower() == "ch4":
             n = 8 # number of electrons per molecule (assuming conversion to H2)
             LHV = 50144 # Lower heating value of CH4 in kJ/g
             m_fuel = 16 # molar mass
-        elif self.fuel_type == "H2":
+        elif self.fuel_type.lower() == "h2":
             n = 2 # number of electrons per molecule (assuming conversion to H2)
             LHV = 120210 # Lower heating value of H2 in kJ/kmol
             m_fuel = 2# molar mass

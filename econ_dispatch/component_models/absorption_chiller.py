@@ -77,7 +77,7 @@ DENSITY_WATER = 1.000 # kg/L
 
 
 class Component(ComponentBase):
-    def __init__(self, history_data_file=None, capacity=464.0, min_off=0, min_on=0, **kwargs):
+    def __init__(self, capacity=464.0, min_off=0, min_on=0, **kwargs):
         super(Component, self).__init__(**kwargs)
         #Chilled water temperature setpoint outlet from absorption chiller
         #self.Tcho = DEFAULT_TCHO

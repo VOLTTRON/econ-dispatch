@@ -67,8 +67,7 @@ DEFAULT_QCH_KW = 500
 
 
 class Component(ComponentBase):
-    def __init__(self,
-                 capacity=200.0, **kwargs):
+    def __init__(self, capacity=200.0, **kwargs):
         super(Component, self).__init__(**kwargs)
 
 
@@ -106,7 +105,7 @@ class Component(ComponentBase):
 
     def get_mapped_commands(self, component_loads):
         points = dict()
-        points["chiller_command"] = component_loads["E_chillerelec_{}_hour00".format(self.name)] > 0.0
+        points["command"] = component_loads["E_chillerelec_{}_hour00".format(self.name)] > 0.0
         return points
 
     def train(self, training_data):
