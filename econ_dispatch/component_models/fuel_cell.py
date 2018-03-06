@@ -143,9 +143,7 @@ class Component(ComponentBase):
         }
 
     def get_commands(self, component_loads):
-        return {self.name:
-                    {"set_point":
-                         component_loads["Q_prime_mover{}_hour00".format(self.name)]*293.1}}
+        return {"set_point": component_loads["Q_prime_mover{}_hour00".format(self.name)]*293.1}
 
 
     # def get_optimization_parameters(self):
