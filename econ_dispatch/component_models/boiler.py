@@ -68,20 +68,12 @@ class Component(ComponentBase):
     def __init__(self, history_data_file=None, capacity=8.0, **kwargs):
         super(Component, self).__init__(**kwargs)
 
-        self.history_data_file = history_data_file
-        self.historical_data = {}
-        self.cached_parameters = {}
-
-        #Set to True whenever seomthing happens that causes us to need to recalculate
-        # the optimization parameters.
-        self.opt_params_dirty = True
-
-        self.setup_historical_data()
-
         # Building heating load assigned to Boiler
         self.current_Qbp = 55
 
         self.capacity = float(capacity)
+
+        self.parameters["capacity"] = self.capacity
 
         # # Boiler Nameplate parameters (User Inputs)
         # self.Qbprated = 60 #mmBtu/hr
@@ -98,17 +90,6 @@ class Component(ComponentBase):
         #     # Use part load curve for 'atmospheric' boiler from http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.553.4931&rep=rep1&type=pdf
         #     self.polynomial_coeffs = (0.6978, 3.3745, -15.632, 32.772, -31.45, 11.268)
 
-    def setup_historical_data(self):
-        with open(self.history_data_file, 'r') as f:
-            historical_data = json.load(f)
-
-        historical_Gbp = np.array(historical_data["boiler_gas_input"])
-        historical_Qbp = np.array(historical_data["boiler_heat_output"])
-
-        self.historical_data["boiler_gas_input"] = historical_Gbp
-        self.historical_data["boiler_heat_output"] = historical_Qbp
-
-
     def get_output_metadata(self):
         return [u"heated_water"]
 
@@ -116,15 +97,11 @@ class Component(ComponentBase):
         return [u"natural_gas"]
 
     def get_commands(self, component_loads):
-        return {self.name:{"boiler_on":(component_loads["Q_boiler{}_hour00".format(self.name)]>0.0)}}
+        return {"command":(component_loads["Q_boiler{}_hour00".format(self.name)]>0.0)}
 
-    def get_optimization_parameters(self):
-
-        if not self.opt_params_dirty:
-            return self.cached_parameters.copy()
-
-        historical_Qbp = self.historical_data["boiler_heat_output"]
-        historical_Gbp = self.historical_data["boiler_gas_input"]
+    def train(self, training_data):
+        historical_Qbp = training_data["heat_output"]
+        historical_Gbp = training_data["gas_input"]
 
         sort_indexes = np.argsort(historical_Qbp)
         historical_Qbp = historical_Qbp[sort_indexes]
@@ -158,17 +135,66 @@ class Component(ComponentBase):
         mat_boiler[1][1] = (y2 - y1) / (x2 - x1)
         mat_boiler[0][1] = y1 - mat_boiler[1][1] * x1
 
-        self.cached_parameters = {
-                                    "xmin_boiler": xmin_boiler.tolist(),
-                                    "xmax_boiler": xmax_boiler.tolist(),
-                                    "mat_boiler": mat_boiler.tolist(),
-                                    "cap_boiler": self.capacity
-                                }
-        self.opt_params_dirty = False
-        return self.cached_parameters.copy()
+        self.parameters = {
+                                "xmin_boiler": xmin_boiler.tolist(),
+                                "xmax_boiler": xmax_boiler.tolist(),
+                                "mat_boiler": mat_boiler.tolist(),
+                                "capacity": self.capacity
+                          }
 
-    def update_parameters(self, timestamp, inputs):
-        self.current_Qbp = inputs.get("Qbp", DEFAULT_QBP)
+    # def update_parameters(self, timestamp, inputs):
+    #     self.current_Qbp = inputs.get("Qbp", DEFAULT_QBP)
+
+    # def get_optimization_parameters(self):
+    #
+    #     if not self.opt_params_dirty:
+    #         return self.cached_parameters.copy()
+    #
+    #     historical_Qbp = self.historical_data["boiler_heat_output"]
+    #     historical_Gbp = self.historical_data["boiler_gas_input"]
+    #
+    #     sort_indexes = np.argsort(historical_Qbp)
+    #     historical_Qbp = historical_Qbp[sort_indexes]
+    #     historical_Gbp = historical_Gbp[sort_indexes]
+    #
+    #     n1 = np.nonzero(historical_Qbp < 24)[-1][-1]
+    #     n2 = np.nonzero(historical_Qbp < 45)[-1][-1]
+    #
+    #     xmin_boiler = np.zeros(3)
+    #     xmax_boiler = np.zeros(3)
+    #
+    #     m1 = least_squares_regression(inputs=historical_Qbp[:n1 + 1], output=historical_Gbp[:n1 + 1])
+    #     m2 = least_squares_regression(inputs=historical_Qbp[n1:n2 + 1], output=historical_Gbp[n1:n2 + 1])
+    #     m3 = least_squares_regression(inputs=historical_Qbp[n2:], output=historical_Gbp[n2:])
+    #
+    #     mat_boiler = np.array([m1, m2, m3]).T
+    #
+    #     xmax_boiler[0] = max(historical_Qbp[:n1 + 1])
+    #     xmax_boiler[1] = max(historical_Qbp[n1:n2 + 1])
+    #     xmax_boiler[2] = max(historical_Qbp[n2:])
+    #
+    #     xmin_boiler[0] = min(historical_Qbp[:n1 + 1])
+    #     xmin_boiler[1] = xmax_boiler[0]
+    #     xmin_boiler[2] = xmax_boiler[1]
+    #
+    #     x1 = xmax_boiler[0]
+    #     x2 = xmin_boiler[2]
+    #     y1 = mat_boiler[0][0] + mat_boiler[1][0] * xmax_boiler[0]
+    #     y2 = mat_boiler[0][2] + mat_boiler[1][2] * xmin_boiler[2]
+    #
+    #     mat_boiler[1][1] = (y2 - y1) / (x2 - x1)
+    #     mat_boiler[0][1] = y1 - mat_boiler[1][1] * x1
+    #
+    #     self.cached_parameters = {
+    #         "xmin_boiler": xmin_boiler.tolist(),
+    #         "xmax_boiler": xmax_boiler.tolist(),
+    #         "mat_boiler": mat_boiler.tolist(),
+    #         "cap_boiler": self.capacity
+    #     }
+    #     self.opt_params_dirty = False
+    #     return self.cached_parameters.copy()
+
+
 
     # def predict(self):
     #     a0, a1, a2, a3, a4, a5 = self.polynomial_coeffs
