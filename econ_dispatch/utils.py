@@ -50,13 +50,14 @@ def csv_file_fix(file_obj):
 def historian_data_fix(data):
     results = {}
     for key, values in data:
-        time_stamps = pd.to_datetime(x[0] for x in values)
-        readings = pd.Series(([1] for x in values), index=time_stamps)
+        time_stamps = pd.to_datetime(x[0] for x in values).floor("1min")
+        readings = pd.Series((x[1] for x in values), index=time_stamps)
 
-        #TODO: Can we fill missing data with NaNs or leave them out?
-        normalized = readings.asfreq("1Hour", method="bfill")
+        results[key] = readings
 
-        results[key] = normalized.values
+    df = pd.DataFrame(results).dropna()
+
+    results = {k: df[k].values for k in data}
 
     return results
         
