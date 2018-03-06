@@ -27,7 +27,6 @@ def atoi(text):
     return int(text) if text.isdigit() else text
 
 def records_fix(data):
-    results = {}
     keys = data[0].keys()
     with StringIO() as f:
         w = csv.DictWriter(f, keys)
@@ -39,11 +38,8 @@ def records_fix(data):
     return results
 
 def csv_file_fix(file_obj):
-    results = {}
-    frame = pd.read_csv(file_obj, header=0)
-    for k in frame:
-        results[k] = frame[k].values
-
+    df = pd.read_csv(file_obj, header=0)
+    results = {k: df[k].values for k in df}
     return results
 
 
