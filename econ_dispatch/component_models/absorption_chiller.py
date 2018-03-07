@@ -137,6 +137,7 @@ class Component(ComponentBase):
         mass_flow_rate_abs =  abs_chiller_load_kW / (SPECIFIC_HEAT_WATER*(self.Tchr-self.Tcho))
         vol_flow_rate_setpoint_abs = mass_flow_rate_abs / DENSITY_WATER
         self.command_history = self.command_history[1:] + [int(vol_flow_rate_setpoint_abs > 0.0)]
+        self.parameters["command_history"] = self.command_history[:]
         return {"set_point":vol_flow_rate_setpoint_abs}
 
     def train(self, training_data):
@@ -162,7 +163,7 @@ class Component(ComponentBase):
             "cap": self.capacity,
             "min_on": self.min_on,
             "min_off": self.min_off,
-            "command_history": self.command_history
+            "command_history": self.command_history[:]
         }
 
     # def get_optimization_parameters(self):
