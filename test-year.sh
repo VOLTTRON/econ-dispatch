@@ -1,1 +1,2 @@
-python main.py example.config --input-data "Hospital Modeled Data Date Fix.csv" --input-data-time-column "Date/Time" --output-data "command_output.csv"
+#!/usr/bin/env bash
+python main.py new_agent.config --input-data "Hospital Modeled Data Date Fix.csv" --input-data-time-column "Date/Time" --output-data "command_output.csv"
