@@ -60,7 +60,7 @@ from econ_dispatch.component_models import get_component_class
 from econ_dispatch.forecast_models import get_forecast_model_class
 from econ_dispatch.optimizer import get_optimization_function
 from econ_dispatch.utils import OptimizerCSVOutput, normalize_training_data
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 import datetime
 import logging
 
@@ -149,6 +149,7 @@ def build_model_from_config(config):
         training_data = component_dict.get("initial_training_data")
         if training_data is not None:
             _log.info("Applying config supplied training data for {}".format(component_name))
+            training_data = normalize_training_data(training_data)
             component.train(training_data)
 
         if not component.parameters:

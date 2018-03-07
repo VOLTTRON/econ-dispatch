@@ -66,7 +66,7 @@ def normalize_training_data(data):
         # Assume list of dicts from CSV file
         return records_fix(data)
 
-    if isinstance(data,str):
+    if isinstance(data,basestring):
         # Assume file name
         if data.endswith("csv"):
             return csv_file_fix(data)
@@ -79,7 +79,7 @@ def normalize_training_data(data):
         values = data.get("values")
         if isinstance(values, dict):
             # Data returned from historian.
-            historian_data_fix(values)
+            return historian_data_fix(values)
         else:
             # Probably a json file from the config store.
             result = {k: np.array(v) for k,v in data.iteritems()}

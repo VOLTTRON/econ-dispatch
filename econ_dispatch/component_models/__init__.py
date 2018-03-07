@@ -180,7 +180,7 @@ class ComponentBase(object):
         return results
 
     def process_inputs(self, now, inputs):
-        for topic, input_name in self.inputs.iteritems():
+        for topic, input_name in self.input_map.iteritems():
             value = inputs.get(topic)
             if value is not None:
                 _log.debug("{} processing input from topic {}".format(self.name, topic))

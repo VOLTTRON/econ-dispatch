@@ -200,7 +200,7 @@ class SystemModel(object):
 
     def invalid_parameters_list(self):
         results = []
-        for name, component in self.instance_map:
+        for name, component in self.instance_map.iteritems():
             if not component.validate_parameters():
                 results.append(name)
         return results
