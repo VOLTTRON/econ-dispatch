@@ -109,15 +109,11 @@ class Component(ComponentBase):
         return points
 
     def train(self, training_data):
-        historical_data = dict()
-        historical_data["P(kW)"] = np.array(training_data["P(kW)"])
-        historical_data["Qch(tons)"] = np.array(training_data["Qch(tons)"])
-
         # chiller cooling output in mmBtu/hr (converted from cooling Tons)
-        Qch = historical_data["Qch(tons)"] * 3.517 / 293.1
+        Qch = training_data["Qch(tons)"] * 3.517 / 293.1
 
         # chiller power input in kW
-        P = historical_data["P(kW)"]
+        P = training_data["P(kW)"]
 
         m_ChillerIGV = least_squares_regression(inputs=Qch, output=P)
         xmax_ChillerIGV = max(Qch)
