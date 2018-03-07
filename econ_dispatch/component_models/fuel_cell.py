@@ -142,7 +142,7 @@ class Component(ComponentBase):
             "cap": self.capacity
         }
 
-    def get_commands(self, component_loads):
+    def get_mapped_commands(self, component_loads):
         return {"set_point": component_loads["Q_prime_mover_{}_hour00".format(self.name)]*293.1}
 
 

@@ -61,6 +61,7 @@ from econ_dispatch.forecast_models import get_forecast_model_class
 from econ_dispatch.optimizer import get_optimization_function
 from econ_dispatch.utils import OptimizerCSVOutput, normalize_training_data
 from collections import OrderedDict
+from pprint import pformat
 import datetime
 import logging
 
@@ -72,15 +73,12 @@ _log = logging.getLogger(__name__)
 class Results(object):
     def __init__(self, terminate=False):
         self.commands = OrderedDict()
-        self.devices = OrderedDict()
         self.log_messages = []
         self._terminate = terminate
         self.table_output = defaultdict(list)
 
-    def command(self, point, value, device=""):
-        if device not in self.devices:
-            self.devices[device] = OrderedDict()
-        self.devices[device][point] = value
+    def command(self, point, value):
+        self.commands[point] = value
 
     def log(self, message, level=logging.DEBUG):
         self.log_messages.append((level, message))
@@ -179,11 +177,11 @@ class Application(object):
         return {}
 
     def run(self, time, inputs):
-        device_commands = self.model.run(time, inputs)
+        commands = self.model.run(time, inputs)
         results = Results()
-        for device, commands in device_commands.iteritems():
-            for point, value in commands.iteritems():
-                results.command(point, value, device)
+        _log.debug("Device commands: {}".format(commands))
+        for point, value in commands.iteritems():
+            results.command(point, value)
 
         return results
 

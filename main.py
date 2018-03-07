@@ -139,7 +139,7 @@ def main(config_file, start, end,
             _log.debug("Processing timestamp: " + str(now))
             start_time = time.time()
             result = application.run(now, input_data.derive_variables(now))
-            if result.devices:
+            if result.commands:
                 results.append((now, result))
             now += time_step
             end_time = time.time()
@@ -160,9 +160,8 @@ def main(config_file, start, end,
             if results:
                 topics = set()
                 for result in results:
-                    for device, commands in result[1].devices.iteritems():
-                        for command in commands:
-                            topics.add(device + "/" + command)
+                    for topic in result[1].commands:
+                        topics.add(topic)
 
                 topics = list(topics)
                 topics.sort()
@@ -174,9 +173,8 @@ def main(config_file, start, end,
                 for result in results:
                     row = {}
                     row["timestamp"] = result[0]
-                    for device, commands in result[1].devices.iteritems():
-                        for command, value in commands.iteritems():
-                            row[device+"/"+command] = value
+                    for topic, value in result[1].commands.iteritems():
+                        row[topic] = value
 
                     dict_writer.writerow(row)
             else:
