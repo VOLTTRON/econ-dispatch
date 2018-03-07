@@ -58,8 +58,11 @@
 import abc
 import logging
 import pkgutil
+from copy import deepcopy
 
-_componentList = [name for _, name, _ in pkgutil.iter_modules(__path__)]
+_log = logging.getLogger(__name__)
+
+_componentList = [x for _, x, _ in pkgutil.iter_modules(__path__)]
 
 _componentDict = {}
 
@@ -74,8 +77,22 @@ valid_io_types = set([u"heated_water",
 
 class ComponentBase(object):
     __metaclass__ = abc.ABCMeta
-    def __init__(self, name="MISSING_NAME", **kwargs):
+
+    def __init__(self, name="MISSING_NAME",
+                 default_parameters={},
+                 training_window=365,
+                 training_sources={},
+                 inputs={},
+                 outputs={}):
+
+        if not default_parameters:
+            _log.info("No default parameters supplied for component: {}".format(name))
         self.name = name
+        self.parameters = default_parameters
+        self.training_window = int(training_window)
+        self.training_sources = training_sources
+        self.input_map = inputs
+        self.output_map = outputs
 
     def get_input_metadata(self):
         """Must return a string describing the required input for this component.
@@ -107,44 +124,91 @@ class ComponentBase(object):
         """
         return []
 
-    def get_commands(self, component_loads):
-        """Get the set points for a component based on the optimized component load
-        and the current state of the component.
+    def get_mapped_commands(self, component_loads):
+        """Override this to return the new set points on the device based
+        on the received component loads and the current state of the component.
         Return values must take the form:
 
-        {"device1": {"command1": 50.0, "command2": True},
-         "device2": {"command3": 22.0}}
-
-        Typically a component will only provide command for a single device.
+        {"output1": value1,
+         "output2": value2}
         """
         return {}
 
-    @abc.abstractmethod
-    def get_optimization_parameters(self):
-        """Get the current parameters of the component for the optimizer.
-        Returned values must take the form of a dictionary."""
+    def process_input(self, name, value, timestamp):
+        """Override this to process input data from the platform.
+        Components will typically want the current state of the device they
+        represent as input.
+
+        timestamp - Timestamp of input.
+        name - Name of the input from the configuration file.
+        value - value of the input from the message bus.
+        """
         pass
 
-    @abc.abstractmethod
-    def update_parameters(self, timestamp, inputs):
-        """Update the internal parameters of the component based on the input values."""
+    def train(self, training_data):
+        """Override this to use training data to update parameters
+        training_data takes the form:
+
+        {
+         "input_name1": [value1, value2,...],
+         "input_name2": [value1, value2,...]
+        }
+        """
         pass
+
+    def validate_parameters(self):
+        """Returns true if parameters exist for this component. False otherwise.
+
+        If more a sophisticated method for parameter validation is desired this
+        may be overridden.
+        """
+        return bool(self.parameters)
+
+    def get_commands(self, component_loads):
+        """Returns the commands for this component mapped to the topics specified
+        in the configuration file."""
+        mapped_commands = self.get_mapped_commands(component_loads)
+        results = {}
+        for output_name, topic in self.output_map.iteritems():
+            value = mapped_commands.pop(output_name, None)
+            if value is not None:
+                results[topic] = value
+
+        for name in mapped_commands:
+            _log.error("NO MAPPED TOPIC FOR {}. DROPPING COMMAND".format(name))
+
+        return results
+
+    def process_inputs(self, now, inputs):
+        for topic, input_name in self.input_map.iteritems():
+            value = inputs.get(topic)
+            if value is not None:
+                _log.debug("{} processing input from topic {}".format(self.name, topic))
+                self.process_input(input_name, value, now)
+
+    def get_optimization_parameters(self):
+        """Get the current parameters of the component for the optimizer.
+        Returned values must take the form of a dictionary.
+
+        If something more sophisticated needs to happen this can be overridden."""
+        return deepcopy(self.parameters)
+
 
     def __str__(self):
         return '"Component: ' + self.name + '"'
 
 for componentName in _componentList:
     try:
-        module = __import__(componentName,globals(),locals(),['Component'], 1)
+        module = __import__(componentName, globals(), locals(), ['Component'], 1)
         klass = module.Component
     except Exception as e:
-        logging.error('Module {name} cannot be imported. Reason: {ex}'.format(name=componentName, ex=e))
+        _log.error('Module {name} cannot be imported. Reason: {ex}'.format(name=componentName, ex=e))
         continue
 
     #Validation of Algorithm class
 
     if not issubclass(klass, ComponentBase):
-        logging.warning('The implementation of {name} does not inherit from econ_dispatch.component_models.ComponentBase.'.format(name=componentName))
+        _log.warning('The implementation of {name} does not inherit from econ_dispatch.component_models.ComponentBase.'.format(name=componentName))
 
     _componentDict[componentName] = klass
 

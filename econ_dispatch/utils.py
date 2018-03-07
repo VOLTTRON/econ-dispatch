@@ -1,7 +1,10 @@
 import numpy as np
+import pandas as pd
 import random
 import csv
 import re
+import simplejson as json
+from cStringIO import StringIO
 
 
 def least_squares_regression(inputs=None, output=None):
@@ -22,6 +25,67 @@ def least_squares_regression(inputs=None, output=None):
 
 def atoi(text):
     return int(text) if text.isdigit() else text
+
+def records_fix(data):
+    keys = data[0].keys()
+    with StringIO() as f:
+        w = csv.DictWriter(f, keys)
+        w.writeheader()
+        w.writerows(data)
+        f.seek(0)
+        results = csv_file_fix(f)
+
+    return results
+
+def csv_file_fix(file_obj):
+    df = pd.read_csv(file_obj, header=0)
+    results = {k: df[k].values for k in df}
+    return results
+
+
+def historian_data_fix(data):
+    results = {}
+    for key, values in data:
+        time_stamps = pd.to_datetime(x[0] for x in values).floor("1min")
+        readings = pd.Series((x[1] for x in values), index=time_stamps)
+
+        results[key] = readings
+
+    df = pd.DataFrame(results).dropna()
+
+    results = {k: df[k].values for k in data}
+
+    return results
+        
+
+def normalize_training_data(data):
+    if not data:
+        return {}
+
+    if isinstance(data, list):
+        # Assume list of dicts from CSV file
+        return records_fix(data)
+
+    if isinstance(data,basestring):
+        # Assume file name
+        if data.endswith("csv"):
+            return csv_file_fix(data)
+
+        if data.endswith("json"):
+            with open(data, "rb") as f:
+                return normalize_training_data(json.load(f))
+
+    if isinstance(data, dict):
+        values = data.get("values")
+        if isinstance(values, dict):
+            # Data returned from historian.
+            return historian_data_fix(values)
+        else:
+            # Probably a json file from the config store.
+            result = {k: np.array(v) for k,v in data.iteritems()}
+        return result
+
+    return None
 
 def natural_keys(text):
     '''

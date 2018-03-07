@@ -59,10 +59,13 @@ from system_model import SystemModel
 from econ_dispatch.component_models import get_component_class
 from econ_dispatch.forecast_models import get_forecast_model_class
 from econ_dispatch.optimizer import get_optimization_function
-from econ_dispatch.utils import OptimizerCSVOutput
-from collections import OrderedDict, defaultdict
+from econ_dispatch.utils import OptimizerCSVOutput, normalize_training_data
+from collections import OrderedDict
+from pprint import pformat
 import datetime
 import logging
+
+from collections import defaultdict
 _log = logging.getLogger(__name__)
 
 
@@ -70,15 +73,12 @@ _log = logging.getLogger(__name__)
 class Results(object):
     def __init__(self, terminate=False):
         self.commands = OrderedDict()
-        self.devices = OrderedDict()
         self.log_messages = []
         self._terminate = terminate
         self.table_output = defaultdict(list)
 
-    def command(self, point, value, device=""):
-        if device not in self.devices:
-            self.devices[device] = OrderedDict()
-        self.devices[device][point] = value
+    def command(self, point, value):
+        self.commands[point] = value
 
     def log(self, message, level=logging.DEBUG):
         self.log_messages.append((level, message))
@@ -133,22 +133,37 @@ def build_model_from_config(config):
             continue
 
         try:
-            component = klass(name=component_name, **component_dict.get("settings", {}))
+            component = klass(name=component_name,
+                              default_parameters=component_dict.get("default_parameters", {}),
+                              training_window=component_dict.get("training_window", 365),
+                              training_sources=component_dict.get("training_sources", {}),
+                              inputs=component_dict.get("inputs", {}),
+                              outputs=component_dict.get("outputs", {}),
+                              **component_dict.get("settings", {}))
         except Exception as e:
             _log.exception("Error creating component " + klass_name)
             continue
 
+        training_data = component_dict.get("initial_training_data")
+        if training_data is not None:
+            _log.info("Applying config supplied training data for {}".format(component_name))
+            training_data = normalize_training_data(training_data)
+            component.train(training_data)
+
+        if not component.parameters:
+            _log.warning("Component {} has no parameters after initialization.".format(component_name))
+
         system_model.add_component(component, klass_name)
 
-    for output_component_name, input_component_name in connections:
-
-        _log.debug("Adding connection: {} -> {}".format(output_component_name, input_component_name))
-
-        try:
-            if not system_model.add_connection(output_component_name, input_component_name):
-                _log.error("No compatible outputs/inputs")
-        except Exception as e:
-            _log.error("Error adding connection: " + str(e))
+    # for output_component_name, input_component_name in connections:
+    #
+    #     _log.debug("Adding connection: {} -> {}".format(output_component_name, input_component_name))
+    #
+    #     try:
+    #         if not system_model.add_connection(output_component_name, input_component_name):
+    #             _log.error("No compatible outputs/inputs")
+    #     except Exception as e:
+    #         _log.error("Error adding connection: " + str(e))
 
     return system_model
 
@@ -162,11 +177,26 @@ class Application(object):
         return {}
 
     def run(self, time, inputs):
-        device_commands = self.model.run(time, inputs)
+        commands = self.model.run(time, inputs)
         results = Results()
-        for device, commands in device_commands.iteritems():
-            for point, value in commands.iteritems():
-                results.command(point, value, device)
+        _log.debug("Device commands: {}".format(commands))
+        for point, value in commands.iteritems():
+            results.command(point, value)
 
         return results
 
+    def process_inputs(self, now, inputs):
+        self.model.process_inputs(now, inputs)
+
+    def get_training_parameters(self):
+        return self.model.get_training_parameters()
+
+    def get_component_input_topics(self):
+        return self.model.get_component_input_topics()
+
+    def apply_all_training_data(self, training_data):
+        normalized = {}
+        for name, data in training_data.iteritems():
+            normalized[name] = normalize_training_data(data)
+
+        self.model.apply_training_data(training_data)

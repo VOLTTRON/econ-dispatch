@@ -77,19 +77,19 @@ DENSITY_WATER = 1.000 # kg/L
 
 
 class Component(ComponentBase):
-    def __init__(self, history_data_file=None, capacity=464.0, min_off=0, min_on=0, **kwargs):
+    def __init__(self, capacity=464.0, min_off=0, min_on=0, **kwargs):
         super(Component, self).__init__(**kwargs)
         #Chilled water temperature setpoint outlet from absorption chiller
         self.Tcho = DEFAULT_TCHO
 
         # Condenser water temperature inlet temperature to absorption chiller from heat rejection in F
-        self.Tcdi = DEFAULT_TCDI
+        #self.Tcdi = DEFAULT_TCDI
 
         # Generator inlet temperature (hot water temperature inlet to abs chiller) in F
-        self.Tgeni = DEFAULT_TGENI
+        #self.Tgeni = DEFAULT_TGENI
 
         # heat input to the generator in mmBTU/hr
-        self.Qin = DEFAULT_QIN
+        #self.Qin = DEFAULT_QIN
 
         # Chilled water return temperature.
         self.Tchr = DEFAULT_TCHR
@@ -99,26 +99,31 @@ class Component(ComponentBase):
         self.min_on = min_on
         self.min_off = min_off
 
-        self.historical_data = {}
-        self.cached_parameters = {}
+        #self.historical_data = {}
+        #self.cached_parameters = {}
 
         self.command_history = [0] * 24
 
-        self.setup_historical_data(history_data_file)
+        self.parameters["capacity"] = self.capacity
+        self.parameters["min_on"] = self.min_on
+        self.parameters["min_off"] = self.min_off
+        self.parameters["command_history"] = self.command_history[:]
+
+        #self.setup_historical_data(history_data_file)
 
         # Set to True whenever something happens that causes us to need to recalculate
         # the optimization parameters.
-        self.opt_params_dirty = True
+        # self.opt_params_dirty = True
 
         # Gordon-Ng model coefficients
         # self.a0, self.a1 = self.train()
 
-    def setup_historical_data(self, history_data_file):
-        with open(history_data_file, 'r') as f:
-            historical_data = json.load(f)
-
-        self.historical_data["Qch(tons)"] = np.array(historical_data["Qch(tons)"])
-        self.historical_data["Qin(MMBtu/h)"] = np.array(historical_data["Qin(MMBtu/h)"])
+    # def setup_historical_data(self, history_data_file):
+    #     with open(history_data_file, 'r') as f:
+    #         historical_data = json.load(f)
+    #
+    #     self.historical_data["Qch(tons)"] = np.array(historical_data["Qch(tons)"])
+    #     self.historical_data["Qin(MMBtu/h)"] = np.array(historical_data["Qin(MMBtu/h)"])
 
     def get_output_metadata(self):
         return [u"chilled_water"]
@@ -126,24 +131,22 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return [u"heat"]
 
-    def get_commands(self, component_loads):
-        abs_chller_load_mmBTU = component_loads["Q_abs{}_hour00".format(self.name)]
+    def get_mapped_commands(self, component_loads):
+        abs_chller_load_mmBTU = component_loads["Q_abs_{}_hour00".format(self.name)]
         abs_chiller_load_kW = abs_chller_load_mmBTU*1000/3.412
         mass_flow_rate_abs =  abs_chiller_load_kW / (SPECIFIC_HEAT_WATER*(self.Tchr-self.Tcho))
         vol_flow_rate_setpoint_abs = mass_flow_rate_abs / DENSITY_WATER
         self.command_history = self.command_history[1:] + [int(vol_flow_rate_setpoint_abs > 0.0)]
-        return {self.name: {"vol_flow_rate_setpoint_abs":vol_flow_rate_setpoint_abs}}
+        self.parameters["command_history"] = self.command_history[:]
+        return {"set_point":vol_flow_rate_setpoint_abs}
 
+    def train(self, training_data):
+        historical_data = dict()
+        historical_data["Qin(MMBtu/h)"] = np.array(training_data["Qin(MMBtu/h)"])
+        historical_data["Qch(tons)"] = np.array(training_data["Qch(tons)"])
 
-    def get_optimization_parameters(self):
-        if not self.opt_params_dirty:
-            copy = self.cached_parameters.copy()
-            #Always update command history.
-            copy["abs_chiller_history"] = self.command_history[:]
-            return copy
-
-        Qch = self.historical_data["Qch(tons)"] * (3.517 / 293.1) # chiller cooling output in mmBTU/hr (converted from cooling Tons)
-        Qin = self.historical_data["Qin(MMBtu/h)"] # chiller heat input in mmBTU/hr
+        Qch = historical_data["Qch(tons)"] * (3.517 / 293.1) # chiller cooling output in mmBTU/hr (converted from cooling Tons)
+        Qin = historical_data["Qin(MMBtu/h)"] # chiller heat input in mmBTU/hr
 
         n1 = np.nonzero(Qch < 8)[-1]
         Xdata = Qch[n1]
@@ -153,24 +156,52 @@ class Component(ComponentBase):
         xmax_AbsChiller = np.amax(Xdata)
         xmin_AbsChiller = np.amin(Xdata)
 
-        self.cached_parameters = {
-                                    "xmax_abschiller": xmax_AbsChiller,
-                                    "xmin_abschiller": xmin_AbsChiller,
-                                    "mat_abschiller": m_AbsChiller.tolist(),
-                                    "cap_abs_chiller": self.capacity,
-                                    "min_on_abs_chiller": self.min_on,
-                                    "min_off_abs_chiller": self.min_off,
-                                    "abs_chiller_history": self.command_history[:]
-                                }
-        self.opt_params_dirty = False
-        return self.cached_parameters.copy()
+        self.parameters = {
+            "xmax": xmax_AbsChiller,
+            "xmin": xmin_AbsChiller,
+            "mat": m_AbsChiller.tolist(),
+            "cap": self.capacity,
+            "min_on": self.min_on,
+            "min_off": self.min_off,
+            "command_history": self.command_history[:]
+        }
 
-    def update_parameters(self, timestamp, inputs):
-        self.Tcho = inputs.get("Tcho", DEFAULT_TCHO)
-        self.Tcdi = inputs.get("Tcdi", DEFAULT_TCDI)
-        self.Tgeni = inputs.get("Tgeni", DEFAULT_TGENI)
-        self.Qin = inputs.get("Qin", DEFAULT_QIN)
-        self.Tchr = inputs.get("Tchr", DEFAULT_TCHR)
+    # def get_optimization_parameters(self):
+    #     if not self.opt_params_dirty:
+    #         copy = self.cached_parameters.copy()
+    #         #Always update command history.
+    #         copy["abs_chiller_history"] = self.command_history[:]
+    #         return copy
+    #
+    #     Qch = self.historical_data["Qch(tons)"] * (3.517 / 293.1) # chiller cooling output in mmBTU/hr (converted from cooling Tons)
+    #     Qin = self.historical_data["Qin(MMBtu/h)"] # chiller heat input in mmBTU/hr
+    #
+    #     n1 = np.nonzero(Qch < 8)[-1]
+    #     Xdata = Qch[n1]
+    #     Ydata = Qin[n1]
+    #
+    #     m_AbsChiller = least_squares_regression(inputs=Xdata, output=Ydata)
+    #     xmax_AbsChiller = np.amax(Xdata)
+    #     xmin_AbsChiller = np.amin(Xdata)
+    #
+    #     self.cached_parameters = {
+    #                                 "xmax_abschiller": xmax_AbsChiller,
+    #                                 "xmin_abschiller": xmin_AbsChiller,
+    #                                 "mat_abschiller": m_AbsChiller.tolist(),
+    #                                 "cap_abs_chiller": self.capacity,
+    #                                 "min_on_abs_chiller": self.min_on,
+    #                                 "min_off_abs_chiller": self.min_off,
+    #                                 "abs_chiller_history": self.command_history[:]
+    #                             }
+    #     self.opt_params_dirty = False
+    #     return self.cached_parameters.copy()
+
+    # def update_parameters(self, timestamp, inputs):
+    #     self.Tcho = inputs.get("Tcho", DEFAULT_TCHO)
+    #     self.Tcdi = inputs.get("Tcdi", DEFAULT_TCDI)
+    #     self.Tgeni = inputs.get("Tgeni", DEFAULT_TGENI)
+    #     self.Qin = inputs.get("Qin", DEFAULT_QIN)
+    #     self.Tchr = inputs.get("Tchr", DEFAULT_TCHR)
 
     # def predict(self):
     #     # Regression models were built separately (Training Module) and

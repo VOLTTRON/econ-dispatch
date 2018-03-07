@@ -142,11 +142,11 @@ class SystemModel(object):
 
         return forecasts
 
-    def update_components(self, now, inputs):
+    def process_inputs(self, now, inputs):
         _log.debug("Updating Components")
         _log.debug("Inputs:\n"+pformat(inputs))
         for component in self.instance_map.itervalues():
-            component.update_parameters(now, inputs)
+            component.process_inputs(now, input)
 
     def run_general_optimizer(self, now, predicted_loads, parameters):
         _log.debug("Running General Optimizer")
@@ -179,8 +179,43 @@ class SystemModel(object):
                 result[device] = commands
         return result
 
+    def get_component_input_topics(self):
+        results = set()
+        for component in self.instance_map.itervalues():
+            results.add(component.inputs.keys())
+
+        return results
+
+    def get_training_parameters(self):
+        results = dict()
+        for name, component in self.instance_map.iteritems():
+            results[name] = (component.training_window, component.training_sources)
+
+        return results
+
+    def apply_all_training_data(self, training_data):
+        for name, data in training_data.iteritems():
+            component = self.instance_map[name]
+            component.train(data)
+
+    def invalid_parameters_list(self):
+        results = []
+        for name, component in self.instance_map.iteritems():
+            if not component.validate_parameters():
+                results.append(name)
+        return results
+
+    def run_optimizer(self, now, inputs):
+        forecasts = self.get_forecasts(now)
+        parameters = self.get_parameters(now, inputs)
+        component_loads = self.run_general_optimizer(now, forecasts, parameters)
+        _log.debug("Loads: {}".format(pformat(component_loads)))
+        commands = self.get_commands(component_loads)
+
+        return commands
+
     def run(self, now, inputs):
-        self.update_components(now, inputs)
+        self.process_inputs(now, inputs)
 
         if self.next_optimization is None:
             self.next_optimization = self.find_starting_datetime(now)
@@ -189,11 +224,12 @@ class SystemModel(object):
         if (self.next_optimization <= now):
             _log.info("Running optimizer: " + str(now))
             self.next_optimization = self.next_optimization + self.optimization_frequency
-            forecasts = self.get_forecasts(now)
-            parameters = self.get_parameters(now, inputs)
-            component_loads = self.run_general_optimizer(now, forecasts, parameters)
-            commands = self.get_commands(component_loads)
-
+            invalid_components = self.invalid_parameters_list()
+            if invalid_components:
+                _log.error("The following components are unable to provide valid optimization parameters: {}".format(invalid_components))
+                _log.error("THE OPTIMIZER WILL NOT BE RUN AT THIS TIME.")
+            else:
+                commands = self.run_optimizer(now, inputs)
         return commands
 
     def find_starting_datetime(self, now):
