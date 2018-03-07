@@ -89,7 +89,7 @@ class ChillerIGV(object):
         try:
             Schiller = self.state_variable[hour]
         except KeyError:
-            Schiller = binary_var("Schiller{}_hour{}".format(self.name, hour))
+            Schiller = binary_var("Schiller_{}_hour{}".format(self.name, hour))
             self.state_variable[hour] = Schiller
 
         return Schiller
@@ -98,7 +98,7 @@ class ChillerIGV(object):
         try:
             E_chillerelec = self.chiller_elec[hour]
         except KeyError:
-            E_chillerelec = LpVariable("E_chillerelec{}_hour{}".format(self.name, hour), 0)
+            E_chillerelec = LpVariable("E_chillerelec_{}_hour{}".format(self.name, hour), 0)
             self.chiller_elec[hour] = E_chillerelec
 
         return E_chillerelec
@@ -107,7 +107,7 @@ class ChillerIGV(object):
         try:
             Q_chiller = self.q_chiller[hour]
         except KeyError:
-            Q_chiller = LpVariable("Q_chiller{}_hour{}".format(self.name, hour), 0)
+            Q_chiller = LpVariable("Q_chiller_{}_hour{}".format(self.name, hour), 0)
             self.q_chiller[hour] = Q_chiller
 
         return Q_chiller
@@ -116,7 +116,7 @@ class ChillerIGV(object):
         try:
             Q_chiller_aux = self.q_chiller_aux[hour]
         except KeyError:
-            Q_chiller_aux = LpVariable("Q_chiller{}_hour{}_aux{}".format(self.name, hour, 1), 0, self.xmax_chiller - self.xmin_chiller)
+            Q_chiller_aux = LpVariable("Q_chiller_{}_hour{}_aux{}".format(self.name, hour, 1), 0, self.xmax_chiller - self.xmin_chiller)
             self.q_chiller_aux[hour] = Q_chiller_aux
 
         return Q_chiller_aux
@@ -129,23 +129,23 @@ class ChillerIGV(object):
 
         constraints = []
 
-        label = "ChillerElecConsume{}_{}".format(self.name, hour)
+        label = "ChillerElecConsume_{}_{}".format(self.name, hour)
         exp = E_chillerelec - self.a_chiller * Q_chiller_aux
         exp = exp - self.b_chiller * Schiller
         exp = exp == 0
         constraints.append((exp, label))
 
-        label = "ChillerCoolGenerate{}_{}".format(self.name, hour)
+        label = "ChillerCoolGenerate_{}_{}".format(self.name, hour)
         exp = Q_chiller - Q_chiller_aux
         exp = exp - self.xmin_chiller * Schiller
         exp = exp == 0
         constraints.append((exp, label))
 
-        label = "ChillerQlower{}_{}".format(self.name, hour)
+        label = "ChillerQlower_{}_{}".format(self.name, hour)
         exp = Q_chiller - self.xmin_chiller * Schiller >= 0
         constraints.append((exp, label))
 
-        label = "ChillerQupper{}_{}".format(self.name, hour)
+        label = "ChillerQupper_{}_{}".format(self.name, hour)
         exp = Q_chiller - self.xmax_chiller * Schiller <= 0
         constraints.append((exp, label))
 
@@ -178,7 +178,7 @@ class AbsChiller(object):
         try:
             Sabs = self.state_variable[hour]
         except KeyError:
-            Sabs = binary_var("Sabs{}_hour{}".format(self.name, hour))
+            Sabs = binary_var("Sabs_{}_hour{}".format(self.name, hour))
             self.state_variable[hour] = Sabs
 
         return Sabs
@@ -187,7 +187,7 @@ class AbsChiller(object):
         try:
             Q_abs = self.q_abs[hour]
         except KeyError:
-            Q_abs = LpVariable("Q_abs{}_hour{}".format(self.name, hour), 0)
+            Q_abs = LpVariable("Q_abs_{}_hour{}".format(self.name, hour), 0)
             self.q_abs[hour] = Q_abs
 
         return Q_abs
@@ -196,7 +196,7 @@ class AbsChiller(object):
         try:
             Q_abs_aux = self.q_abs_aux[hour]
         except KeyError:
-            Q_abs_aux = [LpVariable("Q_abs{}_hour{}_aux0".format(self.name, hour), 0)]
+            Q_abs_aux = [LpVariable("Q_abs_{}_hour{}_aux0".format(self.name, hour), 0)]
             self.q_abs_aux[hour] = Q_abs_aux
 
         return Q_abs_aux
@@ -208,7 +208,7 @@ class AbsChiller(object):
 
         constraints = []
 
-        label = "AbsChillerHeatCoolConsume{}_{}".format(self.name, hour)
+        label = "AbsChillerHeatCoolConsume_{}_{}".format(self.name, hour)
         exp = Q_Gencooling
         for q in Q_abs_aux:
             exp = exp - self.a_abs * q
@@ -216,7 +216,7 @@ class AbsChiller(object):
         exp = exp == 0
         constraints.append((exp, label))
 
-        label = "AbsChillerHeatGenerate{}_{}".format(self.name, hour)
+        label = "AbsChillerHeatGenerate_{}_{}".format(self.name, hour)
         exp = Q_abs
         for q in Q_abs_aux:
             exp = exp - q
@@ -224,11 +224,11 @@ class AbsChiller(object):
         exp = exp == 0
         constraints.append((exp, label))
 
-        label = "AbschillerQlower{}_{}".format(self.name, hour)
+        label = "AbschillerQlower_{}_{}".format(self.name, hour)
         exp = Q_abs - self.xmin_abschiller * Sabs >= 0
         constraints.append((exp, label))
 
-        label = "AbschillerQupper{}_{}".format(self.name, hour)
+        label = "AbschillerQupper_{}_{}".format(self.name, hour)
         exp = Q_abs - self.xmax_abschiller * Sabs <= 0
         constraints.append((exp, label))
 
@@ -251,7 +251,7 @@ class Boiler(object):
         try:
             Sboiler = self.state_variable[hour]
         except KeyError:
-            Sboiler = binary_var("Sboiler{}_hour{}".format(self.name, hour))
+            Sboiler = binary_var("Sboiler_{}_hour{}".format(self.name, hour))
             self.state_variable[hour] = Sboiler
 
         return Sboiler
@@ -260,7 +260,7 @@ class Boiler(object):
         try:
             E_boilergas = self.e_boilergas[hour]
         except KeyError:
-            E_boilergas = LpVariable("E_boilergas{}_hour{}".format(self.name, hour), 0)
+            E_boilergas = LpVariable("E_boilergas_{}_hour{}".format(self.name, hour), 0)
             self.e_boilergas[hour] = E_boilergas
 
         return E_boilergas
@@ -269,7 +269,7 @@ class Boiler(object):
         try:
             Q_boiler = self.q_boiler[hour]
         except KeyError:
-            Q_boiler = LpVariable("Q_boiler{}_hour{}".format(self.name, hour), 0)
+            Q_boiler = LpVariable("Q_boiler_{}_hour{}".format(self.name, hour), 0)
             self.q_boiler[hour] = Q_boiler
 
         return Q_boiler
@@ -280,7 +280,7 @@ class Boiler(object):
         except KeyError:
             Q_boiler_aux = []
             for i in range(len(self.xmax_boiler)):
-                var = LpVariable("Q_boiler{}_hour{}_aux{}".format(self.name, hour, i), 0, self.xmax_boiler[i] - self.xmin_boiler[i])
+                var = LpVariable("Q_boiler_{}_hour{}_aux{}".format(self.name, hour, i), 0, self.xmax_boiler[i] - self.xmin_boiler[i])
                 Q_boiler_aux.append(var)
 
             self.q_boiler_aux[hour] = Q_boiler_aux
@@ -295,7 +295,7 @@ class Boiler(object):
 
         constraints = []
 
-        label = "BoilerGasConsume{}_{}".format(self.name, hour)
+        label = "BoilerGasConsume_{}_{}".format(self.name, hour)
         exp = E_boilergas
         for a, q_boil in zip(self.a_boiler, Q_boiler_aux):
             exp = exp - a * q_boil
@@ -303,7 +303,7 @@ class Boiler(object):
         exp = exp == 0
         constraints.append((exp, label))
 
-        label = "BoilerHeatGenerate{}_{}".format(self.name, hour)
+        label = "BoilerHeatGenerate_{}_{}".format(self.name, hour)
         exp = Q_boiler
         for q in Q_boiler_aux:
             exp = exp - q
@@ -311,11 +311,11 @@ class Boiler(object):
         exp = exp == 0
         constraints.append((exp, label))
 
-        label = "BoilerQlower{}_{}".format(self.name, hour)
+        label = "BoilerQlower_{}_{}".format(self.name, hour)
         exp = Q_boiler - self.xmin_boiler[0] * Sboiler >= 0
         constraints.append((exp, label))
 
-        label = "BoilerQupper{}_{}".format(self.name, hour)
+        label = "BoilerQupper_{}_{}".format(self.name, hour)
         exp = Q_boiler - self.xmax_boiler[-1] * Sboiler <= 0
         constraints.append((exp, label))
 
@@ -350,7 +350,7 @@ class PrimeMover(object):
         try:
             Sturbine = self.state_variable[hour]
         except KeyError:
-            Sturbine = binary_var("Sturbine{}_hour{}".format(self.name, hour))
+            Sturbine = binary_var("Sturbine_{}_hour{}".format(self.name, hour))
             self.state_variable[hour] = Sturbine
 
         return Sturbine
@@ -359,7 +359,7 @@ class PrimeMover(object):
         try:
             E_prime_mover_fuel = self.e_prime_mover_fuel[hour]
         except KeyError:
-            E_prime_mover_fuel = LpVariable("E_prime_mover_fuel{}_hour{}".format(self.name, hour), xmin_boiler[0])
+            E_prime_mover_fuel = LpVariable("E_prime_mover_fuel_{}_hour{}".format(self.name, hour), xmin_boiler[0])
             self.e_prime_mover_fuel[hour] = E_prime_mover_fuel
 
         return E_prime_mover_fuel
@@ -368,7 +368,7 @@ class PrimeMover(object):
         try:
             Q_prime_mover = self.q_prime_mover[hour]
         except KeyError:
-            Q_prime_mover = LpVariable("Q_prime_mover{}_hour{}".format(self.name, hour), 0)
+            Q_prime_mover = LpVariable("Q_prime_mover_{}_hour{}".format(self.name, hour), 0)
             self.q_prime_mover[hour] = Q_prime_mover
 
         return Q_prime_mover
@@ -377,7 +377,7 @@ class PrimeMover(object):
         try:
             E_prime_mover_elec = self.e_prime_mover_elec[hour]
         except KeyError:
-            E_prime_mover_elec = LpVariable("E_prime_mover_elec{}_hour{}".format(self.name, hour), 0)
+            E_prime_mover_elec = LpVariable("E_prime_mover_elec_{}_hour{}".format(self.name, hour), 0)
             self.e_prime_mover_elec[hour] = E_prime_mover_elec
 
         return E_prime_mover_elec
@@ -386,7 +386,7 @@ class PrimeMover(object):
         try:
             E_prime_mover_elec_aux = self.e_prime_mover_elec_aux[hour]
         except KeyError:
-            E_prime_mover_elec_aux = LpVariable("E_prime_mover_elec{}_hour{}_aux{}".format(self.name, hour, 1), 0, self.xmax_prime_mover - self.xmin_prime_mover)
+            E_prime_mover_elec_aux = LpVariable("E_prime_mover_elec_{}_hour{}_aux{}".format(self.name, hour, 1), 0, self.xmax_prime_mover - self.xmin_prime_mover)
             self.e_prime_mover_elec_aux[hour] = E_prime_mover_elec_aux
 
         return E_prime_mover_elec_aux
@@ -401,25 +401,25 @@ class PrimeMover(object):
         constraints = []
 
         # generator gas
-        label = "PrimeMoverFuelConsume{}_{}".format(self.name, hour)
+        label = "PrimeMoverFuelConsume_{}_{}".format(self.name, hour)
         exp = E_prime_mover_fuel - self.a_E_primer_mover * E_prime_mover_elec_aux - self.b_E_prime_mover * Sturbine == 0
         constraints.append((exp, label))
 
         # generator heat
-        label = "PrimeMoverHeatGenerate{}_{}".format(self.name, hour)
+        label = "PrimeMoverHeatGenerate_{}_{}".format(self.name, hour)
         exp = Q_prime_mover - self.a_Q_primer_mover * E_prime_mover_elec_aux - self.b_Q_primer_mover * Sturbine == 0
         constraints.append((exp, label))
 
         # microturbine elec
-        label = "PrimeMoverElecGenerate{}_{}".format(self.name, hour)
+        label = "PrimeMoverElecGenerate_{}_{}".format(self.name, hour)
         exp = E_prime_mover_elec - E_prime_mover_elec_aux - self.xmin_prime_mover * Sturbine == 0
         constraints.append((exp, label))
 
-        label = "PrimeMoverElower{}_{}".format(self.name, hour)
+        label = "PrimeMoverElower_{}_{}".format(self.name, hour)
         exp = E_prime_mover_elec - self.xmin_prime_mover * Sturbine >= 0
         constraints.append((exp, label))
 
-        label = "PrimeMoverEupper{}_{}".format(self.name, hour)
+        label = "PrimeMoverEupper_{}_{}".format(self.name, hour)
         exp = E_prime_mover_elec - self.xmax_prime_mover * Sturbine <= 0
         constraints.append((exp, label))
 
@@ -442,8 +442,8 @@ def get_optimization_problem(forecast, parameters = {}):
     # prime mover (fuel cell/micro turbine generator)
     prime_movers = []
     for i, (name, parameters) in enumerate(fuel_cell_params.items()):
-        mat_prime_mover = parameters["mat_prime_mover"]
-        cap_prime_mover = parameters["cap_prime_mover"]
+        mat_prime_mover = parameters["mat"]
+        cap_prime_mover = parameters["cap"]
 
         xmin_prime_mover = cap_prime_mover * 0.3
         a_E_primer_mover = mat_prime_mover[1]
@@ -468,10 +468,10 @@ def get_optimization_problem(forecast, parameters = {}):
 
     boilers = []
     for i, (name, parameters) in enumerate(boiler_params.items()):
-        mat_boiler = parameters["mat_boiler"]
-        xmax_boiler =  parameters["xmax_boiler"]
-        xmin_boiler =  parameters["xmin_boiler"]
-        cap_boiler = parameters["cap_boiler"]
+        mat_boiler = parameters["mat"]
+        xmax_boiler =  parameters["xmax"]
+        xmin_boiler =  parameters["xmin"]
+        cap_boiler = parameters["cap"]
         xmin_boiler[0] = cap_boiler * 0.15 # !!!need to consider cases when xmin is not in the first section of the training data
         Nsection = np.where(xmax_boiler > cap_boiler)[0][0]
         Nsection = Nsection + 1
@@ -490,12 +490,11 @@ def get_optimization_problem(forecast, parameters = {}):
 
     chillers_igv = []
     for i, (name, parameters) in enumerate(centrifugal_chiller_igv_params.items()):
-        mat_chillerIGV = parameters["mat_chillerIGV"]
-        xmax_chillerIGV = parameters["xmax_chillerIGV"]
-        xmin_chillerIGV = parameters["xmin_chillerIGV"]
-        cap_chiller = parameters["capacity_per_chiller"]
+        mat_chillerIGV = parameters["mat"]
+        xmax_chillerIGV = parameters["xmax"]
+        xmin_chillerIGV = parameters["xmin"]
+        cap_chiller = parameters["cap"]
         cap_chiller = cap_chiller * 3.517 / 293.1  # ton -> mmBtu/hr
-        n_chiller = parameters["chiller_count"]
 
         xmin_chiller = cap_chiller * 0.15
         a_chiller = mat_chillerIGV[1] + i * 0.01
@@ -511,13 +510,13 @@ def get_optimization_problem(forecast, parameters = {}):
 
     absorption_chillers = []
     for i, (name, parameters) in enumerate(absorption_chiller_params.items()):
-        mat_abschiller = parameters["mat_abschiller"]
-        xmax_abschiller = parameters["xmax_abschiller"]
-        xmin_abschiller = parameters["xmin_abschiller"]
-        min_on_abs_chiller = parameters.get("min_on_abs_chiller", 3)
-        min_off_abs_chiller = parameters.get("min_off_abs_chiller", 0)
-        abs_chiller_history = parameters["abs_chiller_history"]
-        cap_abs = parameters["cap_abs_chiller"]
+        mat_abschiller = parameters["mat"]
+        xmax_abschiller = parameters["xmax"]
+        xmin_abschiller = parameters["xmin"]
+        min_on_abs_chiller = parameters.get("min_on", 3)
+        min_off_abs_chiller = parameters.get("min_off", 0)
+        abs_chiller_history = parameters["command_history"]
+        cap_abs = parameters["cap"]
         cap_abs = cap_abs / 293.1  # kW -> mmBtu/hr
 
         xmin_AbsChiller = cap_abs * 0.15

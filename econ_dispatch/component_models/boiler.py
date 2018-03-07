@@ -97,7 +97,7 @@ class Component(ComponentBase):
         return [u"natural_gas"]
 
     def get_commands(self, component_loads):
-        return {"command":(component_loads["Q_boiler{}_hour00".format(self.name)]>0.0)}
+        return {"command":(component_loads["Q_boiler_{}_hour00".format(self.name)]>0.0)}
 
     def train(self, training_data):
         historical_Qbp = training_data["heat_output"]
@@ -136,10 +136,10 @@ class Component(ComponentBase):
         mat_boiler[0][1] = y1 - mat_boiler[1][1] * x1
 
         self.parameters = {
-                                "xmin_boiler": xmin_boiler.tolist(),
-                                "xmax_boiler": xmax_boiler.tolist(),
-                                "mat_boiler": mat_boiler.tolist(),
-                                "capacity": self.capacity
+                                "xmin": xmin_boiler.tolist(),
+                                "xmax": xmax_boiler.tolist(),
+                                "mat": mat_boiler.tolist(),
+                                "cap": self.capacity
                           }
 
     # def update_parameters(self, timestamp, inputs):

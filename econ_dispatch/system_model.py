@@ -209,6 +209,7 @@ class SystemModel(object):
         forecasts = self.get_forecasts(now)
         parameters = self.get_parameters(now, inputs)
         component_loads = self.run_general_optimizer(now, forecasts, parameters)
+        _log.debug("Loads: {}".format(pformat(component_loads)))
         commands = self.get_commands(component_loads)
 
         return commands

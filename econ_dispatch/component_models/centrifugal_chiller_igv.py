@@ -123,7 +123,7 @@ class Component(ComponentBase):
             "mat": m_ChillerIGV.tolist(),
             "xmax": xmax_ChillerIGV,
             "xmin": xmin_ChillerIGV,
-            "capacity": self.capacity
+            "cap": self.capacity
         }
 
     # def get_optimization_parameters(self):

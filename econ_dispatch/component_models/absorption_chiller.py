@@ -80,7 +80,7 @@ class Component(ComponentBase):
     def __init__(self, capacity=464.0, min_off=0, min_on=0, **kwargs):
         super(Component, self).__init__(**kwargs)
         #Chilled water temperature setpoint outlet from absorption chiller
-        #self.Tcho = DEFAULT_TCHO
+        self.Tcho = DEFAULT_TCHO
 
         # Condenser water temperature inlet temperature to absorption chiller from heat rejection in F
         #self.Tcdi = DEFAULT_TCDI
@@ -92,7 +92,7 @@ class Component(ComponentBase):
         #self.Qin = DEFAULT_QIN
 
         # Chilled water return temperature.
-        #self.Tchr = DEFAULT_TCHR
+        self.Tchr = DEFAULT_TCHR
 
         self.capacity = float(capacity)
 
@@ -132,7 +132,7 @@ class Component(ComponentBase):
         return [u"heat"]
 
     def get_commands(self, component_loads):
-        abs_chller_load_mmBTU = component_loads["Q_abs{}_hour00".format(self.name)]
+        abs_chller_load_mmBTU = component_loads["Q_abs_{}_hour00".format(self.name)]
         abs_chiller_load_kW = abs_chller_load_mmBTU*1000/3.412
         mass_flow_rate_abs =  abs_chiller_load_kW / (SPECIFIC_HEAT_WATER*(self.Tchr-self.Tcho))
         vol_flow_rate_setpoint_abs = mass_flow_rate_abs / DENSITY_WATER
@@ -159,7 +159,7 @@ class Component(ComponentBase):
             "xmax": xmax_AbsChiller,
             "xmin": xmin_AbsChiller,
             "mat": m_AbsChiller.tolist(),
-            "capacity": self.capacity,
+            "cap": self.capacity,
             "min_on": self.min_on,
             "min_off": self.min_off,
             "command_history": self.command_history
