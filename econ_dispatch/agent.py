@@ -124,7 +124,7 @@ class EconDispatchAgent(Agent):
         self.model = None
         self.make_reservations = make_reservations
         self.training_frequency = training_frequency
-        self.input_topics = []
+        self.input_topics = set()
         self.inputs = {}
 
         # master is where we copy from to get a poppable list of
@@ -181,8 +181,8 @@ class EconDispatchAgent(Agent):
                                              optimizer_csv_filename)
 
         self.input_topics = self.model.get_component_input_topics()
-        all_topics = self._create_all_topics(self.input_topics)
-        self._create_subscriptions(all_topics)
+        self.all_topics = self._create_all_topics(self.input_topics)
+        self._create_subscriptions(self.all_topics)
 
     def _create_subscriptions(self, all_topics):
         # Un-subscribe from everything.
@@ -213,172 +213,17 @@ class EconDispatchAgent(Agent):
             if topic in self.input_topics:
                 self.inputs[topic] = value
 
+        commands = {}
         if self.inputs:
-            self.model.process_inputs(self.inputs)
+            timestamp = utils.parse_timestamp_string(headers[headers_mod.TIMESTAMP])
+            commands = self.model.run(timestamp, self.inputs)
 
-    @Core.receiver('onstart')
-    def startup(self, sender, **kwargs):
-        """
-        Starts up the agent and subscribes to device topics
-        based on agent configuration.
-        :param sender:
-        :param kwargs: Any driver specific parameters
-        :type sender: str"""
-        self._initialize_devices()
-        for device_topic in device_topic_dict:
-            _log.debug('Subscribing to ' + device_topic)
-            self.vip.pubsub.subscribe(peer='pubsub',
-                                      prefix=device_topic,
-                                      callback=self.on_analysis_message)
-
-    def _should_run_now(self):
-        """
-        Checks if messages from all the devices are received
-            before running application
-        :returns: True or False based on received messages.
-        :rtype: boolean"""
-        # Assumes the unit/all values will have values.
-        if not len(self._device_values.keys()) > 0:
-            return False
-        return not len(self._needed_devices) > 0
-
-    def on_analysis_message(self, peer, sender, bus, topic, headers, message):
-        """
-        Subscribe to device data and assemble data set to pass
-            to applications.
-        :param peer:
-        :param sender: device name
-        :param bus:
-        :param topic: device path topic
-        :param headers: message headers
-        :param message: message containing points and values dict
-                from device with point type
-        :type peer: str
-        :type sender: str
-        :type bus: str
-        :type topic: str
-        :type headers: dict
-        :type message: dict"""
-
-        device_data = message[0]
-        if isinstance(device_data, list):
-            device_data = device_data[0]
-
-        def aggregate_subdevice(device_data):
-            tagged_device_data = {}
-            device_tag = device_topic_dict[topic]
-            if device_tag not in self._needed_devices:
-                return False
-            for key, value in device_data.items():
-                device_data_tag = '&'.join([key, device_tag])
-                tagged_device_data[device_data_tag] = value
-            self._device_values.update(tagged_device_data)
-            self._needed_devices.remove(device_tag)
-            return True
-
-        device_needed = aggregate_subdevice(device_data)
-        if not device_needed:
-            _log.error("Warning device values already present, "
-                       "reinitializing")
-
-        if self._should_run_now():
-            field_names = {}
-            for k, v in self._device_values.items():
-                field_names[k.lower() if isinstance(k, str) else k] = v
-
-            _timestamp = utils.parse_timestamp_string(headers[headers_mod.TIMESTAMP])
-            self.received_input_datetime = _timestamp
-
-            device_data = field_names
-            results = app_instance.run(_timestamp, device_data)
-            # results = app_instance.run(
-            # dateutil.parser.parse(self._subdevice_values['Timestamp'],
-            #                       fuzzy=True), self._subdevice_values)
-            self._process_results(_timestamp, results)
-            self._initialize_devices()
-        else:
-            _log.info("Still need {} before running.".format(self._needed_devices))
-
-    def _process_results(self, timestamp, results):
-        """
-        Runs driven application with converted data. Calls appropriate
-            methods to process commands, log and table_data in results.
-        :param results: Results object containing commands for devices,
-                log messages and table data.
-        :type results: Results object \\volttron.platform.agent.driven
-        :returns: Same as results param.
-        :rtype: Results object \\volttron.platform.agent.driven"""
-
-        topic_value = self.create_topic_values(results)
-
-        _log.debug('Processing Results!')
-        if mode:
-            _log.debug("ACTUATE ON DEVICE.")
-            actuator_error = False
-            if make_reservations and results.devices:
-                results, actuator_error = self.actuator_request(results)
-            if not actuator_error:
-                self.actuator_set(topic_value)
-            if make_reservations and results.devices and not actuator_error:
-                self.actuator_cancel()
-
-        for value in results.log_messages:
-            _log.debug("LOG: {}".format(value))
-        for key, value in results.table_output.items():
-            _log.debug("TABLE: {}->{}".format(key, value))
-        if output_file_prefix is not None:
-            results = self.create_file_output(results)
-        if command_output_file is not None:
-            self.create_command_file_output(timestamp, topic_value)
-        # if len(results.table_output.keys()):
-        #     results = self.publish_analysis_results(results)
-        return results
+            if self.reserve_actuator(commands):
+                self.actuator_set(commands)
+            self.reserve_actuator_cancel()
 
 
-    def create_command_file_output(self, timestamp, topic_value):
-        if not topic_value:
-            return
-
-        if self._command_output_csv is None:
-            field_names = ["timestamp"] + list(topic_value.keys())
-            self._command_output_csv = csv.DictWriter(command_output_file, field_names)
-            self._command_output_csv.writeheader()
-
-        tv_copy = topic_value.copy()
-        tv_copy["timestamp"] = utils.format_timestamp(timestamp)
-        self._command_output_csv.writerow(tv_copy)
-
-    def create_file_output(self, results):
-        """
-        Create results/data files for testing and algorithm validation
-        if table data is present in the results.
-
-        :param results: Results object containing commands for devices,
-                log messages and table data.
-        :type results: Results object \\volttron.platform.agent.driven
-        :returns: Same as results param.
-        :rtype: Results object \\volttron.platform.agent.driven"""
-        for key, value in results.table_output.items():
-            name_timestamp = key.split('&')
-            _name = name_timestamp[0]
-            timestamp = name_timestamp[1]
-            file_name = output_file_prefix + "-" + _name + ".csv"
-            if file_name not in self.file_creation_set:
-                self._header_written = False
-            self.file_creation_set.update([file_name])
-            for row in value:
-                with open(file_name, 'a+') as file_to_write:
-                    row.update({'Timestamp': timestamp})
-                    _keys = row.keys()
-                    file_output = csv.DictWriter(file_to_write, _keys)
-                    if not self._header_written:
-                        file_output.writeheader()
-                        self._header_written = True
-                    file_output.writerow(row)
-                file_to_write.close()
-        return results
-
-    def actuator_request(self, results):
+    def reserve_actuator(self, topic_values):
         """
         Calls the actuator's request_new_schedule method to get
                 device schedule
@@ -399,40 +244,48 @@ class EconDispatchAgent(Agent):
         warning:: Calling without previously scheduling a device and not within
                      the time allotted will raise a LockError"""
 
+        if self.make_reservations:
+            return True
+
+        success = True
+
         _now = dt.now()
         str_now = _now.strftime(DATE_FORMAT)
         _end = _now + td(minutes=1)
         str_end = _end.strftime(DATE_FORMAT)
-        schedule_request = []
-        for _device in results.devices:
-            actuation_device = base_actuator_path(unit=_device, point='')
-            schedule_request.append([actuation_device, str_now, str_end])
+        schedule_request = set()
+        for topic in topic_values:
+            actuation_device, _ = topic.rsplit('/', 1)
+            schedule_request.add([actuation_device, str_now, str_end])
+
+        schedule_request = list(schedule_request)
 
         try:
             result = self.vip.rpc.call('platform.actuator',
                                        'request_new_schedule',
-                                       "", "driven.agent.write", 'HIGH',
+                                       "", "econ_dispatch", 'HIGH',
                                        schedule_request).get(timeout=4)
         except RemoteError as ex:
-            _log.warning("Failed to schedule device {} (RemoteError): {}".format(_device, str(ex)))
-            request_error = True
+            _log.warning("Failed to create actuator (RemoteError): {}".format(str(ex)))
 
         if result['result'] == 'FAILURE':
             if result['info'] =='TASK_ID_ALREADY_EXISTS':
-                _log.info('Task to schedule device already exists ' + _device)
-                request_error = False
+                _log.info('Task to schedule device already exists')
+                success = True
             else:
-                _log.warn('Failed to schedule device (unavailable) ' + _device)
-                request_error = True
-        else:
-            request_error = False
+                _log.warn('Failed to schedule devices (unavailable)')
+                success = False
 
-        return results, request_error
+        return success
 
-    def actuator_cancel(self):
-        self.vip.rpc.call('platform.actuator',
-                           'request_cancel_schedule',
-                           "", "driven.agent.write").get(timeout=4)
+    def reserve_actuator_cancel(self):
+        if self.make_reservations:
+            try:
+                self.vip.rpc.call('platform.actuator',
+                                   'request_cancel_schedule',
+                                   "", "econ_dispatch").get(timeout=4)
+            except RemoteError as ex:
+                _log.warning("Failed to cancel schedule (RemoteError): {}".format(str(ex)))
 
     def actuator_set(self, topic_values):
         """
@@ -449,13 +302,7 @@ class EconDispatchAgent(Agent):
         for topic, ex in result.iteritems():
             _log.warning("Failed to set {}: {}".format(topic, str(ex)))
 
-    def create_topic_values(self, results):
-        topic_values = {}
-        for device, point_value_dict in results.devices.items():
-            for point, new_value in point_value_dict.items():
-                point_path = base_actuator_path(unit=device, point=point)
-                topic_values[str(point_path)] = new_value
-        return topic_values
+
 
 
 
