@@ -213,14 +213,13 @@ class EconDispatchAgent(Agent):
             if topic in self.input_topics:
                 self.inputs[topic] = value
 
-        commands = {}
         if self.inputs:
             timestamp = utils.parse_timestamp_string(headers[headers_mod.TIMESTAMP])
             commands = self.model.run(timestamp, self.inputs)
 
-            if self.reserve_actuator(commands):
+            if commands and self.reserve_actuator(commands):
                 self.actuator_set(commands)
-            self.reserve_actuator_cancel()
+                self.reserve_actuator_cancel()
 
 
     def reserve_actuator(self, topic_values):
@@ -244,10 +243,10 @@ class EconDispatchAgent(Agent):
         warning:: Calling without previously scheduling a device and not within
                      the time allotted will raise a LockError"""
 
-        if self.make_reservations:
-            return True
-
         success = True
+
+        if not self.make_reservations:
+            return success
 
         _now = dt.now()
         str_now = _now.strftime(DATE_FORMAT)
@@ -256,7 +255,7 @@ class EconDispatchAgent(Agent):
         schedule_request = set()
         for topic in topic_values:
             actuation_device, _ = topic.rsplit('/', 1)
-            schedule_request.add([actuation_device, str_now, str_end])
+            schedule_request.add((actuation_device, str_now, str_end))
 
         schedule_request = list(schedule_request)
 
@@ -266,7 +265,8 @@ class EconDispatchAgent(Agent):
                                        "", "econ_dispatch", 'HIGH',
                                        schedule_request).get(timeout=4)
         except RemoteError as ex:
-            _log.warning("Failed to create actuator (RemoteError): {}".format(str(ex)))
+            _log.warning("Failed to create actuator schedule (RemoteError): {}".format(str(ex)))
+            return False
 
         if result['result'] == 'FAILURE':
             if result['info'] =='TASK_ID_ALREADY_EXISTS':
