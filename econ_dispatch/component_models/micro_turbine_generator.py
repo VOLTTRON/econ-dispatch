@@ -80,7 +80,12 @@ class Coefs(object):
 
 
 class Component(ComponentBase):
-    def __init__(self, **kwargs):
+    def __init__(self,
+                 capacity=None,
+                 fuel_lhv=50144.0,
+                 temp_derate_threshold=None,
+                 temp_derate=None,
+                 **kwargs):
         super(Component, self).__init__(**kwargs)
 
         # training_data = os.path.join(os.path.dirname(__file__), 'CapstoneTurndownData.json')
@@ -92,14 +97,16 @@ class Component(ComponentBase):
         # FuelFlow = np.array(capstone_turndown_data['FuelFlow'])
         # AirFlow = np.array(capstone_turndown_data['AirFlow'])
         self.coef = Coefs()
-        self.coef.NominalPower = 60.0 # TODO: Setting (call it capacity)
-        self.coef.Fuel_LHV = 50144.0 # TODO: Setting default to 50144.0
-        self.coef.TempDerateThreshold = 15.556 #from product specification sheet # TODO: Setting
-        self.coef.TempDerate = 0.12 # (#/C) from product specification sheet # TODO: Setting
+        self.coef.NominalPower = float(capacity) # Capacity must be included
+        self.coef.Fuel_LHV = float(fuel_lhv)
+        self.coef.TempDerateThreshold = float(temp_derate_threshold) #from product specification sheet
+        self.coef.TempDerate = float(temp_derate) # (#/C) from product specification sheet
         #self.coef.Maintenance = 3.0 # in percent/year # Too far into the weeds - Nick
         self.coef.HeatLoss = 2.0 / 3.0 # Calculated later
         self.coef.Eff = np.array([-0.2065, 0.3793, 0.1043]) # Calculated later
-        self.coef.FlowOut = np.array([-65.85, 164.5])
+        self.coef.FlowOut = np.array([-65.85, 164.5]) # Calculated later
+
+        self.parameters["cap"] = self.coef.NominalPower
 
 
     def get_output_metadata(self):
@@ -117,15 +124,21 @@ class Component(ComponentBase):
     #     AirFlow, FuelFlow, Tout, Efficiency = self.GasTurbine_Operate(self.Pdemand, self.Temperature, 0, self.coef)
     #     return {"efficiency":Efficiency}
 
+    def validate_parameters(self):
+        """
+        Returns true if parameters exist for this component. False otherwise.
+        """
+        return "mat" in self.parameters
+
     def get_mapped_commands(self, component_loads):
         return {"set_point":
                 component_loads["Q_prime_mover_{}_hour00".format(self.name)] * 293.1}
 
     def train(self, training_data):
-        Power = training_data['Power']
-        Temperature = training_data['Temperature'] - 273
-        FuelFlow = training_data['FuelFlow']
-        AirFlow = training_data['AirFlow']
+        Power = training_data['power']
+        Temperature = training_data['temperature'] - 273
+        FuelFlow = training_data['fuel_flow']
+        AirFlow = training_data['air_flow']
         Time = np.array([])
         self.coef = self.GasTurbine_Calibrate(self.coef, Time, Power, Temperature, FuelFlow, AirFlow, [])
         AirFlow, FuelFlow, Tout, Efficiency = self.GasTurbine_Operate(Power, Temperature, 0, self.coef)
@@ -146,7 +159,7 @@ class Component(ComponentBase):
             "mat": mat.tolist(),
             "xmax": xmax,
             "xmin": xmin,
-            "cap": self.capacity
+            "cap": self.coef.NominalPower
         }
 
     def GasTurbine_Operate(self, Power, Tin, NetHours, Coef):
