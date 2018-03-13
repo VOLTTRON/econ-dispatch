@@ -217,11 +217,11 @@ class SystemModel(object):
 
         return forecasts
 
-    def process_inputs(self, inputs):
+    def process_inputs(self, now, inputs):
         _log.debug("Updating Components")
         _log.debug("Inputs:\n"+pformat(inputs))
         for component in self.instance_map.itervalues():
-            component.process_inputs(inputs)
+            component.process_inputs(now, inputs)
 
     def run_general_optimizer(self, now, predicted_loads, parameters):
         _log.debug("Running General Optimizer")

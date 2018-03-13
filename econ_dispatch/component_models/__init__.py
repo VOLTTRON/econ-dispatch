@@ -134,7 +134,7 @@ class ComponentBase(object):
         """
         return {}
 
-    def process_input(self, name, value):
+    def process_input(self, timestamp, name, value):
         """Override this to process input data from the platform.
         Components will typically want the current state of the device they
         represent as input.
@@ -177,12 +177,12 @@ class ComponentBase(object):
 
         return results
 
-    def process_inputs(self, inputs):
+    def process_inputs(self, now, inputs):
         for topic, input_name in self.input_map.iteritems():
             value = inputs.get(topic)
             if value is not None:
                 _log.debug("{} processing input from topic {}".format(self.name, topic))
-                self.process_input(input_name, value)
+                self.process_input(now, input_name, value)
 
     def get_optimization_parameters(self):
         """Get the current parameters of the component for the optimizer.
