@@ -45,8 +45,8 @@ def csv_file_fix(file_obj):
 
 def historian_data_fix(data):
     results = {}
-    for key, values in data:
-        time_stamps = pd.to_datetime(x[0] for x in values).floor("1min")
+    for key, values in data.iteritems():
+        time_stamps = pd.to_datetime([x[0] for x in values]).floor("1min")
         readings = pd.Series((x[1] for x in values), index=time_stamps)
 
         results[key] = readings
@@ -54,6 +54,8 @@ def historian_data_fix(data):
     df = pd.DataFrame(results).dropna()
 
     results = {k: df[k].values for k in data}
+
+    results["timestamp"] = df.index.values
 
     return results
         
