@@ -63,6 +63,10 @@ import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
 from econ_dispatch.utils import least_squares_regression
+import logging
+
+
+_log = logging.getLogger(__name__)
 
 class Coefs(object):
     pass
@@ -131,8 +135,12 @@ class Component(ComponentBase):
         return "mat" in self.parameters
 
     def get_mapped_commands(self, component_loads):
-        return {"set_point":
-                component_loads["Q_prime_mover_{}_hour00".format(self.name)] * 293.1}
+        try:
+            load = component_loads["Q_prime_mover_{}_hour00".format(self.name)]
+        except KeyError:
+            _log.warning("micro turbine generator load missing from optimizer output")
+            return {}
+        return {"set_point": load * 293.1}
 
     def train(self, training_data):
         Power = training_data['power']
@@ -140,7 +148,7 @@ class Component(ComponentBase):
         FuelFlow = training_data['fuel_flow']
         AirFlow = training_data['air_flow']
         Time = np.array([])
-        self.coef = self.GasTurbine_Calibrate(self.coef, Time, Power, Temperature, FuelFlow, AirFlow, [])
+        self.coef = self.GasTurbine_Calibrate(self.coef, Time, Power, Temperature, FuelFlow, AirFlow, np.array([]))
         AirFlow, FuelFlow, Tout, Efficiency = self.GasTurbine_Operate(Power, Temperature, 0, self.coef)
 
         sort_indexes = np.argsort(Power)
@@ -168,7 +176,8 @@ class Component(ComponentBase):
         #Net Hours in hours since last maintenance event
         Tderate = Coef.TempDerate / 100.0 * (Tin - Coef.TempDerateThreshold)
         Tderate[Tderate < 0] = 0
-        MaintenanceDerate = NetHours / 8760.0 * Coef.Maintenance / 100#efficiency scales linearly with hours since last maintenance.
+        # MaintenanceDerate = NetHours / 8760.0 * Coef.Maintenance / 100#efficiency scales linearly with hours since last maintenance.
+        MaintenanceDerate = 0
         Pnorm = Power / Coef.NominalPower
 
         Efficiency = (Coef.Eff[0] * Pnorm**2 + Coef.Eff[1] * Pnorm + Coef.Eff[2]) - Tderate - MaintenanceDerate
@@ -261,16 +270,16 @@ class Component(ComponentBase):
         # efficiency of gas turbine before generator conversion
         Coef.Eff = np.polyfit(Power/Coef.NominalPower, Eff, 2)
 
-        if AirFlow:
+        if AirFlow.size > 0:
             Coef.FlowOut = np.polyfit(Power / Coef.NominalPower, AirFlow / FuelFlow, 1)
-        elif ExhaustTemperature: #assume a heat loss and calculate air mass flow
+        elif ExhaustTemperature.size > 0: #assume a heat loss and calculate air mass flow
             AirFlow = (FuelFlow * Coef.Fuel_LHV - 1.667 * Power) / (1.1 * (ExhaustTemperature - Temperature))
             Coef.FlowOut = np.polyfit(Power / Coef.NominalPower, AirFlow/FuelFlow, 1)
         else:
             # assume a flow rate
             Coef.FlowOut = np.array([-65.85, 164.5])
 
-        if ExhaustTemperature:
+        if ExhaustTemperature.size > 0:
             # flow rate in kg/s with a specific heat of 1.1kJ/kg*K
             Coef.HeatLoss =  np.mean(((FuelFlow * Coef.Fuel_LHV - Power) - (ExhaustTemperature - Temperature) * 1.1 * AirFlow) / Power)
         else:

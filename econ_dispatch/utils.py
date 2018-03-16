@@ -38,7 +38,11 @@ def records_fix(data):
     return results
 
 def csv_file_fix(file_obj):
-    df = pd.read_csv(file_obj, header=0)
+    try:
+        df = pd.read_csv(file_obj, header=0, parse_dates=["timestamp"])
+    except ValueError:
+        #Retry if we don't have a timestamp column.
+        df = pd.read_csv(file_obj, header=0)
     results = {k: df[k].values for k in df}
     return results
 
