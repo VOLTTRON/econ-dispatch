@@ -62,37 +62,56 @@ import os
 import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
+from econ_dispatch.utils import least_squares_regression
+import logging
+
+
+_log = logging.getLogger(__name__)
 
 class Coefs(object):
     pass
 
-Coef = Coefs()
-Coef.NominalPower = 60.0
-Coef.Fuel_LHV = 50144.0
-Coef.TempDerateThreshold = 15.556 #from product specification sheet
-Coef.TempDerate = 0.12 # (#/C) from product specification sheet
-Coef.Maintenance = 3.0 # in percent/year
-Coef.HeatLoss = 2.0 / 3.0
-Coef.Eff = np.array([-0.2065, 0.3793, 0.1043])
-Coef.FlowOut = np.array([-65.85, 164.5])
+# Coef = Coefs()
+# Coef.NominalPower = 60.0
+# Coef.Fuel_LHV = 50144.0
+# Coef.TempDerateThreshold = 15.556 #from product specification sheet
+# Coef.TempDerate = 0.12 # (#/C) from product specification sheet
+# Coef.Maintenance = 3.0 # in percent/year
+# Coef.HeatLoss = 2.0 / 3.0
+# Coef.Eff = np.array([-0.2065, 0.3793, 0.1043])
+# Coef.FlowOut = np.array([-65.85, 164.5])
 
 
 
 class Component(ComponentBase):
-    def __init__(self, training_data_file=None, **kwargs):
-        global Coef
+    def __init__(self,
+                 capacity=None,
+                 fuel_lhv=50144.0,
+                 temp_derate_threshold=None,
+                 temp_derate=None,
+                 **kwargs):
         super(Component, self).__init__(**kwargs)
 
         # training_data = os.path.join(os.path.dirname(__file__), 'CapstoneTurndownData.json')
-        with open(training_data_file, 'r') as f:
-            capstone_turndown_data = json.load(f)
+        # with open(training_data_file, 'r') as f:
+        #     capstone_turndown_data = json.load(f)
+        #
+        # self.Pdemand = np.array(capstone_turndown_data['Pdemand'])
+        # self.Temperature = np.array(capstone_turndown_data['Temperature']) - 273
+        # FuelFlow = np.array(capstone_turndown_data['FuelFlow'])
+        # AirFlow = np.array(capstone_turndown_data['AirFlow'])
+        self.coef = Coefs()
+        self.coef.NominalPower = float(capacity) # Capacity must be included
+        self.coef.Fuel_LHV = float(fuel_lhv)
+        self.coef.TempDerateThreshold = float(temp_derate_threshold) #from product specification sheet
+        self.coef.TempDerate = float(temp_derate) # (#/C) from product specification sheet
+        #self.coef.Maintenance = 3.0 # in percent/year # Too far into the weeds - Nick
+        self.coef.HeatLoss = 2.0 / 3.0 # Calculated later
+        self.coef.Eff = np.array([-0.2065, 0.3793, 0.1043]) # Calculated later
+        self.coef.FlowOut = np.array([-65.85, 164.5]) # Calculated later
 
-        self.Pdemand = np.array(capstone_turndown_data['Pdemand'])
-        self.Temperature = np.array(capstone_turndown_data['Temperature']) - 273
-        FuelFlow = np.array(capstone_turndown_data['FuelFlow'])
-        AirFlow = np.array(capstone_turndown_data['AirFlow'])
-        Time = np.array([])
-        Coef = self.GasTurbine_Calibrate(Coef, Time, self.Pdemand, self.Temperature, FuelFlow, AirFlow, [])
+        self.parameters["cap"] = self.coef.NominalPower
+
 
     def get_output_metadata(self):
         return [u"electricity", u"waste_heat"]
@@ -100,17 +119,56 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return [u"natural_gas"]
 
-    def get_commands(self, component_loads):
-        return {self.name:
-                    {"fuel_cell_set_point":
-                         component_loads["Q_prime_mover_hour00"] * 293.1}}
+    # def get_commands(self, component_loads):
+    #     return {self.name:
+    #                 {"fuel_cell_set_point":
+    #                      component_loads["Q_prime_mover_hour00"] * 293.1}}
+    #
+    # def get_optimization_parameters(self):
+    #     AirFlow, FuelFlow, Tout, Efficiency = self.GasTurbine_Operate(self.Pdemand, self.Temperature, 0, self.coef)
+    #     return {"efficiency":Efficiency}
 
-    def get_optimization_parameters(self):
-        AirFlow, FuelFlow, Tout, Efficiency = self.GasTurbine_Operate(self.Pdemand, self.Temperature, 0, Coef)
-        return {"efficiency":Efficiency}
+    def validate_parameters(self):
+        """
+        Returns true if parameters exist for this component. False otherwise.
+        """
+        return "mat" in self.parameters
 
-    def update_parameters(self, timestamp, inputs):
-        pass
+    def get_mapped_commands(self, component_loads):
+        try:
+            load = component_loads["Q_prime_mover_{}_hour00".format(self.name)]
+        except KeyError:
+            _log.warning("micro turbine generator load missing from optimizer output")
+            return {}
+        return {"set_point": load * 293.1}
+
+    def train(self, training_data):
+        Power = training_data['power']
+        Temperature = training_data['temperature'] - 273
+        FuelFlow = training_data['fuel_flow']
+        AirFlow = training_data['air_flow']
+        Time = np.array([])
+        self.coef = self.GasTurbine_Calibrate(self.coef, Time, Power, Temperature, FuelFlow, AirFlow, np.array([]))
+        AirFlow, FuelFlow, Tout, Efficiency = self.GasTurbine_Operate(Power, Temperature, 0, self.coef)
+
+        sort_indexes = np.argsort(Power)
+        Xdata = Power[sort_indexes]
+        Ydata = FuelFlow[sort_indexes] * 171.11  # fuel: kg/s -> mmBtu/hr
+
+        xmin = min(Xdata)
+        xmax = max(Xdata)
+
+        n1 = np.nonzero(Xdata <= xmin + (xmax - xmin) * 0.3)[-1][-1]
+        n2 = np.nonzero(Xdata <= xmin + (xmax - xmin) * 0.6)[-1][-1]
+
+        mat = least_squares_regression(inputs=Xdata[n1:n2 + 1], output=Ydata[n1:n2 + 1])
+
+        self.parameters = {
+            "mat": mat.tolist(),
+            "xmax": xmax,
+            "xmin": xmin,
+            "cap": self.coef.NominalPower
+        }
 
     def GasTurbine_Operate(self, Power, Tin, NetHours, Coef):
         #Pdemand in kW
@@ -118,7 +176,8 @@ class Component(ComponentBase):
         #Net Hours in hours since last maintenance event
         Tderate = Coef.TempDerate / 100.0 * (Tin - Coef.TempDerateThreshold)
         Tderate[Tderate < 0] = 0
-        MaintenanceDerate = NetHours / 8760.0 * Coef.Maintenance / 100#efficiency scales linearly with hours since last maintenance.
+        # MaintenanceDerate = NetHours / 8760.0 * Coef.Maintenance / 100#efficiency scales linearly with hours since last maintenance.
+        MaintenanceDerate = 0
         Pnorm = Power / Coef.NominalPower
 
         Efficiency = (Coef.Eff[0] * Pnorm**2 + Coef.Eff[1] * Pnorm + Coef.Eff[2]) - Tderate - MaintenanceDerate
@@ -153,7 +212,7 @@ class Component(ComponentBase):
         try:
             Coef.Fuel_LHV
         except AttributeError:
-            Coef.Fuel_LHV = 50144 # Assume natural gas with Lower heating value of CH4 in kJ/kg
+            Coef.Fuel_LHV = 50144.0 # Assume natural gas with Lower heating value of CH4 in kJ/kg
 
         Eff = Power / (FuelFlow * Coef.Fuel_LHV)
         Eff = np.nan_to_num(Eff) # zero out any bad FuelFlow data
@@ -190,37 +249,37 @@ class Component(ComponentBase):
                 Coef.TempDerate = 0
 
         # This will not work if time is not passed
-        try:
-            Coef.Maintenance
-        except AttributeError:
-            valid = (Eff > 0) * (Eff < 0.5)
-            fit = np.polyfit(Time[valid]/8760, Eff[valid]*100, 1) #time in yrs, eff in %
-            Coef.Maintenance = -fit(1)
-
+        # try:
+        #     Coef.Maintenance
+        # except AttributeError:
+        #     valid = (Eff > 0) * (Eff < 0.5)
+        #     fit = np.polyfit(Time[valid]/8760, Eff[valid]*100, 1) #time in yrs, eff in %
+        #     Coef.Maintenance = -fit(1)
+        #
         Tderate = Coef.TempDerate * (Temperature - Coef.TempDerateThreshold)
         Tderate[Tderate < 0] = 0
-
-        if Time.size != 0:
-            MaintenanceDerate = Time / 8760.0 * Coef.Maintenance
-        else:
-            MaintenanceDerate = 0
+        #
+        # if Time.size != 0:
+        #     MaintenanceDerate = Time / 8760.0 * Coef.Maintenance
+        # else:
+        #     MaintenanceDerate = 0
 
         # remove temperature dependence from data prior to fit
-        Eff = Eff + Tderate / 100 + MaintenanceDerate / 100
+        Eff = Eff + Tderate / 100 #+ MaintenanceDerate / 100
 
         # efficiency of gas turbine before generator conversion
         Coef.Eff = np.polyfit(Power/Coef.NominalPower, Eff, 2)
 
-        if AirFlow.size != 0:
+        if AirFlow.size > 0:
             Coef.FlowOut = np.polyfit(Power / Coef.NominalPower, AirFlow / FuelFlow, 1)
-        elif ExhaustTemperature: #assume a heat loss and calculate air mass flow
+        elif ExhaustTemperature.size > 0: #assume a heat loss and calculate air mass flow
             AirFlow = (FuelFlow * Coef.Fuel_LHV - 1.667 * Power) / (1.1 * (ExhaustTemperature - Temperature))
             Coef.FlowOut = np.polyfit(Power / Coef.NominalPower, AirFlow/FuelFlow, 1)
         else:
             # assume a flow rate
-            Coef.FlowOut = 1
+            Coef.FlowOut = np.array([-65.85, 164.5])
 
-        if ExhaustTemperature != []:
+        if ExhaustTemperature.size > 0:
             # flow rate in kg/s with a specific heat of 1.1kJ/kg*K
             Coef.HeatLoss =  np.mean(((FuelFlow * Coef.Fuel_LHV - Power) - (ExhaustTemperature - Temperature) * 1.1 * AirFlow) / Power)
         else:

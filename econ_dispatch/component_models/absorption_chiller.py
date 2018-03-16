@@ -141,12 +141,8 @@ class Component(ComponentBase):
         return {"set_point":vol_flow_rate_setpoint_abs}
 
     def train(self, training_data):
-        historical_data = dict()
-        historical_data["Qin(MMBtu/h)"] = np.array(training_data["Qin(MMBtu/h)"])
-        historical_data["Qch(tons)"] = np.array(training_data["Qch(tons)"])
-
-        Qch = historical_data["Qch(tons)"] * (3.517 / 293.1) # chiller cooling output in mmBTU/hr (converted from cooling Tons)
-        Qin = historical_data["Qin(MMBtu/h)"] # chiller heat input in mmBTU/hr
+        Qch = training_data["Qch(tons)"] * (3.517 / 293.1) # chiller cooling output in mmBTU/hr (converted from cooling Tons)
+        Qin = training_data["Qin(MMBtu/h)"] # chiller heat input in mmBTU/hr
 
         n1 = np.nonzero(Qch < 8)[-1]
         Xdata = Qch[n1]

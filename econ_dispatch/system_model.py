@@ -56,20 +56,95 @@
 # }}}
 
 import logging
-
-import networkx as nx
-
+#import networkx as nx
 import datetime
-
 from pprint import pformat
-
 from collections import defaultdict
+from econ_dispatch.utils import normalize_training_data, OptimizerCSVOutput
+from econ_dispatch.component_models import get_component_class
+from econ_dispatch.forecast_models import get_forecast_model_class
+from econ_dispatch.optimizer import get_optimization_function
 
 _log = logging.getLogger(__name__)
 
+def build_model_from_config(weather_config,
+                            optimizer_config,
+                            component_configs,
+                            forecast_model_configs,
+                            optimization_frequency=60,
+                            optimizer_csv_filename=None):
+    _log.debug("Starting parse_config")
+
+    weather_type = weather_config["type"]
+
+    module = __import__("weather."+weather_type, globals(), locals(), ['Weather'], 1)
+    klass = module.Weather
+
+    weather_model = klass(**weather_config["settings"])
+
+    opt_func = get_optimization_function(optimizer_config)
+
+    optimization_frequency = datetime.timedelta(minutes=optimization_frequency)
+
+    optimizer_csv = None
+    if optimizer_csv_filename is not None:
+        optimizer_csv = OptimizerCSVOutput(optimizer_csv_filename)
+
+    system_model = SystemModel(opt_func, weather_model, optimization_frequency, optimizer_debug_csv=optimizer_csv)
+
+    for name, config_dict in forecast_model_configs.iteritems():
+        model_type = config_dict["type"]
+        forecast_model = get_forecast_model_class(name, model_type, **config_dict.get("settings",{}))
+        system_model.add_forecast_model(forecast_model, name)
+
+    for component_dict in component_configs:
+        klass_name = component_dict["type"]
+        component_name = component_dict["name"]
+        klass = get_component_class(klass_name)
+
+        if klass is None:
+            _log.error("No component of type: "+klass_name)
+            continue
+
+        try:
+            component = klass(name=component_name,
+                              default_parameters=component_dict.get("default_parameters", {}),
+                              training_window=component_dict.get("training_window", 365),
+                              training_sources=component_dict.get("training_sources", {}),
+                              inputs=component_dict.get("inputs", {}),
+                              outputs=component_dict.get("outputs", {}),
+                              **component_dict.get("settings", {}))
+        except Exception as e:
+            _log.exception("Error creating component " + klass_name)
+            continue
+
+        training_data = component_dict.get("initial_training_data")
+        if training_data is not None:
+            _log.info("Applying config supplied training data for {}".format(component_name))
+            training_data = normalize_training_data(training_data)
+            component.train(training_data)
+
+        if not component.parameters:
+            _log.warning("Component {} has no parameters after initialization.".format(component_name))
+
+        system_model.add_component(component, klass_name)
+
+    # connections = config["connections"]
+    # for output_component_name, input_component_name in connections:
+    #
+    #     _log.debug("Adding connection: {} -> {}".format(output_component_name, input_component_name))
+    #
+    #     try:
+    #         if not system_model.add_connection(output_component_name, input_component_name):
+    #             _log.error("No compatible outputs/inputs")
+    #     except Exception as e:
+    #         _log.error("Error adding connection: " + str(e))
+
+    return system_model
+
 class SystemModel(object):
     def __init__(self, optimizer, weather_model, optimization_frequency, optimizer_debug_csv=None):
-        self.component_graph = nx.MultiDiGraph()
+        #self.component_graph = nx.MultiDiGraph()
         self.instance_map = {}
         self.type_map = defaultdict(dict)
 
@@ -87,7 +162,7 @@ class SystemModel(object):
         self.forecast_models[name] = model
 
     def add_component(self, component, type_name):
-        self.component_graph.add_node(component.name, type=type_name)
+        #self.component_graph.add_node(component.name, type=type_name)
 
         self.type_map[type_name][component.name] = component
 
@@ -123,7 +198,7 @@ class SystemModel(object):
 
         for real_io_type in real_io_types:
             _log.debug("Adding connection for io type: "+real_io_type)
-            self.component_graph.add_edge(output_component.name, input_component.name, label=real_io_type)
+            #self.component_graph.add_edge(output_component.name, input_component.name, label=real_io_type)
 
         return len(real_io_types)
 
@@ -146,7 +221,7 @@ class SystemModel(object):
         _log.debug("Updating Components")
         _log.debug("Inputs:\n"+pformat(inputs))
         for component in self.instance_map.itervalues():
-            component.process_inputs(now, input)
+            component.process_inputs(now, inputs)
 
     def run_general_optimizer(self, now, predicted_loads, parameters):
         _log.debug("Running General Optimizer")
@@ -195,8 +270,9 @@ class SystemModel(object):
 
     def apply_all_training_data(self, training_data):
         for name, data in training_data.iteritems():
+            normalized = normalize_training_data(data)
             component = self.instance_map[name]
-            component.train(data)
+            component.train(normalized)
 
     def invalid_parameters_list(self):
         results = []
@@ -230,6 +306,10 @@ class SystemModel(object):
                 _log.error("THE OPTIMIZER WILL NOT BE RUN AT THIS TIME.")
             else:
                 commands = self.run_optimizer(now, inputs)
+
+
+        _log.debug("Device commands: {}".format(commands))
+
         return commands
 
     def find_starting_datetime(self, now):

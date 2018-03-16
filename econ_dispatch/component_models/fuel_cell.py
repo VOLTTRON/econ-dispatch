@@ -106,6 +106,9 @@ class Component(ComponentBase):
         return [u"natural_gas"]
 
     def train(self, training_data):
+
+        # Valid = Power > 1% of cap and AmbTemperature > 5.0
+        # TODO: replace valid with this
         Valid = training_data['Valid']
 
         Power = training_data['Power']
@@ -143,7 +146,8 @@ class Component(ComponentBase):
         }
 
     def get_mapped_commands(self, component_loads):
-        return {"set_point": component_loads["Q_prime_mover_{}_hour00".format(self.name)]*293.1}
+        return {"set_point":
+                component_loads["Q_prime_mover_{}_hour00".format(self.name)]*293.1}
 
 
     # def get_optimization_parameters(self):

@@ -61,9 +61,9 @@ logging.basicConfig(level=logging.DEBUG)
 
 import argparse
 import json
-from econ_dispatch.application import Application
 from econ_dispatch.forecast_models import HistoryModelBase
-import networkx
+from econ_dispatch.system_model import build_model_from_config
+#import networkx
 
 import datetime as dt
 import time
@@ -117,10 +117,15 @@ def main(config_file, start, end,
          output_csv_file):
     overall_start_time = time.time()
     config = parse_json_config(config_file.read())
-    application = Application(**config)
+    model = build_model_from_config(config["weather"],
+                                    config["optimizer"],
+                                    config["components"],
+                                    config["forecast_models"],
+                                    config.get("optimization_frequency", 60),
+                                    config.get("optimizer_debug"))
 
-    if write_dot:
-        networkx.drawing.nx_pydot.write_dot(application.model.component_graph, config_file.name + ".dot")
+    # if write_dot:
+    #     networkx.drawing.nx_pydot.write_dot(model.component_graph, config_file.name + ".dot")
 
     if input_csv_file_name is None:
         input_data = NullInputData()
@@ -138,8 +143,8 @@ def main(config_file, start, end,
         while now < end:
             _log.debug("Processing timestamp: " + str(now))
             start_time = time.time()
-            result = application.run(now, input_data.derive_variables(now))
-            if result.commands:
+            result = model.run(now, input_data.derive_variables(now))
+            if result:
                 results.append((now, result))
             now += time_step
             end_time = time.time()
@@ -160,7 +165,7 @@ def main(config_file, start, end,
             if results:
                 topics = set()
                 for result in results:
-                    for topic in result[1].commands:
+                    for topic in result[1]:
                         topics.add(topic)
 
                 topics = list(topics)
@@ -173,7 +178,7 @@ def main(config_file, start, end,
                 for result in results:
                     row = {}
                     row["timestamp"] = result[0]
-                    for topic, value in result[1].commands.iteritems():
+                    for topic, value in result[1].iteritems():
                         row[topic] = value
 
                     dict_writer.writerow(row)
