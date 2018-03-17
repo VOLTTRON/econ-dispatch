@@ -4,12 +4,9 @@ import numpy as np
 import pandas
 import pulp
 
+
 def binary_var(name):
     return pulp.LpVariable(name, 0, 1, pulp.LpInteger)
-
-
-
-# parasys = pandas.read_csv("para_sys.csv")
 
 
 class BuildAsset(object):
@@ -130,48 +127,82 @@ def get_optimization_problem(forecast, parameters={}):
     print "================================================================================"
     for k, v in parasys.items():
         print k,v
+
+    print "================================================================================"
+    for k, v in parameters.items():
+        print k,v
     print "================================================================================"
 
-    turbine_para = []
-    turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine1.csv"), ramp_up=150, ramp_down=-150, startcost=20, min_on=3)) # fuel cell
-    turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine2.csv"), ramp_up=200, ramp_down=-200, startcost=10, min_on=3)) # microturbine
-    turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine3.csv"), ramp_up=20, ramp_down=-20, startcost=5, min_on=3)) # diesel
+    try:
+        boiler_params = parameters["boiler"]
+        chiller_params = parameters["centrifugal_chiller_igv"]
+        abs_params = parameters["absorption_chiller"]
+    except KeyError as e:
 
+        raise RuntimeError("Missing needed configuration parameter: " + e.message)
+
+    turbine_para = []
     turbine_init = []
-    turbine_init.append(BuildAsset_init(status=1, output=300.0))
-    turbine_init.append(BuildAsset_init(status=1, output=250.0))
-    turbine_init.append(BuildAsset_init(status=0))
-    turbine_init[0].status1[21:] = 1
-    turbine_init[1].status1[21:] = 1
+    # turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine1.csv"), ramp_up=150, ramp_down=-150, startcost=20, min_on=3)) # fuel cell
+    # turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine2.csv"), ramp_up=200, ramp_down=-200, startcost=10, min_on=3)) # microturbine
+    # turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine3.csv"), ramp_up=20, ramp_down=-20, startcost=5, min_on=3)) # diesel
+
+
+    # turbine_init.append(BuildAsset_init(status=1, output=300.0))
+    # turbine_init.append(BuildAsset_init(status=1, output=250.0))
+    # turbine_init.append(BuildAsset_init(status=0))
+    # turbine_init[0].status1[21:] = 1
+    # turbine_init[1].status1[21:] = 1
 
     boiler_para = []
-    boiler_para.append(BuildAsset(fundata=pandas.read_csv("paraboiler1.csv"), ramp_up=8, ramp_down=-8, startcost=0.8)) # boiler1
-    boiler_para.append(BuildAsset(fundata=pandas.read_csv("paraboiler2.csv"), ramp_up=2, ramp_down=-2, startcost=0.25)) # boiler2
-
     boiler_init = []
-    boiler_init.append(BuildAsset_init(status=0))
-    boiler_init.append(BuildAsset_init(status=0))
+    for name, parameters in boiler_params.items():
+        fundata = parameters["fundata"]
+        ramp_up = parameters["ramp_up"]
+        ramp_down = parameters["ramp_down"]
+        startcost = parameters["startcost"]
+        boiler_para.append(BuildAsset(fundata=fundata, ramp_up=ramp_up, ramp_down=ramp_down, startcost=startcost))
+        boiler_init.append(BuildAsset_init(status=0))
+
+    # boiler_para.append(BuildAsset(fundata=pandas.read_csv("paraboiler1.csv"), ramp_up=8, ramp_down=-8, startcost=0.8)) # boiler1
+    # boiler_para.append(BuildAsset(fundata=pandas.read_csv("paraboiler2.csv"), ramp_up=2, ramp_down=-2, startcost=0.25)) # boiler2
+    # boiler_init.append(BuildAsset_init(status=0))
+    # boiler_init.append(BuildAsset_init(status=0))
 
     chiller_para = []
-    chiller_para.append(BuildAsset(fundata=pandas.read_csv("parachiller.csv"), ramp_up=6, ramp_down=-6, startcost=15)) # chiller1
-    temp_data = pandas.read_csv("parachiller.csv")
-    temp_data["a"] += +1e-4
-    temp_data["b"] += +1e-4
-    chiller_para.append(BuildAsset(fundata=temp_data, ramp_up=1.5, ramp_down=-1.5, startcost=20)) # chiller2
-    chiller_para.append(BuildAsset(fundata=pandas.read_csv("parachiller3.csv"), ramp_up=1, ramp_down=-1, startcost=5)) # chiller3
-
     chiller_init = []
-    chiller_init.append(BuildAsset_init(status=0))
-    chiller_init.append(BuildAsset_init(status=0))
-    chiller_init.append(BuildAsset_init(status=1, output=1))
-    chiller_init[2].status1[-1]=1
+    for name, parameters, in chiller_params.items():
+        fundata = parameters["fundata"]
+        ramp_up = parameters["ramp_up"]
+        ramp_down = parameters["ramp_down"]
+        startcost = parameters["startcost"]
+        chiller_para.append(BuildAsset(fundata=fundata, ramp_up=ramp_up, ramp_down=ramp_down, startcost=startcost))
+        chiller_init.append(BuildAsset_init(status=0))
+
+    # chiller_para.append(BuildAsset(fundata=pandas.read_csv("parachiller.csv"), ramp_up=6, ramp_down=-6, startcost=15)) # chiller1
+    # temp_data = pandas.read_csv("parachiller.csv")
+    # temp_data["a"] += +1e-4
+    # temp_data["b"] += +1e-4
+    # chiller_para.append(BuildAsset(fundata=temp_data, ramp_up=1.5, ramp_down=-1.5, startcost=20)) # chiller2
+    # chiller_para.append(BuildAsset(fundata=pandas.read_csv("parachiller3.csv"), ramp_up=1, ramp_down=-1, startcost=5)) # chiller3
+
+    # chiller_init.append(BuildAsset_init(status=0))
+    # chiller_init.append(BuildAsset_init(status=1, output=1))
+    # chiller_init[2].status1[-1]=1
 
 
     abs_para = []
-    abs_para.append(BuildAsset(fundata=pandas.read_csv("paraabs.csv"), ramp_up=0.25, ramp_down=-0.25, startcost=2))# chiller1
-
     abs_init = []
-    abs_init.append(BuildAsset_init(status=0))
+    for name, parameters, in abs_params.items():
+        fundata = parameters["fundata"]
+        ramp_up = parameters["ramp_up"]
+        ramp_down = parameters["ramp_down"]
+        startcost = parameters["startcost"]
+        abs_para.append(BuildAsset(fundata=fundata, ramp_up=ramp_up, ramp_down=ramp_down, startcost=startcost))# chiller1
+        abs_init.append(BuildAsset_init(status=0))
+
+    # abs_para.append(BuildAsset(fundata=pandas.read_csv("paraabs.csv"), ramp_up=0.25, ramp_down=-0.25, startcost=2))# chiller1
+    # abs_init.append(BuildAsset_init(status=0))
 
     KK=3 # number of pieces in piecewise model
 
