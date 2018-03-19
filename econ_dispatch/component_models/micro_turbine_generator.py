@@ -81,7 +81,8 @@ class Coefs(object):
 # Coef.Eff = np.array([-0.2065, 0.3793, 0.1043])
 # Coef.FlowOut = np.array([-65.85, 164.5])
 
-
+EXPECTED_PARAMETERS = set(["xmin",
+                           "cap"])
 
 class Component(ComponentBase):
     def __init__(self,
@@ -118,6 +119,10 @@ class Component(ComponentBase):
 
     def get_input_metadata(self):
         return [u"natural_gas"]
+
+    def validate_parameters(self):
+        k = set(self.parameters.keys())
+        return EXPECTED_PARAMETERS <= k
 
     # def get_commands(self, component_loads):
     #     return {self.name:

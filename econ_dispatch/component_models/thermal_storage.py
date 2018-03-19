@@ -97,7 +97,7 @@ class Component(ComponentBase):
 
         heat_capacity = tank_volume * cp_fluid * abs(input_temp - output_temp) / 3600.0 #convert to kWh
 
-        self.parameters["heat_capacity"] = heat_capacity
+        self.parameters["heat_cap"] = heat_capacity
         self.parameters["eff"] = 1.0
 
 
