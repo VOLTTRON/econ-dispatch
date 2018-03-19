@@ -80,6 +80,14 @@ DEFAULT_IR_DISCHARGE = 0.7
 DEFAULT_IDLE_A = -0.00012
 DEFAULT_IDLE_B = -0.00024
 
+EXPECTED_PARAMETERS = set(["current_soc",
+                           "charge_eff",
+                           "discharge_eff",
+                           "min_power",
+                           "max_power",
+                           "min_soc",
+                           "max_soc",
+                           "cap"])
 
 class Component(ComponentBase):
     def __init__(self,
@@ -101,8 +109,11 @@ class Component(ComponentBase):
         self.parameters["max_power"] = self.max_power
         self.parameters["min_soc"] = self.min_soc
         self.parameters["max_soc"] = self.max_soc
-        self.parameters["capacity"] = self.capacity
+        self.parameters["cap"] = self.capacity
 
+    def validate_parameters(self):
+        k = set(self.parameters.keys())
+        return EXPECTED_PARAMETERS <= k and self.parameters["current_soc"] is not None
 
     def get_commands(self, component_loads):
         try:
@@ -139,7 +150,7 @@ class Component(ComponentBase):
         self.parameters["max_power"] = self.max_power
         self.parameters["min_soc"] = self.min_soc
         self.parameters["max_soc"] = self.max_soc
-        self.parameters["capacity"] = self.capacity
+        self.parameters["cap"] = self.capacity
 
     def calculate_charge_eff(self, charge_training_data, charging):
         timestamp = charge_training_data['timestamp']

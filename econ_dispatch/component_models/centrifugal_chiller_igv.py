@@ -65,6 +65,10 @@ DEFAULT_TCHO = 47
 DEFAULT_TCDI = 75
 DEFAULT_QCH_KW = 500
 
+EXPECTED_PARAMETERS = set(["xmin",
+                           "xmax",
+                           "mat",
+                           "cap"])
 
 class Component(ComponentBase):
     def __init__(self, capacity=200.0, **kwargs):
@@ -83,7 +87,7 @@ class Component(ComponentBase):
         # self.Qch_kW = DEFAULT_QCH_KW
 
         self.capacity = float(capacity)
-        self.parameters["capacity"] = self.capacity
+        self.parameters["cap"] = self.capacity
 
         # Set to True whenever something happens that causes us to need to recalculate
         # the optimization parameters.
@@ -102,6 +106,10 @@ class Component(ComponentBase):
 
     def get_input_metadata(self):
         return [u"electricity"]
+
+    def validate_parameters(self):
+        k = set(self.parameters.keys())
+        return EXPECTED_PARAMETERS <= k
 
     def get_mapped_commands(self, component_loads):
         points = dict()

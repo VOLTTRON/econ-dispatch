@@ -82,6 +82,11 @@ Coef.StackDeltaT = 100.0
 Coef.ExhaustTemperature = np.array([0.0, 0.0, 0.0])
 Coef.gain = 1.4
 
+EXPECTED_PARAMETERS = set(["xmin",
+                           "xmax",
+                           "mat",
+                           "cap"])
+
 class Component(ComponentBase):
     def __init__(self, capacity=500.0,
                  fuel_type="CH4",
@@ -104,6 +109,10 @@ class Component(ComponentBase):
 
     def get_input_metadata(self):
         return [u"natural_gas"]
+
+    def validate_parameters(self):
+        k = set(self.parameters.keys())
+        return EXPECTED_PARAMETERS <= k
 
     def train(self, training_data):
 
