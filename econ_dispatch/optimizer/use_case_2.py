@@ -11,7 +11,9 @@ def binary_var(name):
 
 class BuildAsset(object):
     def __init__(self, fundata, ramp_up=None, ramp_down=None, startcost=0, min_on=0, min_off=0):
-        self.fundata = fundata
+        self.fundata = {}
+        for k, v in fundata.items():
+            self.fundata[k] = np.array(v)
         self.ramp_up = ramp_up
         self.ramp_down = ramp_down
         self.startcost = startcost
@@ -126,23 +128,31 @@ def get_optimization_problem(forecast, parameters={}):
 
     print "================================================================================"
     for k, v in parasys.items():
-        print k,v
+        print k
 
     print "================================================================================"
     for k, v in parameters.items():
         print k,v
     print "================================================================================"
 
-    try:
-        boiler_params = parameters["boiler"]
-        chiller_params = parameters["centrifugal_chiller_igv"]
-        abs_params = parameters["absorption_chiller"]
-    except KeyError as e:
-
-        raise RuntimeError("Missing needed configuration parameter: " + e.message)
+    fuel_cell_params = parameters["fuel_cell"]
+    microturbine_params = parameters["micro_turbine_generator"]
+    boiler_params = parameters["boiler"]
+    chiller_params = parameters["centrifugal_chiller_igv"]
+    abs_params = parameters["absorption_chiller"]
 
     turbine_para = []
     turbine_init = []
+    for name, parameters in itertools.chain(fuel_cell_params.items(), microturbine_params.items()):
+        fundata = parameters["fundata"]
+        ramp_up = parameters["ramp_up"]
+        ramp_down = parameters["ramp_down"]
+        startcost = parameters["startcost"]
+        min_on = parameters["min_on"]
+        output = parameters["output"]
+        turbine_para.append(BuildAsset(fundata=fundata, ramp_up=ramp_up, ramp_down=ramp_down, startcost=startcost)) # fuel cell
+        turbine_init.append(BuildAsset_init(status=1, output=output))
+
     # turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine1.csv"), ramp_up=150, ramp_down=-150, startcost=20, min_on=3)) # fuel cell
     # turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine2.csv"), ramp_up=200, ramp_down=-200, startcost=10, min_on=3)) # microturbine
     # turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine3.csv"), ramp_up=20, ramp_down=-20, startcost=5, min_on=3)) # diesel
@@ -215,9 +225,7 @@ def get_optimization_problem(forecast, parameters={}):
     Cool_storage_para.append(Storage(Emax=20.0, pmax=5.0, eta_ch=0.94, eta_disch=0.94))
 
     bigM = 1e4
-    H1 = 0
-    H2 = 23
-    H_t = H2 - H1 + 1
+    H_t = len(parasys["electricity_cost"])
 
     # don't like these
     N_turbine = len(turbine_para)
@@ -362,20 +370,20 @@ def get_optimization_problem(forecast, parameters={}):
             + pulp.lpSum(E_storage_disch[RANGE,t])\
             - pulp.lpSum(E_storage_ch[RANGE,t])\
             + E_unserve[t]\
-            - E_dump[t] == parasys["E_load"][t] - parasys["E_PV"][t]
+            - E_dump[t] == parasys["elec_load"][t] - parasys["solar_kW"][t]
 
     add_constraint("ElecBalance", index_hour, ElecBalance)
 
     def HeatBalance(index):
         # [t=1:H_t]
         t = index[0]
-        return Q_HRUheating_out[t] + pulp.lpSum(boiler_x[RANGE,t]) + Heat_unserve[t] - Heat_dump[t] == parasys["Q_loadheat"][t]
+        return Q_HRUheating_out[t] + pulp.lpSum(boiler_x[RANGE,t]) + Heat_unserve[t] - Heat_dump[t] == parasys["heat_load"][t]
     add_constraint("HeatBalance",index_hour,HeatBalance)
 
     def CoolBalance(index):
         # [t=1:H_t]
         t = index[0]
-        return pulp.lpSum(abs_x[RANGE,t]) + pulp.lpSum(chiller_x[RANGE,t]) + pulp.lpSum(Cool_storage_disch[RANGE,t]) - pulp.lpSum(Cool_storage_ch[RANGE,t]) + Cool_unserve[t] - Cool_dump[t] == parasys["Q_loadcool"][t]
+        return pulp.lpSum(abs_x[RANGE,t]) + pulp.lpSum(chiller_x[RANGE,t]) + pulp.lpSum(Cool_storage_disch[RANGE,t]) - pulp.lpSum(Cool_storage_ch[RANGE,t]) + Cool_unserve[t] - Cool_dump[t] == parasys["cool_load"][t]
     add_constraint("CoolBalance",index_hour,CoolBalance)
 
     E_storage0 = np.zeros(N_E_storage)
@@ -729,7 +737,7 @@ def get_optimization_problem(forecast, parameters={}):
 
     objective_components = []
 
-    for var, _lambda in zip(E_gridelecfromgrid[RANGE], parasys["lambda_elec_fromgrid"]):
+    for var, _lambda in zip(E_gridelecfromgrid[RANGE], parasys["electricity_cost"]):
         objective_components.append(var * _lambda)
 
     for var, _lambda in zip(E_gridelectogrid[(RANGE,)], parasys["lambda_elec_togrid"]):
@@ -739,8 +747,8 @@ def get_optimization_problem(forecast, parameters={}):
         for var, _lambda in zip(turbine_y[i, RANGE], parasys["lambda_gas"]):
             objective_components.append(var * _lambda)
 
-    for var, _lambda in zip(turbine_y[(2, RANGE)], parasys["lambda_diesel"]):
-        objective_components.append(var * _lambda)
+    # for var, _lambda in zip(turbine_y[(2, RANGE)], parasys["lambda_diesel"]):
+    #     objective_components.append(var * _lambda)
 
     for i in range(N_boiler):
         for var, _lambda in zip(boiler_y[i, RANGE],parasys["lambda_gas"]):
