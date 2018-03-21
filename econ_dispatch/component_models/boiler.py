@@ -64,6 +64,11 @@ from econ_dispatch.utils import least_squares_regression
 
 DEFAULT_QBP = 55
 
+EXPECTED_PARAMETERS = set(["xmin",
+                           "xmax",
+                           "mat",
+                           "cap"])
+
 class Component(ComponentBase):
     def __init__(self, history_data_file=None, capacity=8.0, **kwargs):
         super(Component, self).__init__(**kwargs)
@@ -73,7 +78,7 @@ class Component(ComponentBase):
 
         self.capacity = float(capacity)
 
-        self.parameters["capacity"] = self.capacity
+        self.parameters["cap"] = self.capacity
 
         # # Boiler Nameplate parameters (User Inputs)
         # self.Qbprated = 60 #mmBtu/hr
@@ -95,6 +100,10 @@ class Component(ComponentBase):
 
     def get_input_metadata(self):
         return [u"natural_gas"]
+
+    # def validate_parameters(self):
+    #     k = set(self.parameters.keys())
+    #     return EXPECTED_PARAMETERS <= k
 
     def get_mapped_commands(self, component_loads):
         return {"command":(component_loads["Q_boiler_{}_hour00".format(self.name)]>0.0)}

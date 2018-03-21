@@ -75,6 +75,13 @@ DEFAULT_TCHR = 55.0
 SPECIFIC_HEAT_WATER = 4.184 # KJ/Kg-C
 DENSITY_WATER = 1.000 # kg/L
 
+EXPECTED_PARAMETERS = set(["xmax",
+                            "xmin",
+                            "mat",
+                            "cap",
+                            "min_on",
+                            "min_off",
+                            "command_history"])
 
 class Component(ComponentBase):
     def __init__(self, capacity=464.0, min_off=0, min_on=0, **kwargs):
@@ -104,12 +111,10 @@ class Component(ComponentBase):
 
         self.command_history = [0] * 24
 
-        self.parameters["capacity"] = self.capacity
+        self.parameters["cap"] = self.capacity
         self.parameters["min_on"] = self.min_on
         self.parameters["min_off"] = self.min_off
         self.parameters["command_history"] = self.command_history[:]
-
-        #self.setup_historical_data(history_data_file)
 
         # Set to True whenever something happens that causes us to need to recalculate
         # the optimization parameters.
@@ -118,12 +123,11 @@ class Component(ComponentBase):
         # Gordon-Ng model coefficients
         # self.a0, self.a1 = self.train()
 
-    # def setup_historical_data(self, history_data_file):
-    #     with open(history_data_file, 'r') as f:
-    #         historical_data = json.load(f)
-    #
-    #     self.historical_data["Qch(tons)"] = np.array(historical_data["Qch(tons)"])
-    #     self.historical_data["Qin(MMBtu/h)"] = np.array(historical_data["Qin(MMBtu/h)"])
+
+    # def validate_parameters(self):
+    #     k = set(self.parameters.keys())
+    #     return EXPECTED_PARAMETERS <= k
+
 
     def get_output_metadata(self):
         return [u"chilled_water"]

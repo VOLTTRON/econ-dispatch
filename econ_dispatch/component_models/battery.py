@@ -64,7 +64,6 @@ from econ_dispatch.utils import least_squares_regression
 
 import logging
 
-
 _log = logging.getLogger(__name__)
 
 DEFAULT_CAPACITY = 24000
@@ -80,6 +79,14 @@ DEFAULT_IR_DISCHARGE = 0.7
 DEFAULT_IDLE_A = -0.00012
 DEFAULT_IDLE_B = -0.00024
 
+EXPECTED_PARAMETERS = set(["current_soc",
+                           "charge_eff",
+                           "discharge_eff",
+                           "min_power",
+                           "max_power",
+                           "min_soc",
+                           "max_soc",
+                           "cap"])
 
 class Component(ComponentBase):
     def __init__(self,
@@ -101,8 +108,11 @@ class Component(ComponentBase):
         self.parameters["max_power"] = self.max_power
         self.parameters["min_soc"] = self.min_soc
         self.parameters["max_soc"] = self.max_soc
-        self.parameters["capacity"] = self.capacity
+        self.parameters["cap"] = self.capacity
 
+    def validate_parameters(self):
+        k = set(self.parameters.keys())
+        return EXPECTED_PARAMETERS <= k and self.parameters["current_soc"] is not None
 
     def get_commands(self, component_loads):
         try:
@@ -139,7 +149,7 @@ class Component(ComponentBase):
         self.parameters["max_power"] = self.max_power
         self.parameters["min_soc"] = self.min_soc
         self.parameters["max_soc"] = self.max_soc
-        self.parameters["capacity"] = self.capacity
+        self.parameters["cap"] = self.capacity
 
     def calculate_charge_eff(self, charge_training_data, charging):
         timestamp = charge_training_data['timestamp']
@@ -159,20 +169,19 @@ class Component(ComponentBase):
         prev_soc = SOC[valid_prev]
         current_soc = SOC[valid]
 
-        delta_soc = abs(current_soc - prev_soc)
+        delta_soc = current_soc - prev_soc
+
+        delta_kWh = delta_soc * self.capacity
 
         prev_time = timestamp[valid_prev]
         current_time = timestamp[valid]
-
         delta_time = current_time - prev_time
 
         # Convert delta_time to fractional hours
         delta_time = delta_time.astype("timedelta64[s]").astype("float64")/3600.0
 
         current_power = PowerIn[valid]
-
-        eff = (delta_soc * self.capacity) / (current_power * delta_time)
-
+        eff = (delta_kWh) / (current_power * delta_time)
         eff_avg = abs(eff.mean())
 
         _log.debug("calculate_charge_eff charging {} result {}".format(charging, eff_avg))

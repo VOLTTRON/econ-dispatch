@@ -81,7 +81,8 @@ class Coefs(object):
 # Coef.Eff = np.array([-0.2065, 0.3793, 0.1043])
 # Coef.FlowOut = np.array([-65.85, 164.5])
 
-
+EXPECTED_PARAMETERS = set(["xmin",
+                           "cap"])
 
 class Component(ComponentBase):
     def __init__(self,
@@ -119,20 +120,9 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return [u"natural_gas"]
 
-    # def get_commands(self, component_loads):
-    #     return {self.name:
-    #                 {"fuel_cell_set_point":
-    #                      component_loads["Q_prime_mover_hour00"] * 293.1}}
-    #
-    # def get_optimization_parameters(self):
-    #     AirFlow, FuelFlow, Tout, Efficiency = self.GasTurbine_Operate(self.Pdemand, self.Temperature, 0, self.coef)
-    #     return {"efficiency":Efficiency}
-
     # def validate_parameters(self):
-    #     """
-    #     Returns true if parameters exist for this component. False otherwise.
-    #     """
-    #     return "mat" in self.parameters
+    #     k = set(self.parameters.keys())
+    #     return EXPECTED_PARAMETERS <= k
 
     def get_mapped_commands(self, component_loads):
         try:
