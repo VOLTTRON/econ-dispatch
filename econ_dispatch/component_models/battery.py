@@ -64,7 +64,6 @@ from econ_dispatch.utils import least_squares_regression
 
 import logging
 
-
 _log = logging.getLogger(__name__)
 
 DEFAULT_CAPACITY = 24000
@@ -170,20 +169,19 @@ class Component(ComponentBase):
         prev_soc = SOC[valid_prev]
         current_soc = SOC[valid]
 
-        delta_soc = abs(current_soc - prev_soc)
+        delta_soc = current_soc - prev_soc
+
+        delta_kWh = delta_soc * self.capacity
 
         prev_time = timestamp[valid_prev]
         current_time = timestamp[valid]
-
         delta_time = current_time - prev_time
 
         # Convert delta_time to fractional hours
         delta_time = delta_time.astype("timedelta64[s]").astype("float64")/3600.0
 
         current_power = PowerIn[valid]
-
-        eff = (delta_soc * self.capacity) / (current_power * delta_time)
-
+        eff = (delta_kWh) / (current_power * delta_time)
         eff_avg = abs(eff.mean())
 
         _log.debug("calculate_charge_eff charging {} result {}".format(charging, eff_avg))

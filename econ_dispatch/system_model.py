@@ -257,7 +257,7 @@ class SystemModel(object):
     def get_component_input_topics(self):
         results = set()
         for component in self.instance_map.itervalues():
-            results.add(component.inputs.keys())
+            results.update(component.input_map.keys())
 
         return results
 
