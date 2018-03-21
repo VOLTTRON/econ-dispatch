@@ -110,9 +110,9 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return [u"natural_gas"]
 
-    def validate_parameters(self):
-        k = set(self.parameters.keys())
-        return EXPECTED_PARAMETERS <= k
+    # def validate_parameters(self):
+    #     k = set(self.parameters.keys())
+    #     return EXPECTED_PARAMETERS <= k
 
     def train(self, training_data):
 

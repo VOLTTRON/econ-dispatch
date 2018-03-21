@@ -124,9 +124,9 @@ class Component(ComponentBase):
         # self.a0, self.a1 = self.train()
 
 
-    def validate_parameters(self):
-        k = set(self.parameters.keys())
-        return EXPECTED_PARAMETERS <= k
+    # def validate_parameters(self):
+    #     k = set(self.parameters.keys())
+    #     return EXPECTED_PARAMETERS <= k
 
 
     def get_output_metadata(self):

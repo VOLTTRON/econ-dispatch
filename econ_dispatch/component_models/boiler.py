@@ -101,9 +101,9 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return [u"natural_gas"]
 
-    def validate_parameters(self):
-        k = set(self.parameters.keys())
-        return EXPECTED_PARAMETERS <= k
+    # def validate_parameters(self):
+    #     k = set(self.parameters.keys())
+    #     return EXPECTED_PARAMETERS <= k
 
     def get_mapped_commands(self, component_loads):
         return {"command":(component_loads["Q_boiler_{}_hour00".format(self.name)]>0.0)}
