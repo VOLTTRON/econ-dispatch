@@ -140,6 +140,7 @@ class EconDispatchAgent(Agent):
 
         # Set a default configuration to ensure that self.configure is called immediately to setup
         # the agent.
+
         self.vip.config.set_default("config", self.default_config)
         # Hook self.configure up to changes to the configuration file "config".
         self.vip.config.subscribe(self.configure, actions=["NEW", "UPDATE"], pattern="config")
@@ -159,7 +160,7 @@ class EconDispatchAgent(Agent):
 
         try:
             make_reservations = bool(config.get("make_reservations", False))
-            weather_config = config["weather"],
+            weather_config = config["weather"]
             optimizer_config = config["optimizer"]
             component_configs = config["components"]
             forecast_model_configs = config["forecast_models"]
@@ -172,6 +173,8 @@ class EconDispatchAgent(Agent):
 
         self.make_reservations = make_reservations
         self.training_frequency = training_frequency
+
+
 
         self.model = build_model_from_config(weather_config,
                                              optimizer_config,
