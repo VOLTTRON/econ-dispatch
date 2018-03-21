@@ -133,11 +133,11 @@ class Component(ComponentBase):
     #     AirFlow, FuelFlow, Tout, Efficiency = self.GasTurbine_Operate(self.Pdemand, self.Temperature, 0, self.coef)
     #     return {"efficiency":Efficiency}
 
-    def validate_parameters(self):
-        """
-        Returns true if parameters exist for this component. False otherwise.
-        """
-        return "mat" in self.parameters
+    # def validate_parameters(self):
+    #     """
+    #     Returns true if parameters exist for this component. False otherwise.
+    #     """
+    #     return "mat" in self.parameters
 
     def get_mapped_commands(self, component_loads):
         try:
