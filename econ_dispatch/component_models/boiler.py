@@ -109,6 +109,7 @@ class Component(ComponentBase):
         return {"command":(component_loads["Q_boiler_{}_hour00".format(self.name)]>0.0)}
 
     def train(self, training_data):
+        # TODO: Update to calc these from sensor data
         historical_Qbp = training_data["heat_output"]
         historical_Gbp = training_data["gas_input"]
 

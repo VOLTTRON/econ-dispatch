@@ -145,6 +145,7 @@ class Component(ComponentBase):
         return {"set_point":vol_flow_rate_setpoint_abs}
 
     def train(self, training_data):
+        # TODO: Update to calc these from sensor data
         Qch = training_data["Qch(tons)"] * (3.517 / 293.1) # chiller cooling output in mmBTU/hr (converted from cooling Tons)
         Qin = training_data["Qin(MMBtu/h)"] # chiller heat input in mmBTU/hr
 

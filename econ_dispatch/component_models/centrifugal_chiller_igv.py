@@ -117,6 +117,7 @@ class Component(ComponentBase):
         return points
 
     def train(self, training_data):
+        # TODO: Update to calc these from sensor data
         # chiller cooling output in mmBtu/hr (converted from cooling Tons)
         Qch = training_data["Qch(tons)"] * 3.517 / 293.1
 

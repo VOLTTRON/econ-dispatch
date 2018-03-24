@@ -120,12 +120,7 @@ class Component(ComponentBase):
         except KeyError:
             _log.warning("battery load missing from optimizer output")
             return {}
-        command = "idle"
-        if load > 0:
-            command = "charge"
-        elif load < 0:
-            command = "discharge"
-        return {"command":command}
+        return {"command":load}
 
     def process_input(self, timestamp, name, value):
         """Override this to process input data from the platform.
