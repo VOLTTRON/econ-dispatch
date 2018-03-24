@@ -264,7 +264,9 @@ class SystemModel(object):
     def get_training_parameters(self):
         results = dict()
         for name, component in self.instance_map.iteritems():
-            results[name] = (component.training_window, component.training_sources)
+            # Skip components without training sources configrued.
+            if component.training_sources:
+                results[name] = (component.training_window, component.training_sources)
 
         return results
 
