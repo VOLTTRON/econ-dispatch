@@ -266,15 +266,21 @@ class SystemModel(object):
         for name, component in self.instance_map.iteritems():
             # Skip components without training sources configrued.
             if component.training_sources:
-                results[name] = (component.training_window, component.training_sources)
+                results[name] = (component.training_window, component.training_sources.keys())
 
         return results
 
     def apply_all_training_data(self, training_data):
         for name, data in training_data.iteritems():
-            normalized = normalize_training_data(data)
             component = self.instance_map[name]
-            component.train(normalized)
+            training_map = component.training_sources
+            normalized_data = {}
+            for topic , topic_data in data.iteritems():
+                mapped_name = training_map.get(topic)
+                if mapped_name is not None:
+                    normalized = normalize_training_data(topic_data)
+                    normalized_data[mapped_name] = normalized
+            component.train(normalized_data)
 
     def invalid_parameters_list(self):
         results = []
