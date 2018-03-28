@@ -231,18 +231,10 @@ def get_optimization_problem(forecast, parameters={}):
     bigM = 1e4
     H_t = len(parasys["electricity_cost"])
 
-    # don't like these
     turbine_names = tuple([x.component_name for x in turbine_para.values()])
-    # N_turbine = len(turbine_para)
-
     boiler_names = tuple([x.component_name for x in boiler_para.values()])
-    # N_boiler = len(boiler_para)
-
     chiller_names = tuple([x.component_name for x in chiller_para.values()])
-    # N_chiller = len(chiller_para)
-
     abs_names = tuple([x.component_name for x in abs_para.values()])
-    # N_abs = len(abs_para)
 
     N_E_storage = len(E_storage_para)
     N_Cool_storage = len(Cool_storage_para)

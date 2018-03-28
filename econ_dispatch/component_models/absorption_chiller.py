@@ -136,7 +136,7 @@ class Component(ComponentBase):
         return [u"heat"]
 
     def get_mapped_commands(self, component_loads):
-        abs_chller_load_mmBTU = component_loads["Q_abs_{}_hour00".format(self.name)]
+        abs_chller_load_mmBTU = component_loads["abs_x_{}_0".format(self.name)]
         abs_chiller_load_kW = abs_chller_load_mmBTU*1000/3.412
         mass_flow_rate_abs =  abs_chiller_load_kW / (SPECIFIC_HEAT_WATER*(self.Tchr-self.Tcho))
         vol_flow_rate_setpoint_abs = mass_flow_rate_abs / DENSITY_WATER
