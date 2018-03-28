@@ -1,7 +1,7 @@
+from collections import OrderedDict
 import itertools
 
 import numpy as np
-import pandas
 import pulp
 
 
@@ -10,10 +10,13 @@ def binary_var(name):
 
 
 class BuildAsset(object):
-    def __init__(self, fundata, ramp_up=None, ramp_down=None, startcost=0, min_on=0, min_off=0):
+    def __init__(self, fundata=None, component_name=None, ramp_up=None, ramp_down=None, startcost=0, min_on=0, min_off=0):
         self.fundata = {}
         for k, v in fundata.items():
             self.fundata[k] = np.array(v)
+
+        self.component_name = component_name
+
         self.ramp_up = ramp_up
         self.ramp_down = ramp_down
         self.startcost = startcost
@@ -83,14 +86,15 @@ class VariableGroup(object):
             self.variables[index] = var
 
     def match(self, key):
+        position = key.index(RANGE)
         def predicate(xs, ys):
             z = 0
-            for x, y in zip(xs, ys):
-                if x - y == 0:
+            for i, (x, y) in enumerate(zip(xs, ys)):
+                if i != position and x == y:
                     z += 1
             return z == len(key) - 1
 
-        position = key.index(RANGE)
+
         keys = list(self.variables.keys())
         keys = [k for k in keys if predicate(k, key)]
         keys.sort(key=lambda k: k[position])
@@ -101,14 +105,14 @@ class VariableGroup(object):
         if type(key) != tuple:
             key = (key,)
 
-        n_ones = 0
+        n_range = 0
         for i, x in enumerate(key):
             if x == RANGE:
-                n_ones += 1
+                n_range += 1
 
-        if n_ones == 0:
+        if n_range == 0:
             return self.variables[key]
-        elif n_ones == 1:
+        elif n_range == 1:
             return self.match(key)
         else:
             raise ValueError("Can only get RANGE for one index.")
@@ -141,8 +145,8 @@ def get_optimization_problem(forecast, parameters={}):
     chiller_params = parameters["centrifugal_chiller_igv"]
     abs_params = parameters["absorption_chiller"]
 
-    turbine_para = []
-    turbine_init = []
+    turbine_para = OrderedDict()
+    turbine_init = OrderedDict()
     for name, parameters in itertools.chain(fuel_cell_params.items(), microturbine_params.items()):
         fundata = parameters["fundata"]
         ramp_up = parameters["ramp_up"]
@@ -150,8 +154,8 @@ def get_optimization_problem(forecast, parameters={}):
         startcost = parameters["startcost"]
         min_on = parameters["min_on"]
         output = parameters["output"]
-        turbine_para.append(BuildAsset(fundata=fundata, ramp_up=ramp_up, ramp_down=ramp_down, startcost=startcost)) # fuel cell
-        turbine_init.append(BuildAsset_init(status=1, output=output))
+        turbine_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, startcost=startcost) # fuel cell
+        turbine_init[name] = BuildAsset_init(status=1, output=output)
 
     # turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine1.csv"), ramp_up=150, ramp_down=-150, startcost=20, min_on=3)) # fuel cell
     # turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine2.csv"), ramp_up=200, ramp_down=-200, startcost=10, min_on=3)) # microturbine
@@ -164,30 +168,30 @@ def get_optimization_problem(forecast, parameters={}):
     # turbine_init[0].status1[21:] = 1
     # turbine_init[1].status1[21:] = 1
 
-    boiler_para = []
-    boiler_init = []
+    boiler_para = OrderedDict()
+    boiler_init = OrderedDict()
     for name, parameters in boiler_params.items():
         fundata = parameters["fundata"]
         ramp_up = parameters["ramp_up"]
         ramp_down = parameters["ramp_down"]
         startcost = parameters["startcost"]
-        boiler_para.append(BuildAsset(fundata=fundata, ramp_up=ramp_up, ramp_down=ramp_down, startcost=startcost))
-        boiler_init.append(BuildAsset_init(status=0))
+        boiler_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, startcost=startcost)
+        boiler_init[name] = BuildAsset_init(status=0)
 
     # boiler_para.append(BuildAsset(fundata=pandas.read_csv("paraboiler1.csv"), ramp_up=8, ramp_down=-8, startcost=0.8)) # boiler1
     # boiler_para.append(BuildAsset(fundata=pandas.read_csv("paraboiler2.csv"), ramp_up=2, ramp_down=-2, startcost=0.25)) # boiler2
     # boiler_init.append(BuildAsset_init(status=0))
     # boiler_init.append(BuildAsset_init(status=0))
 
-    chiller_para = []
-    chiller_init = []
+    chiller_para = OrderedDict()
+    chiller_init = OrderedDict()
     for name, parameters, in chiller_params.items():
         fundata = parameters["fundata"]
         ramp_up = parameters["ramp_up"]
         ramp_down = parameters["ramp_down"]
         startcost = parameters["startcost"]
-        chiller_para.append(BuildAsset(fundata=fundata, ramp_up=ramp_up, ramp_down=ramp_down, startcost=startcost))
-        chiller_init.append(BuildAsset_init(status=0))
+        chiller_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, startcost=startcost)
+        chiller_init[name] = BuildAsset_init(status=0)
 
     # chiller_para.append(BuildAsset(fundata=pandas.read_csv("parachiller.csv"), ramp_up=6, ramp_down=-6, startcost=15)) # chiller1
     # temp_data = pandas.read_csv("parachiller.csv")
@@ -201,15 +205,15 @@ def get_optimization_problem(forecast, parameters={}):
     # chiller_init[2].status1[-1]=1
 
 
-    abs_para = []
-    abs_init = []
+    abs_para = OrderedDict()
+    abs_init = OrderedDict()
     for name, parameters, in abs_params.items():
         fundata = parameters["fundata"]
         ramp_up = parameters["ramp_up"]
         ramp_down = parameters["ramp_down"]
         startcost = parameters["startcost"]
-        abs_para.append(BuildAsset(fundata=fundata, ramp_up=ramp_up, ramp_down=ramp_down, startcost=startcost))# chiller1
-        abs_init.append(BuildAsset_init(status=0))
+        abs_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, startcost=startcost)# chiller1
+        abs_init[name] = BuildAsset_init(status=0)
 
     # abs_para.append(BuildAsset(fundata=pandas.read_csv("paraabs.csv"), ramp_up=0.25, ramp_down=-0.25, startcost=2))# chiller1
     # abs_init.append(BuildAsset_init(status=0))
@@ -227,11 +231,10 @@ def get_optimization_problem(forecast, parameters={}):
     bigM = 1e4
     H_t = len(parasys["electricity_cost"])
 
-    # don't like these
-    N_turbine = len(turbine_para)
-    N_boiler = len(boiler_para)
-    N_chiller = len(chiller_para)
-    N_abs = len(abs_para)
+    turbine_names = tuple([x.component_name for x in turbine_para.values()])
+    boiler_names = tuple([x.component_name for x in boiler_para.values()])
+    chiller_names = tuple([x.component_name for x in chiller_para.values()])
+    abs_names = tuple([x.component_name for x in abs_para.values()])
 
     N_E_storage = len(E_storage_para)
     N_Cool_storage = len(Cool_storage_para)
@@ -239,7 +242,7 @@ def get_optimization_problem(forecast, parameters={}):
     def constant_zero(*args, **kwargs):
         return 0
 
-    index_turbine = range(N_turbine), range(H_t)
+    index_turbine = turbine_names, range(H_t)
     turbine_y = VariableGroup("turbine_y", indexes=index_turbine, lower_bound_func=constant_zero)
     turbine_x = VariableGroup("turbine_x", indexes=index_turbine, lower_bound_func=constant_zero)
     turbine_x_k = VariableGroup("turbine_x_k", indexes=index_turbine + (range(KK),), lower_bound_func=constant_zero)
@@ -247,7 +250,7 @@ def get_optimization_problem(forecast, parameters={}):
     turbine_s_k = VariableGroup("turbine_s_k", indexes=index_turbine + (range(KK),), is_binary_var=True)
     turbine_start = VariableGroup("turbine_start", indexes=index_turbine, is_binary_var=True)
 
-    index_boiler = range(N_boiler), range(H_t)
+    index_boiler = boiler_names, range(H_t)
     boiler_y = VariableGroup("boiler_y", indexes=index_boiler, lower_bound_func=constant_zero)
     boiler_x = VariableGroup("boiler_x", indexes=index_boiler, lower_bound_func=constant_zero)
     boiler_x_k = VariableGroup("boiler_x_k", indexes=index_boiler + (range(KK),), lower_bound_func=constant_zero)
@@ -255,7 +258,7 @@ def get_optimization_problem(forecast, parameters={}):
     boiler_s_k = VariableGroup("boiler_s_k", indexes=index_boiler + (range(KK),), is_binary_var=True)
     boiler_start = VariableGroup("boiler_start", indexes=index_boiler, is_binary_var=True)
 
-    index_chiller = range(N_chiller), range(H_t)
+    index_chiller = chiller_names, range(H_t)
     chiller_y = VariableGroup("chiller_y", indexes=index_chiller, lower_bound_func=constant_zero)
     chiller_x = VariableGroup("chiller_x", indexes=index_chiller, lower_bound_func=constant_zero)
     chiller_x_k = VariableGroup("chiller_x_k", indexes=index_chiller + (range(KK),), lower_bound_func=constant_zero)
@@ -263,7 +266,7 @@ def get_optimization_problem(forecast, parameters={}):
     chiller_s_k = VariableGroup("chiller_s_k", indexes=index_chiller + (range(KK),), is_binary_var=True)
     chiller_start = VariableGroup("chiller_start", indexes=index_chiller, is_binary_var=True)
 
-    index_abs = range(N_abs), range(H_t)
+    index_abs = abs_names, range(H_t)
     abs_y = VariableGroup("abs_y", indexes=index_abs, lower_bound_func=constant_zero)
     abs_x = VariableGroup("abs_x", indexes=index_abs, lower_bound_func=constant_zero)
     abs_x_k = VariableGroup("abs_x_k", indexes=index_abs + (range(KK),), lower_bound_func=constant_zero)
@@ -440,7 +443,7 @@ def get_optimization_problem(forecast, parameters={}):
         return Cool_storage_state[i,H_t-1] >= Cool_storageend[i]
     add_constraint("Cool_storage_final", index_cool_storage, Cool_storage_final)
 
-    index_turbine = (range(N_turbine),)
+    index_turbine = (turbine_names,)
     def turbineyConsume(index):
         # [i=1:N_turbine,t=1:H_t]
         i, t = index
@@ -516,7 +519,7 @@ def get_optimization_problem(forecast, parameters={}):
     # These turbine constraints are extra weird. Their index variables refer to one
     # another so I'm not going to try forcing them into the add constraint utility
 
-    for i in range(N_turbine):
+    for i in turbine_names:
         for t in range(1, turbine_para[i].min_on):
             name = "turbineslockon2_{}_{}".format(i, t)
             partial = []
@@ -526,7 +529,7 @@ def get_optimization_problem(forecast, parameters={}):
             c = turbine_para[i].min_on * (turbine_s[i,t-1] - turbine_s[i,t]) <= pulp.lpSum(partial) + pulp.lpSum(turbine_init[i].status1[24+t-turbine_para[i].min_on:24])
             constraints.append((c, name))
 
-    for i in range(N_turbine):
+    for i in turbine_names:
         for t in range(turbine_para[i].min_on+1, H_t):
             name = "turbineslockon_{}_{}".format(i, t)
             partial = []
@@ -538,7 +541,7 @@ def get_optimization_problem(forecast, parameters={}):
 
     ################################################################################
 
-    index_boiler = (range(N_boiler),)
+    index_boiler = (boiler_names,)
     def boileryConsume(index):
         # [i=1:N_boiler,t=1:H_t]
         i, t = index
@@ -599,7 +602,7 @@ def get_optimization_problem(forecast, parameters={}):
         return boiler_x[i,t] <= boiler_x[i,t-1] + boiler_para[i].ramp_up
     add_constraint("boilerrampdown",index_boiler + index_without_first_hour, boilerrampdown)
 
-    index_chiller = (range(N_chiller),)
+    index_chiller = (chiller_names,)
     def chilleryConsume(index):
         # [i=1:N_chiller,t=1:H_t]
         i, t = index
@@ -660,7 +663,7 @@ def get_optimization_problem(forecast, parameters={}):
         return chiller_x[i,t] <= chiller_x[i,t-1] + chiller_para[i].ramp_up
     add_constraint("chillerrampdown", index_chiller + index_without_first_hour, chillerrampdown)
 
-    index_abs = (range(N_abs),)
+    index_abs = (abs_names,)
     def absyConsume(index):
         # [i=1:N_abs,t=1:H_t]
         i, t = index
@@ -721,10 +724,13 @@ def get_optimization_problem(forecast, parameters={}):
         return abs_x[i,t] <= abs_x[i,t-1] + abs_para[i].ramp_up
     add_constraint("absrampdown",index_abs + index_without_first_hour, absrampdown)
 
+    abs_0 = abs_names[0]
+    turbine_0 = turbine_names[0]
+    turbine_1 = turbine_names[1]
     def wastedheat(index):
         # [t=1:H_t]
         t = index[0]
-        return Q_HRUheating_in[t] + abs_y[0, t] == turbine_y[0,t] - turbine_x[0,t]/293.1 + turbine_y[1,t] - turbine_x[1,t]/293.1
+        return Q_HRUheating_in[t] + abs_y[abs_0, t] == turbine_y[turbine_0,t] - turbine_x[turbine_0,t]/293.1 + turbine_y[turbine_1,t] - turbine_x[turbine_1,t]/293.1
     add_constraint("wastedheat", index_hour, wastedheat)
 
     def HRUlimit(index):
@@ -740,33 +746,34 @@ def get_optimization_problem(forecast, parameters={}):
     for var, _lambda in zip(E_gridelecfromgrid[RANGE], parasys["electricity_cost"]):
         objective_components.append(var * _lambda)
 
-    for var, _lambda in zip(E_gridelectogrid[(RANGE,)], parasys["lambda_elec_togrid"]):
+    for var, _lambda in zip(E_gridelectogrid[(RANGE,)], parasys["electricity_cost"]):
         objective_components.append(var * _lambda)
 
     for i in range(2):
-        for var, _lambda in zip(turbine_y[i, RANGE], parasys["lambda_gas"]):
+        for var, _lambda in zip(turbine_y[i, RANGE], parasys["natural_gas_cost"]):
             objective_components.append(var * _lambda)
+
 
     # for var, _lambda in zip(turbine_y[(2, RANGE)], parasys["lambda_diesel"]):
     #     objective_components.append(var * _lambda)
 
-    for i in range(N_boiler):
-        for var, _lambda in zip(boiler_y[i, RANGE],parasys["lambda_gas"]):
+    for i in boiler_names:
+        for var, _lambda in zip(boiler_y[i, RANGE],parasys["natural_gas_cost"]):
             objective_components.append(var * _lambda)
 
-    for i in range(N_turbine):
+    for i in turbine_names:
         for var in turbine_start[i, RANGE]:
             objective_components.append(var * turbine_para[i].startcost)
 
-    for i in range(N_boiler):
+    for i in boiler_names:
         for var in boiler_start[i, RANGE]:
             objective_components.append(var * boiler_para[i].startcost)
 
-    for i in range(N_chiller):
+    for i in chiller_names:
         for var in chiller_start[i, RANGE]:
             objective_components.append(var * chiller_para[i].startcost)
 
-    for i in range(N_abs):
+    for i in abs_names:
         for var in abs_start[i, RANGE]:
             objective_components.append(var * abs_para[i].startcost)
 
