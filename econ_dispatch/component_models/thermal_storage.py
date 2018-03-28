@@ -136,14 +136,13 @@ class Component(ComponentBase):
         except KeyError:
             _log.warning("No thermal storage load from optimizer - Not sending command.")
             return {}
-
-        if (self.chilled_water_return_temp is None or
+        
+        if (self.chilled_water_return_temp is None or 
             self.chilled_water_supply_temp is None or
             self.building_chilled_water_return_temp is None or
             self.building_chilled_water_supply_temp is None):
             _log.warning("Missing input from current device state - Not sending command")
             return {}
-        
         Q_tank_bldg=0.0  # mmBTU/hr
         Q_chiller_tank=0.0   # mmBTU/hr
 
