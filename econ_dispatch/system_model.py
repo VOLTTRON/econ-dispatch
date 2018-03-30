@@ -232,7 +232,7 @@ class SystemModel(object):
 
         return results
 
-    def get_parameters(self, now, inputs):
+    def get_parameters(self):
         results= {}
 
         for type_name, component_dict in self.type_map.iteritems():
@@ -289,9 +289,9 @@ class SystemModel(object):
                 results.append(name)
         return results
 
-    def run_optimizer(self, now, inputs):
+    def run_optimizer(self, now):
         forecasts = self.get_forecasts(now)
-        parameters = self.get_parameters(now, inputs)
+        parameters = self.get_parameters()
         component_loads = self.run_general_optimizer(now, forecasts, parameters)
         _log.debug("Loads: {}".format(pformat(component_loads)))
         commands = self.get_commands(component_loads)
@@ -299,6 +299,8 @@ class SystemModel(object):
         return commands
 
     def run(self, now, inputs):
+        """Run method for being driven by a script or simulation,
+        does own time validation and handles all input."""
         self.process_inputs(now, inputs)
 
         if self.next_optimization is None:
@@ -308,15 +310,23 @@ class SystemModel(object):
         if (self.next_optimization <= now):
             _log.info("Running optimizer: " + str(now))
             self.next_optimization = self.next_optimization + self.optimization_frequency
-            invalid_components = self.invalid_parameters_list()
-            if invalid_components:
-                _log.error("The following components are unable to provide valid optimization parameters: {}".format(invalid_components))
-                _log.error("THE OPTIMIZER WILL NOT BE RUN AT THIS TIME.")
-            else:
-                commands = self.run_optimizer(now, inputs)
+            commands = self.validate_run_optimizer(now)
 
 
         _log.debug("Device commands: {}".format(commands))
+
+        return commands
+
+    def validate_run_optimizer(self, now):
+        """For running from a greenlet"""
+        commands = {}
+        invalid_components = self.invalid_parameters_list()
+        if invalid_components:
+            _log.error("The following components are unable to provide valid optimization parameters: {}".format(
+                invalid_components))
+            _log.error("THE OPTIMIZER WILL NOT BE RUN AT THIS TIME.")
+        else:
+            commands = self.run_optimizer(now)
 
         return commands
 
