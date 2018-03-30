@@ -39,7 +39,11 @@ class Storage(object):
         self.eta_disch = eta_disch
         self.soc_max = soc_max
         self.soc_min = soc_min
+
         self.now_soc = now_soc
+        if now_soc is None:
+            raise ValueError("STATE OF CHARGE IS NONE")
+
         self.component_name = component_name
 
 
@@ -239,10 +243,17 @@ def get_optimization_problem(forecast, parameters={}):
     assert len(battery_params) == 1
 
 
+
+    Cool_storage_para = OrderedDict()
+    for name, parameters in thermal_storage_params.items():
+        Cool_storage_para[name] = Storage(Emax=parameters["heat_cap"],
+                                          pmax=5.0,
+                                          eta_ch=0.94,
+                                          eta_disch=0.94,
+                                          now_soc=parameters["soc"],
+                                          component_name=name)
+
     assert len(thermal_storage_params) == 1
-    thermal_storage_params = list(thermal_storage_params)[0]
-    Cool_storage_para = []
-    Cool_storage_para.append(Storage(Emax=20.0, pmax=5.0, eta_ch=0.94, eta_disch=0.94))
 
     
     bigM = 1e4
@@ -253,6 +264,7 @@ def get_optimization_problem(forecast, parameters={}):
     chiller_names = tuple([x.component_name for x in chiller_para.values()])
     abs_names = tuple([x.component_name for x in abs_para.values()])
     battery_names = tuple([x.component_name for x in E_storage_para.values()])
+    thermal_storage_names = tuple([x.component_name for x in Cool_storage_para.values()])
     
 
     N_E_storage = len(E_storage_para)
@@ -328,7 +340,7 @@ def get_optimization_problem(forecast, parameters={}):
         i, t = index
         return Cool_storage_para[i].pmax
 
-    index_cool_storage = range(N_Cool_storage), range(H_t)
+    index_cool_storage = thermal_storage_names, range(H_t)
     Cool_storage_disch = VariableGroup("Cool_storage_disch",
                                        indexes=index_cool_storage,
                                        lower_bound_func=constant_zero,
@@ -440,14 +452,16 @@ def get_optimization_problem(forecast, parameters={}):
         return E_storage_state[i,H_t-1] >= E_storageend[i]
     add_constraint("E_storage_final", index_e_storage, E_storage_final)
 
-    Cool_storage0 = np.zeros(N_Cool_storage)
-    for i in range(N_Cool_storage):
-        Cool_storage0[i] = 0.5 * Cool_storage_para[i].Emax
+    Cool_storage0 = {}
+    for i in thermal_storage_names:
+        Cool_storage0[i] = 0.5 * Cool_storage_para[i].Emax # GET STATE OF CHARGE
 
-    Cool_storageend = np.zeros(N_Cool_storage)
-    Cool_storageend[0] = 15.647
+    # this was originally hardcoded, there was only one battery
+    Cool_storageend = {}
+    for name in thermal_storage_names:
+        Cool_storageend[name] = 15.647
 
-    index_cool_storage = (range(N_Cool_storage),)
+    index_cool_storage = (thermal_storage_names,)
     def Cool_storage_init(index):
         # [i=1:N_Cool_storage]
         i, t = index[0], 0
