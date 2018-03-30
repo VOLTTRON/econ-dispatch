@@ -218,10 +218,11 @@ def get_optimization_problem(forecast, parameters={}):
     # abs_para.append(BuildAsset(fundata=pandas.read_csv("paraabs.csv"), ramp_up=0.25, ramp_down=-0.25, startcost=2))# chiller1
     # abs_init.append(BuildAsset_init(status=0))
 
-    KK=3 # number of pieces in piecewise model
+    KK = 3 # number of pieces in piecewise model
 
-    a_hru=0.8
+    a_hru = 0.8
 
+    
     E_storage_para = []
     E_storage_para.append(Storage(Emax=2000.0, pmax=500.0, eta_ch=0.93, eta_disch=0.97, soc_min=0.1))
 
@@ -399,8 +400,8 @@ def get_optimization_problem(forecast, parameters={}):
     index_e_storage = (range(N_E_storage),)
     def E_storage_init(index):
         # [i=1:N_E_storage]
-        i = index[0]
-        return E_storage_state[i,1] == E_storage0[i] + E_storage_para[i].eta_ch * E_storage_ch[i,1]- 1/E_storage_para[i].eta_disch * E_storage_disch[i,1]
+        i, t = index[0], 0
+        return E_storage_state[i,t] == E_storage0[i] + E_storage_para[i].eta_ch * E_storage_ch[i,t]- 1/E_storage_para[i].eta_disch * E_storage_disch[i,t]
     add_constraint("E_storage_init", index_e_storage, E_storage_init)
 
     index_without_first_hour = (range(1,H_t),)
@@ -427,8 +428,8 @@ def get_optimization_problem(forecast, parameters={}):
     index_cool_storage = (range(N_Cool_storage),)
     def Cool_storage_init(index):
         # [i=1:N_Cool_storage]
-        i = index[0]
-        return Cool_storage_state[i,1] == Cool_storage0[i] + Cool_storage_para[i].eta_ch * Cool_storage_ch[i,1]- 1/Cool_storage_para[i].eta_disch * Cool_storage_disch[i,1]
+        i, t = index[0], 0
+        return Cool_storage_state[i,t] == Cool_storage0[i] + Cool_storage_para[i].eta_ch * Cool_storage_ch[i,t]- 1/Cool_storage_para[i].eta_disch * Cool_storage_disch[i,t]
     add_constraint("Cool_storage_init", index_cool_storage, Cool_storage_init)
 
     def Cool_storage_state_constraint(index):
@@ -479,7 +480,7 @@ def get_optimization_problem(forecast, parameters={}):
     def turbinestartstatus1(index):
         # [i=1:N_turbine,t=1]
         i, t = index[0], 0
-        return turbine_start[i,t] >= turbine_s[i,1] - turbine_init[i].status
+        return turbine_start[i,t] >= turbine_s[i,t] - turbine_init[i].status
     add_constraint("turbinestartstatus1",index_turbine, turbinestartstatus1)
 
     def turbinestartstatus(index):
@@ -575,7 +576,7 @@ def get_optimization_problem(forecast, parameters={}):
     def boilerstartstatus1(index):
         # [i=1:N_boiler,t=1]
         i, t = index[0], 0
-        return boiler_start[i,t] >= boiler_s[i,1] - boiler_init[i].status
+        return boiler_start[i,t] >= boiler_s[i,t] - boiler_init[i].status
     add_constraint("boilerstartstatus1", index_boiler, boilerstartstatus1)
 
     def boilerstartstatus(index):
@@ -636,7 +637,7 @@ def get_optimization_problem(forecast, parameters={}):
     def chillerstartstatus1(index):
         # [i=1:N_chiller,t=1]
         i, t = index[0], 0
-        return chiller_start[i,t] >= chiller_s[i,1] - chiller_init[i].status
+        return chiller_start[i,t] >= chiller_s[i,t] - chiller_init[i].status
     add_constraint("chillerstartstatus1", index_chiller, chillerstartstatus1)
 
     def chillerstartstatus(index):
@@ -697,7 +698,7 @@ def get_optimization_problem(forecast, parameters={}):
     def absstartstatus1(index):
         # [i=1:N_abs,t=1]
         i, t = index[0], 0
-        return abs_start[i,t] >= abs_s[i,1] - abs_init[i].status
+        return abs_start[i,t] >= abs_s[i,t] - abs_init[i].status
     add_constraint("absstartstatus1", index_abs, absstartstatus1)
 
     def absstartstatus(index):
@@ -754,6 +755,7 @@ def get_optimization_problem(forecast, parameters={}):
             objective_components.append(var * _lambda)
 
 
+    # we don't have a price for diesel
     # for var, _lambda in zip(turbine_y[(2, RANGE)], parasys["lambda_diesel"]):
     #     objective_components.append(var * _lambda)
 
