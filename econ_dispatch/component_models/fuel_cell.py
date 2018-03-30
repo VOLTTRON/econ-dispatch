@@ -126,6 +126,7 @@ class Component(ComponentBase):
         AmbTemperature = training_data['AmbTemperature']
         AmbTemperature = AmbTemperature[Valid]
 
+        # TODO: calc from timestamps and other stuff
         Start = training_data['Start']
         Start = Start[Valid]
 
