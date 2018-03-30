@@ -32,13 +32,15 @@ class BuildAsset_init(object):
 
 
 class Storage(object):
-    def __init__(self, pmax, Emax, eta_ch, eta_disch, soc_max=1.0, soc_min=0.0):
+    def __init__(self, pmax, Emax, eta_ch, eta_disch, soc_max=1.0, soc_min=0.0, now_soc=0.0, component_name=None):
         self.pmax = pmax
         self.Emax = Emax
         self.eta_ch = eta_ch
         self.eta_disch = eta_disch
         self.soc_max = soc_max
         self.soc_min = soc_min
+        self.now_soc = now_soc
+        self.component_name = component_name
 
 
 # variable to indicate that we want all variables that match a pattern
@@ -133,10 +135,9 @@ def get_optimization_problem(forecast, parameters={}):
     print "================================================================================"
     for k, v in parasys.items():
         print k
-
     print "================================================================================"
-    for k, v in parameters.items():
-        print k,v
+    import json
+    print(json.dumps(parameters, indent=4, sort_keys=True))
     print "================================================================================"
 
     fuel_cell_params = parameters["fuel_cell"]
@@ -144,6 +145,8 @@ def get_optimization_problem(forecast, parameters={}):
     boiler_params = parameters["boiler"]
     chiller_params = parameters["centrifugal_chiller_igv"]
     abs_params = parameters["absorption_chiller"]
+    battery_params = parameters["battery"]
+    thermal_storage_params = parameters["thermal_storage"]
 
     turbine_para = OrderedDict()
     turbine_init = OrderedDict()
@@ -222,13 +225,26 @@ def get_optimization_problem(forecast, parameters={}):
 
     a_hru = 0.8
 
-    
-    E_storage_para = []
-    E_storage_para.append(Storage(Emax=2000.0, pmax=500.0, eta_ch=0.93, eta_disch=0.97, soc_min=0.1))
+    E_storage_para = OrderedDict()
+    # E_storage_para.append(Storage(Emax=2000.0, pmax=500.0, eta_ch=0.93, eta_disch=0.97, soc_min=0.1))
+    for name, parameters in battery_params.items():
+        E_storage_para[name] = Storage(Emax=parameters["cap"],
+                                       pmax=parameters["max_power"],
+                                       eta_ch=parameters["charge_eff"],
+                                       eta_disch=parameters["discharge_eff"],
+                                       soc_min=parameters["min_soc"],
+                                       now_soc=parameters["current_soc"],
+                                       component_name=name)
 
+    assert len(battery_params) == 1
+
+
+    assert len(thermal_storage_params) == 1
+    thermal_storage_params = list(thermal_storage_params)[0]
     Cool_storage_para = []
     Cool_storage_para.append(Storage(Emax=20.0, pmax=5.0, eta_ch=0.94, eta_disch=0.94))
 
+    
     bigM = 1e4
     H_t = len(parasys["electricity_cost"])
 
@@ -236,6 +252,8 @@ def get_optimization_problem(forecast, parameters={}):
     boiler_names = tuple([x.component_name for x in boiler_para.values()])
     chiller_names = tuple([x.component_name for x in chiller_para.values()])
     abs_names = tuple([x.component_name for x in abs_para.values()])
+    battery_names = tuple([x.component_name for x in E_storage_para.values()])
+    
 
     N_E_storage = len(E_storage_para)
     N_Cool_storage = len(Cool_storage_para)
@@ -281,7 +299,7 @@ def get_optimization_problem(forecast, parameters={}):
         i, t = index
         return E_storage_para[i].pmax
 
-    index_e_storage = range(N_E_storage), range(H_t)
+    index_e_storage = battery_names, range(H_t)
     E_storage_disch = VariableGroup("E_storage_disch",
                                     indexes=index_e_storage,
                                     lower_bound_func=constant_zero,
@@ -390,14 +408,18 @@ def get_optimization_problem(forecast, parameters={}):
         return pulp.lpSum(abs_x[RANGE,t]) + pulp.lpSum(chiller_x[RANGE,t]) + pulp.lpSum(Cool_storage_disch[RANGE,t]) - pulp.lpSum(Cool_storage_ch[RANGE,t]) + Cool_unserve[t] - Cool_dump[t] == parasys["cool_load"][t]
     add_constraint("CoolBalance",index_hour,CoolBalance)
 
-    E_storage0 = np.zeros(N_E_storage)
-    for i in range(N_E_storage):
-        E_storage0[i] = 0.5*E_storage_para[i].Emax
+    E_storage0 = {}#np.zeros(N_E_storage)
+    for i in battery_names:
+        # E_storage0[i] = 0.5 * E_storage_para[i].Emax
+        E_storage0[i] = E_storage_para[i].now_soc * E_storage_para[i].Emax
 
-    E_storageend = np.zeros(N_E_storage)
-    E_storageend[0] = 628.87
 
-    index_e_storage = (range(N_E_storage),)
+    # this was originally hardcoded, there was only one battery
+    E_storageend = {}
+    for name in battery_names:
+        E_storageend[name] = 628.87
+
+    index_e_storage = (battery_names,)
     def E_storage_init(index):
         # [i=1:N_E_storage]
         i, t = index[0], 0
