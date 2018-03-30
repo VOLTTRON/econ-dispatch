@@ -142,7 +142,7 @@ class Component(ComponentBase):
         vol_flow_rate_setpoint_abs = mass_flow_rate_abs / DENSITY_WATER
         self.command_history = self.command_history[1:] + [int(vol_flow_rate_setpoint_abs > 0.0)]
         self.parameters["command_history"] = self.command_history[:]
-        return {"set_point":vol_flow_rate_setpoint_abs}
+        return {"command":int(vol_flow_rate_setpoint_abs>0)}
 
     def train(self, training_data):
         # TODO: Update to calc these from sensor data
