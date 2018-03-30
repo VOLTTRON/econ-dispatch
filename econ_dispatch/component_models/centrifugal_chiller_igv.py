@@ -113,7 +113,7 @@ class Component(ComponentBase):
 
     def get_mapped_commands(self, component_loads):
         points = dict()
-        points["command"] = component_loads["chiller_x_{}_0".format(self.name)] > 0.0
+        points["command"] = int(component_loads["chiller_x_{}_0".format(self.name)] > 0.0)
         return points
 
     def train(self, training_data):

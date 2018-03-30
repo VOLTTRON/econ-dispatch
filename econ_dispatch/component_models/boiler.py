@@ -106,7 +106,7 @@ class Component(ComponentBase):
     #     return EXPECTED_PARAMETERS <= k
 
     def get_mapped_commands(self, component_loads):
-        return {"command":(component_loads["boiler_x_{}_0".format(self.name)]>0.0)}
+        return {"command":int(component_loads["boiler_x_{}_0".format(self.name)]>0.0)}
 
     def train(self, training_data):
         # TODO: Update to calc these from sensor data
