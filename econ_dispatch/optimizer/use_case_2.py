@@ -454,7 +454,7 @@ def get_optimization_problem(forecast, parameters={}):
 
     Cool_storage0 = {}
     for i in thermal_storage_names:
-        Cool_storage0[i] = 0.5 * Cool_storage_para[i].Emax # GET STATE OF CHARGE
+        Cool_storage0[i] = Cool_storage_para[i].now_soc * Cool_storage_para[i].Emax # GET STATE OF CHARGE
 
     # this was originally hardcoded, there was only one battery
     Cool_storageend = {}
