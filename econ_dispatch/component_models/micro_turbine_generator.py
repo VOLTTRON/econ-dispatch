@@ -126,7 +126,7 @@ class Component(ComponentBase):
 
     def get_mapped_commands(self, component_loads):
         try:
-            load = component_loads["Q_prime_mover_{}_hour00".format(self.name)]
+            load = component_loads["turbine_x_{}_0".format(self.name)]
         except KeyError:
             _log.warning("micro turbine generator load missing from optimizer output")
             return {}

@@ -94,14 +94,14 @@ class Component(ComponentBase):
 
         cp_fluid = 4.186
 
-        if self.fluid_type == 'glycolwater30':
+        if fluid_type == 'glycolwater30':
             cp_fluid = 3.913
-        elif self.fluid_type == 'glycolwater50':
+        elif fluid_type == 'glycolwater50':
             cp_fluid = 3.558
 
         heat_capacity = tank_volume * cp_fluid * abs(design_chilled_water_return_temp - design_chilled_water_supply_temp) / 3600.0 #convert to kWh
 
-        self.parameters["heat_cap"] = heat_capacity
+        self.parameters["heat_cap"] = heat_capacity / 293.3 # to mmBTU
         self.parameters["eff"] = 1.0
 
 
