@@ -107,16 +107,17 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return [u"electricity"]
 
-    def validate_parameters(self):
-        k = set(self.parameters.keys())
-        return EXPECTED_PARAMETERS <= k
+    # def validate_parameters(self):
+    #     k = set(self.parameters.keys())
+    #     return EXPECTED_PARAMETERS <= k
 
     def get_mapped_commands(self, component_loads):
         points = dict()
-        points["command"] = component_loads["E_chillerelec_{}_hour00".format(self.name)] > 0.0
+        points["command"] = int(component_loads["chiller_x_{}_0".format(self.name)] > 0.0)
         return points
 
     def train(self, training_data):
+        # TODO: Update to calc these from sensor data
         # chiller cooling output in mmBtu/hr (converted from cooling Tons)
         Qch = training_data["Qch(tons)"] * 3.517 / 293.1
 

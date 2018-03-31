@@ -124,9 +124,9 @@ class Component(ComponentBase):
         # self.a0, self.a1 = self.train()
 
 
-    def validate_parameters(self):
-        k = set(self.parameters.keys())
-        return EXPECTED_PARAMETERS <= k
+    # def validate_parameters(self):
+    #     k = set(self.parameters.keys())
+    #     return EXPECTED_PARAMETERS <= k
 
 
     def get_output_metadata(self):
@@ -136,15 +136,16 @@ class Component(ComponentBase):
         return [u"heat"]
 
     def get_mapped_commands(self, component_loads):
-        abs_chller_load_mmBTU = component_loads["Q_abs_{}_hour00".format(self.name)]
+        abs_chller_load_mmBTU = component_loads["abs_x_{}_0".format(self.name)]
         abs_chiller_load_kW = abs_chller_load_mmBTU*1000/3.412
         mass_flow_rate_abs =  abs_chiller_load_kW / (SPECIFIC_HEAT_WATER*(self.Tchr-self.Tcho))
         vol_flow_rate_setpoint_abs = mass_flow_rate_abs / DENSITY_WATER
         self.command_history = self.command_history[1:] + [int(vol_flow_rate_setpoint_abs > 0.0)]
         self.parameters["command_history"] = self.command_history[:]
-        return {"set_point":vol_flow_rate_setpoint_abs}
+        return {"command":int(vol_flow_rate_setpoint_abs>0)}
 
     def train(self, training_data):
+        # TODO: Update to calc these from sensor data
         Qch = training_data["Qch(tons)"] * (3.517 / 293.1) # chiller cooling output in mmBTU/hr (converted from cooling Tons)
         Qin = training_data["Qin(MMBtu/h)"] # chiller heat input in mmBTU/hr
 

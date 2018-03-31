@@ -110,9 +110,9 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return [u"natural_gas"]
 
-    def validate_parameters(self):
-        k = set(self.parameters.keys())
-        return EXPECTED_PARAMETERS <= k
+    # def validate_parameters(self):
+    #     k = set(self.parameters.keys())
+    #     return EXPECTED_PARAMETERS <= k
 
     def train(self, training_data):
 
@@ -126,6 +126,7 @@ class Component(ComponentBase):
         AmbTemperature = training_data['AmbTemperature']
         AmbTemperature = AmbTemperature[Valid]
 
+        # TODO: calc from timestamps and other stuff
         Start = training_data['Start']
         Start = Start[Valid]
 
@@ -156,7 +157,7 @@ class Component(ComponentBase):
 
     def get_mapped_commands(self, component_loads):
         return {"set_point":
-                component_loads["Q_prime_mover_{}_hour00".format(self.name)]*293.1}
+                component_loads["turbine_x_{}_0".format(self.name)]*293.1}
 
 
     # def get_optimization_parameters(self):

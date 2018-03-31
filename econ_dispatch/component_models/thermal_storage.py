@@ -74,15 +74,19 @@ DENSITY_WATER = 1.000 #kg/L
 class Component(ComponentBase):
     def __init__(self,
                  tank_volume=None,
-                 input_temp=None,
-                 output_temp=None,
+                 design_chilled_water_return_temp=None,
+                 design_chilled_water_supply_temp=None,
                  fluid_type="water",
                  **kwargs):
         super(Component, self).__init__(**kwargs)
 
         tank_volume = float(tank_volume)
-        input_temp = float(tank_volume)
-        output_temp = float(tank_volume)
+
+        self.chilled_water_supply_temp = None
+        self.chilled_water_return_temp = None
+        self.building_chilled_water_supply_temp = None
+        self.building_chilled_water_return_temp = None
+        self.soc = None
 
         if fluid_type not in ("water", "glycolwater30", "glycolwater50"):
             _log.warning("Unrecognized fluid type {} (must be water, glycolwater30, or glycolwater50)."
@@ -90,14 +94,14 @@ class Component(ComponentBase):
 
         cp_fluid = 4.186
 
-        if self.fluid_type == 'glycolwater30':
+        if fluid_type == 'glycolwater30':
             cp_fluid = 3.913
-        elif self.fluid_type == 'glycolwater50':
+        elif fluid_type == 'glycolwater50':
             cp_fluid = 3.558
 
-        heat_capacity = tank_volume * cp_fluid * abs(input_temp - output_temp) / 3600.0 #convert to kWh
+        heat_capacity = tank_volume * cp_fluid * abs(design_chilled_water_return_temp - design_chilled_water_supply_temp) / 3600.0 #convert to kWh
 
-        self.parameters["heat_cap"] = heat_capacity
+        self.parameters["heat_cap"] = heat_capacity / 293.3 # to mmBTU
         self.parameters["eff"] = 1.0
 
 
@@ -107,29 +111,69 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return []
 
+    def process_input(self, timestamp, name, value):
+        """Override this to process input data from the platform.
+        Components will typically want the current state of the device they
+        represent as input.
+        name - Name of the input from the configuration file.
+        value - value of the input from the message bus.
+        """
+        if name == "chilled_water_return_temp":
+            self.chilled_water_return_temp = value
+        elif name == "chilled_water_supply_temp":
+            self.chilled_water_supply_temp = value
+        elif name == "building_chilled_water_supply_temp":
+            self.building_chilled_water_supply_temp = value
+        elif name == "building_chilled_water_return_temp":
+            self.building_chilled_water_return_temp = value
+        elif name == "soc":
+            self.soc = value
+            self.parameters["soc"] = value
+
     def get_commands(self, component_loads):
-        #PLACEHOLDER VARIABLE FOR DISPATCHED LOAD FROM TANK TO BUILDING
-        Q_tank_bldg=1.0  # mmBTU/hr
-        #PLACEHOLDER VARIABLE FOR DISPATCHED LOAD FROM CHILLERS TO TANK
-        Q_chiller_tank=0   # mmBTU/hr
-        #PLACEHOLDER VARIABLE FOR DISPATCHED LOAD FROM ABSORPTION CHILLERS TO TANK
-        Q_abchiller_tank=0   # mmBTU/hr
+        try:
+            charge_load = component_loads["Cool_storage_ch_{}_0".format(self.name)]
+            discharge_load = component_loads["Cool_storage_disch_{}_0".format(self.name)]
+        except KeyError:
+            _log.warning("Thermal Storage missing from optimizer output")
+            return {}
+        return {"charge_load": charge_load*293.3, "discharge_load": discharge_load*293.3}
 
-        Q_tank_bldg_kW = Q_tank_bldg *1000/3.412
-        #Q_chiller_tank_kW = Q_chiller_tank * 1000 / 3.412
-        #Q_abchiller_tank_kW = Q_abchiller_tank * 1000 / 3.412
-        mass_flow_rate_tank_bldg =  Q_tank_bldg_kW / (SPECIFIC_HEAT_WATER*(self.T_chwBldgReturn-self.T_chwStorageSupply))
-        vol_flow_rate_setpoint_tank_bldg = mass_flow_rate_tank_bldg / DENSITY_WATER
-        # mass_flow_rate_chiller_tank = Q_chiller_tank_kW / (SPECIFIC_HEAT_WATER * (self.T_chwChillerReturn - self.T_chW))
-        # vol_flow_rate_setpoint_chiller_tank = mass_flow_rate_chiller_tank / DENSITY_WATER
-        # mass_flow_rate_abchiller_tank = Q_abchiller_tank_kW / (SPECIFIC_HEAT_WATER * (self.T_chwChillerReturn - self.T_abW))
-        # vol_flow_rate_setpoint_abchiller_tank = mass_flow_rate_abchiller_tank / DENSITY_WATER
+    # def get_commands(self, component_loads):
+    #     try:
+    #         thermal_storage_load_mmBTUhr = component_loads["Q_thermal_storage_{}_hour00".format(self.name)]
+    #     except KeyError:
+    #         _log.warning("No thermal storage load from optimizer - Not sending command.")
+    #         return {}
+    #
+    #     if (self.chilled_water_return_temp is None or
+    #         self.chilled_water_supply_temp is None or
+    #         self.building_chilled_water_return_temp is None or
+    #         self.building_chilled_water_supply_temp is None):
+    #         _log.warning("Missing input from current device state - Not sending command")
+    #         return {}
+    #     Q_tank_bldg=0.0  # mmBTU/hr
+    #     Q_chiller_tank=0.0   # mmBTU/hr
+    #
+    #     if thermal_storage_load_mmBTUhr > 0.0:
+    #         Q_chiller_tank = thermal_storage_load_mmBTUhr
+    #     else:
+    #         Q_tank_bldg = abs(thermal_storage_load_mmBTUhr)
+    #
+    #     Q_tank_bldg_kW = Q_tank_bldg *1000/3.412
+    #     Q_chiller_tank_kW = Q_chiller_tank * 1000 / 3.412
+    #     # Q_abchiller_tank_kW = Q_abchiller_tank * 1000 / 3.412
+    #     mass_flow_rate_tank_bldg =  Q_tank_bldg_kW / (SPECIFIC_HEAT_WATER*(self.building_chilled_water_return_temp-self.building_chilled_water_supply_temp))
+    #     vol_flow_rate_setpoint_tank_bldg = mass_flow_rate_tank_bldg / DENSITY_WATER
+    #     mass_flow_rate_chiller_tank = Q_chiller_tank_kW / (SPECIFIC_HEAT_WATER * (self.chilled_water_return_temp - self.chilled_water_supply_temp))
+    #     vol_flow_rate_setpoint_chiller_tank = mass_flow_rate_chiller_tank / DENSITY_WATER
+    #     # mass_flow_rate_abchiller_tank = Q_abchiller_tank_kW / (SPECIFIC_HEAT_WATER * (self.T_chwChillerReturn - self.T_abW))
+    #     # vol_flow_rate_setpoint_abchiller_tank = mass_flow_rate_abchiller_tank / DENSITY_WATER
+    #
+    #     return {"flow_rate_tank_building":vol_flow_rate_setpoint_tank_bldg,
+    #             "flow_rate_chiller_tank": vol_flow_rate_setpoint_chiller_tank}
 
-        # return {"vol_flow_rate_setpoint_tank_bldg":vol_flow_rate_setpoint_tank_bldg,
-        #         "vol_flow_rate_setpoint_chiller_tank": vol_flow_rate_setpoint_chiller_tank,
-        #         "vol_flow_rate_setpoint_abchiller_tank": vol_flow_rate_setpoint_abchiller_tank}
-
-        return {"flow_rate": vol_flow_rate_setpoint_tank_bldg}
+        # return {"flow_rate": vol_flow_rate_setpoint_tank_bldg}
 
     # def update_parameters(self, timestamp, inputs):
     #     self.MFR_chW = inputs.get("MFR_chW", DEFAULT_MFR_CHW)

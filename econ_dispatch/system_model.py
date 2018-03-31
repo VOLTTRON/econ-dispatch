@@ -232,7 +232,7 @@ class SystemModel(object):
 
         return results
 
-    def get_parameters(self, now, inputs):
+    def get_parameters(self):
         results= {}
 
         for type_name, component_dict in self.type_map.iteritems():
@@ -264,15 +264,23 @@ class SystemModel(object):
     def get_training_parameters(self):
         results = dict()
         for name, component in self.instance_map.iteritems():
-            results[name] = (component.training_window, component.training_sources)
+            # Skip components without training sources configrued.
+            if component.training_sources:
+                results[name] = (component.training_window, component.training_sources.keys())
 
         return results
 
     def apply_all_training_data(self, training_data):
         for name, data in training_data.iteritems():
-            normalized = normalize_training_data(data)
             component = self.instance_map[name]
-            component.train(normalized)
+            training_map = component.training_sources
+            normalized_data = {}
+            for topic , topic_data in data.iteritems():
+                mapped_name = training_map.get(topic)
+                if mapped_name is not None:
+                    normalized = normalize_training_data(topic_data)
+                    normalized_data[mapped_name] = normalized
+            component.train(normalized_data)
 
     def invalid_parameters_list(self):
         results = []
@@ -281,9 +289,9 @@ class SystemModel(object):
                 results.append(name)
         return results
 
-    def run_optimizer(self, now, inputs):
+    def run_optimizer(self, now):
         forecasts = self.get_forecasts(now)
-        parameters = self.get_parameters(now, inputs)
+        parameters = self.get_parameters()
         component_loads = self.run_general_optimizer(now, forecasts, parameters)
         _log.debug("Loads: {}".format(pformat(component_loads)))
         commands = self.get_commands(component_loads)
@@ -291,6 +299,8 @@ class SystemModel(object):
         return commands
 
     def run(self, now, inputs):
+        """Run method for being driven by a script or simulation,
+        does own time validation and handles all input."""
         self.process_inputs(now, inputs)
 
         if self.next_optimization is None:
@@ -300,15 +310,23 @@ class SystemModel(object):
         if (self.next_optimization <= now):
             _log.info("Running optimizer: " + str(now))
             self.next_optimization = self.next_optimization + self.optimization_frequency
-            invalid_components = self.invalid_parameters_list()
-            if invalid_components:
-                _log.error("The following components are unable to provide valid optimization parameters: {}".format(invalid_components))
-                _log.error("THE OPTIMIZER WILL NOT BE RUN AT THIS TIME.")
-            else:
-                commands = self.run_optimizer(now, inputs)
+            commands = self.validate_run_optimizer(now)
 
 
         _log.debug("Device commands: {}".format(commands))
+
+        return commands
+
+    def validate_run_optimizer(self, now):
+        """For running from a greenlet"""
+        commands = {}
+        invalid_components = self.invalid_parameters_list()
+        if invalid_components:
+            _log.error("The following components are unable to provide valid optimization parameters: {}".format(
+                invalid_components))
+            _log.error("THE OPTIMIZER WILL NOT BE RUN AT THIS TIME.")
+        else:
+            commands = self.run_optimizer(now)
 
         return commands
 

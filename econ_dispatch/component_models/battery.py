@@ -116,16 +116,12 @@ class Component(ComponentBase):
 
     def get_commands(self, component_loads):
         try:
-            load = component_loads["Q_battery_{}_hour00".format(self.name)]
+            charge_load = component_loads["E_storage_ch_{}_0".format(self.name)]
+            discharge_load = component_loads["E_storage_disch_{}_0".format(self.name)]
         except KeyError:
             _log.warning("battery load missing from optimizer output")
             return {}
-        command = "idle"
-        if load > 0:
-            command = "charge"
-        elif load < 0:
-            command = "discharge"
-        return {"command":command}
+        return {"charge_load": charge_load, "discharge_load": discharge_load}
 
     def process_input(self, timestamp, name, value):
         """Override this to process input data from the platform.
