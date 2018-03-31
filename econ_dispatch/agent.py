@@ -81,6 +81,7 @@ def econ_dispatch_agent(config_path, **kwargs):
     :param kwargs: Any driver specific parameters"""
     config = utils.load_config(config_path)
 
+    historian_training = bool(config.get("historian_training", False))
     training_frequency = int(config.get("training_frequency", 7))
     make_reservations = config.get("make_reservations", False)
     optimizer_debug = config.get('optimizer_debug')
@@ -89,6 +90,8 @@ def econ_dispatch_agent(config_path, **kwargs):
     weather = config.get("weather", {})
     forecast_models = config.get("forecast_models", {})
     components = config.get("components", {})
+    historian_vip_id = config.get("historian_vip_id", "platform.historian")
+    simulation_mode = bool(config.get("simulation_mode", False))
 
     return EconDispatchAgent(make_reservations=make_reservations,
                              optimization_frequency=optimization_frequency,
@@ -98,6 +101,9 @@ def econ_dispatch_agent(config_path, **kwargs):
                              forecast_models=forecast_models,
                              components=components,
                              training_frequency=training_frequency,
+                             historian_training=historian_training,
+                             historian_vip_id=historian_vip_id,
+                             simulation_mode=simulation_mode,
                              **kwargs)
 
     
@@ -114,6 +120,9 @@ class EconDispatchAgent(Agent):
                  forecast_models={},
                  components={},
                  training_frequency=7,
+                 historian_training=False,
+                 historian_vip_id="platform.historian",
+                 simulation_mode=False,
                  **kwargs):
         """
         Initializes agent
@@ -124,19 +133,30 @@ class EconDispatchAgent(Agent):
         self.model = None
         self.make_reservations = make_reservations
         self.training_frequency = training_frequency
+        self.historian_training = historian_training
         self.input_topics = set()
+        self.historian_vip_id=historian_vip_id
+        self.simulation_mode = simulation_mode
         self.inputs = {}
+
+        self.training_greenlet = None
+        self.optimizer_greenlet = None
+
+        self.next_training = None
 
         # master is where we copy from to get a poppable list of
         # subdevices that should be present before we run the analysis.
         self.default_config = dict(make_reservations=make_reservations,
-                                 optimization_frequency=optimization_frequency,
-                                 optimizer=optimizer,
-                                 optimizer_debug=optimizer_debug,
-                                 weather=weather,
-                                 forecast_models=forecast_models,
-                                 components=components,
-                                 training_frequency=training_frequency)
+                                   optimization_frequency=optimization_frequency,
+                                   optimizer=optimizer,
+                                   optimizer_debug=optimizer_debug,
+                                   weather=weather,
+                                   forecast_models=forecast_models,
+                                   components=components,
+                                   training_frequency=training_frequency,
+                                   historian_training=historian_training,
+                                   historian_vip_id=historian_vip_id,
+                                   simulation_mode=simulation_mode)
 
         # Set a default configuration to ensure that self.configure is called immediately to setup
         # the agent.
@@ -167,14 +187,18 @@ class EconDispatchAgent(Agent):
             optimization_frequency = int(config.get("optimization_frequency", 60))
             optimizer_csv_filename = config.get("optimizer_debug")
             training_frequency = int(config.get("training_frequency", 7))
+            historian_training = bool(config.get("historian_training", False))
+            historian_vip_id = str(config.get("historian_vip_id", "platform.historian"))
+            simulation_mode = bool(config.get("simulation_mode", False))
         except (ValueError, KeyError) as e:
             _log.error("ERROR PROCESSING CONFIGURATION: {}".format(e))
             return
 
         self.make_reservations = make_reservations
-        self.training_frequency = training_frequency
-
-
+        self.historian_vip_id = historian_vip_id
+        self.training_frequency = td(days=training_frequency)
+        self.simulation_mode = simulation_mode
+        self.historian_training = historian_training
 
         self.model = build_model_from_config(weather_config,
                                              optimizer_config,
@@ -186,6 +210,8 @@ class EconDispatchAgent(Agent):
         self.input_topics = self.model.get_component_input_topics()
         self.all_topics = self._create_all_topics(self.input_topics)
         self._create_subscriptions(self.all_topics)
+        self._setup_timed_events(training_frequency,
+                                optimization_frequency)
 
     def _create_subscriptions(self, all_topics):
         # Un-subscribe from everything.
@@ -216,13 +242,84 @@ class EconDispatchAgent(Agent):
             if topic in self.input_topics:
                 self.inputs[topic] = value
 
-        if self.inputs:
-            timestamp = utils.parse_timestamp_string(headers[headers_mod.TIMESTAMP])
-            commands = self.model.run(timestamp, self.inputs)
+        timestamp = utils.parse_timestamp_string(headers[headers_mod.TIMESTAMP])
 
-            if commands and self.reserve_actuator(commands):
-                self.actuator_set(commands)
-                self.reserve_actuator_cancel()
+        if self.inputs and not self.simulation_mode:
+            self.model.process_inputs(timestamp, self.inputs)
+
+        if self.simulation_mode:
+            if self.historian_training:
+                self.train_components(timestamp)
+            self.model.run(timestamp, self.inputs)
+
+    def _setup_timed_events(self, training_frequency,
+                                optimize_frequency):
+        if self.training_greenlet is not None:
+            self.training_greenlet.kill()
+            self.training_greenlet = None
+
+        optimizer_wait = 300
+        if self.optimizer_greenlet is not None:
+            self.optimizer_greenlet.kill()
+            self.optimizer_greenlet = None
+            optimizer_wait = 0
+
+        # Don't setup the greenlets if we are driven by simulation.
+        if self.simulation_mode:
+            return
+
+        # TODO: make initial wait configurable
+        # TODO: handle invalid parameter reschedule?
+        self.optimizer_greenlet = self.core.periodic(optimize_frequency*60,
+                                                     self.run_optimizer, wait=optimizer_wait)
+
+        if self.historian_training:
+            self.training_greenlet = self.core.periodic(training_frequency*3600*24,
+                                                        self.train_components)
+
+    def run_optimizer(self):
+        """Run the optimizer"""
+        now = utils.get_aware_utc_now()
+
+        commands = self.model.validate_run_optimizer(now, self.inputs)
+
+        if commands and self.reserve_actuator(commands):
+            self.actuator_set(commands)
+            self.reserve_actuator_cancel()
+
+    def train_components(self, now=None):
+        """Gather parameters and pass them back to model"""
+        if now is None:
+            # We are being driven by a greenlet in realtime
+            # Always run when we are told
+            now = utils.get_aware_utc_now()
+        else:
+            # We are being driven by simulation
+            # Bail if we are not ready to run again.
+            if self.next_training is None:
+                self.next_training = now
+            if self.next_training > now:
+                return
+
+            self.next_training = now + self.training_frequency
+
+        results = {}
+        all_parameters = self.model.get_training_parameters()
+
+        for name, parameters in all_parameters.iteritems():
+            window, sources = parameters
+            end = now
+            start = end - td(days=window)
+            training_data = {}
+            for topic in sources:
+                self.vip.rpc.call(self.historian_vip_id,
+                                  "query",
+                                  topic,
+                                  utils.format_timestamp(start),
+                                  utils.format_timestamp(end),
+                                   ).get(timeout=4)
+
+        self.model.apply_all_training_data(results)
 
 
     def reserve_actuator(self, topic_values):
