@@ -311,7 +311,7 @@ class SystemModel(object):
             _log.info("Running optimizer: " + str(now))
             self.next_optimization = self.next_optimization + self.optimization_frequency
             commands = self.validate_run_optimizer(now)
-
+            _log.info("Next optimization: {}".format(self.next_optimization))
 
         _log.debug("Device commands: {}".format(commands))
 
