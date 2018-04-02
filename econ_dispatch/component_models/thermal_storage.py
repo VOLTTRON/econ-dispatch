@@ -130,7 +130,7 @@ class Component(ComponentBase):
             self.soc = value
             self.parameters["soc"] = value
 
-    def get_commands(self, component_loads):
+    def get_mapped_commands(self, component_loads):
         try:
             charge_load = component_loads["Cool_storage_ch_{}_0".format(self.name)]
             discharge_load = component_loads["Cool_storage_disch_{}_0".format(self.name)]
