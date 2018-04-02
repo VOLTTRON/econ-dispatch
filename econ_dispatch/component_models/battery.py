@@ -114,7 +114,7 @@ class Component(ComponentBase):
         k = set(self.parameters.keys())
         return EXPECTED_PARAMETERS <= k and self.parameters["current_soc"] is not None
 
-    def get_commands(self, component_loads):
+    def get_mapped_commands(self, component_loads):
         try:
             charge_load = component_loads["E_storage_ch_{}_0".format(self.name)]
             discharge_load = component_loads["E_storage_disch_{}_0".format(self.name)]
