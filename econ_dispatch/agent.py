@@ -59,6 +59,7 @@ from datetime import datetime as dt, timedelta as td
 import logging
 from copy import deepcopy
 import sys
+from pprint import pformat
 
 from volttron.platform.agent import utils
 from volttron.platform.vip.agent import Agent, Core
@@ -92,6 +93,7 @@ def econ_dispatch_agent(config_path, **kwargs):
     components = config.get("components", {})
     historian_vip_id = config.get("historian_vip_id", "platform.historian")
     simulation_mode = bool(config.get("simulation_mode", False))
+    command_output = config.get("command_output", None)
 
     return EconDispatchAgent(make_reservations=make_reservations,
                              optimization_frequency=optimization_frequency,
@@ -104,6 +106,7 @@ def econ_dispatch_agent(config_path, **kwargs):
                              historian_training=historian_training,
                              historian_vip_id=historian_vip_id,
                              simulation_mode=simulation_mode,
+                             command_output=command_output,
                              **kwargs)
 
     
@@ -123,6 +126,7 @@ class EconDispatchAgent(Agent):
                  historian_training=False,
                  historian_vip_id="platform.historian",
                  simulation_mode=False,
+                 command_output=None,
                  **kwargs):
         """
         Initializes agent
@@ -137,6 +141,9 @@ class EconDispatchAgent(Agent):
         self.input_topics = set()
         self.historian_vip_id=historian_vip_id
         self.simulation_mode = simulation_mode
+        self.command_output = command_output
+        self.command_history = []
+        self.remaining_simulation_inputs = set()
         self.inputs = {}
 
         self.training_greenlet = None
@@ -156,7 +163,8 @@ class EconDispatchAgent(Agent):
                                    training_frequency=training_frequency,
                                    historian_training=historian_training,
                                    historian_vip_id=historian_vip_id,
-                                   simulation_mode=simulation_mode)
+                                   simulation_mode=simulation_mode,
+                                   command_output=command_output)
 
         # Set a default configuration to ensure that self.configure is called immediately to setup
         # the agent.
@@ -190,6 +198,8 @@ class EconDispatchAgent(Agent):
             historian_training = bool(config.get("historian_training", False))
             historian_vip_id = str(config.get("historian_vip_id", "platform.historian"))
             simulation_mode = bool(config.get("simulation_mode", False))
+            command_output = config.get("command_output", None)
+
         except (ValueError, KeyError) as e:
             _log.error("ERROR PROCESSING CONFIGURATION: {}".format(e))
             return
@@ -198,6 +208,7 @@ class EconDispatchAgent(Agent):
         self.historian_vip_id = historian_vip_id
         self.training_frequency = td(days=training_frequency)
         self.simulation_mode = simulation_mode
+        self.command_output = command_output
         self.historian_training = historian_training
 
         self.model = build_model_from_config(weather_config,
@@ -210,6 +221,7 @@ class EconDispatchAgent(Agent):
         self.input_topics = self.model.get_component_input_topics()
         self.all_topics = self._create_all_topics(self.input_topics)
         self._create_subscriptions(self.all_topics)
+        self.remaining_simulation_inputs = self.all_topics.copy()
         self._setup_timed_events(training_frequency,
                                 optimization_frequency)
 
@@ -238,9 +250,9 @@ class EconDispatchAgent(Agent):
         points = message[0]
 
         for point, value in points.iteritems():
-            topic = base_topic + '/' + point
-            if topic in self.input_topics:
-                self.inputs[topic] = value
+            point_topic = base_topic + '/' + point
+            if point_topic in self.input_topics:
+                self.inputs[point_topic] = value
 
         timestamp = utils.parse_timestamp_string(headers[headers_mod.TIMESTAMP])
 
@@ -250,7 +262,46 @@ class EconDispatchAgent(Agent):
         if self.simulation_mode:
             if self.historian_training:
                 self.train_components(timestamp)
-            self.model.run(timestamp, self.inputs)
+
+            if topic in self.remaining_simulation_inputs:
+                self.remaining_simulation_inputs.remove(topic)
+            else:
+                _log.warning("Duplicate inputs: {}".format(topic))
+
+            if not self.remaining_simulation_inputs:
+                self.remaining_simulation_inputs = self.all_topics.copy()
+                commands = self.model.run(timestamp, self.inputs)
+                if commands:
+                    self.actuator_set(commands)
+
+                    if self.command_output is not None:
+                        self.command_history.append((timestamp, commands))
+
+    @Core.receiver('onstop')
+    def stop(self, sender, **kwargs):
+        if self.command_output is not None and self.command_history:
+            topics = set()
+            for result in self.command_history:
+                for topic in result[1]:
+                    topics.add(topic)
+
+            topics = list(topics)
+            topics.sort()
+            topics = ["timestamp"] + topics
+            _log.info("Unique commands:\n" + pformat(topics))
+
+            _log.info("Writing command output file: {}".format(self.command_output))
+
+            with open(self.command_output, "wb") as f:
+                dict_writer = csv.DictWriter(f, topics)
+                dict_writer.writeheader()
+                for result in self.command_history:
+                    row = {}
+                    row["timestamp"] = result[0]
+                    for topic, value in result[1].iteritems():
+                        row[topic] = value
+
+                    dict_writer.writerow(row)
 
     def _setup_timed_events(self, training_frequency,
                                 optimize_frequency):
