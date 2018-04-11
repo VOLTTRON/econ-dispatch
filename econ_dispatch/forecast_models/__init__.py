@@ -68,45 +68,56 @@ _modelDict = {}
 class ForecastModelBase(object):
     __metaclass__ = abc.ABCMeta
 
+    def __init__(self,
+                 training_window=365,
+                 training_sources={}
+                 ):
+        self.training_window = int(training_window)
+        self.training_sources = training_sources
+
     @abc.abstractmethod
     def derive_variables(self, now, independent_variable_values={}):
         """Get the predicted load values based on the independent variables."""
         pass
 
-    @abc.abstractmethod
-    def add_training_data(self, now, variable_values={}):
-        """Update the training data with the last hour."""
+    def train(self, training_data):
+        """Override this to use training data to update the model used to make forecasts.
+        training_data takes the form:
+
+        {
+         "input_name1": [value1, value2,...],
+         "input_name2": [value1, value2,...]
+        }
+        """
         pass
 
 class HistoryModelBase(ForecastModelBase):
-    def __init__(self, history_data_file=None, historical_data_time_column="timestamp"):
-        self.setup_historical_data(history_data_file, historical_data_time_column)
-
     def derive_variables(self, now, independent_variable_values={}):
         now = now.replace(year=self.history_year)
         return self.get_historical_hour(now)
 
-    def add_training_data(self, now, variable_values={}):
-        """Update the training data with the last hour."""
-        pass
-
-    def setup_historical_data(self, csv_file, historical_data_time_column):
-        self.time_column = historical_data_time_column
-
-        self.historical_data = pd.read_csv(csv_file, parse_dates=[self.time_column])
-
-        self.history_year = self.historical_data[self.time_column][0].year
-
     def get_historical_hour(self, now):
         #Index of the closest timestamp.
-        index = abs(self.historical_data[self.time_column] - now).idxmin()
+        index = abs(self.historical_data["timestamp"] - now).idxmin()
         #Return the row as a dict.
         return dict(self.historical_data.iloc[index])
 
+    def train(self, training_data):
+        results = {}
+        for key, values in training_data.iteritems():
+            readings = pd.Series(values)
+            results[key] = readings
+        df = pd.DataFrame(results)
 
-def get_forecast_model_class(name, type, **kwargs):
+        self.historical_data = df
+
+        self.history_year = self.historical_data["timestamp"][0].year
+
+
+
+def get_forecast_model_class(name, type):
     module_name = name + "." + type
     module = __import__(module_name, globals(), locals(), ['Model'], 1)
     klass = module.Model
-    return klass(**kwargs)
+    return klass
 

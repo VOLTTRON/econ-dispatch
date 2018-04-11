@@ -62,6 +62,3 @@ class Model(ForecastModelBase):
         """Get the predicted load values based on the independent variables."""
         return {"solar_kW": 0}
 
-    def add_training_data(self, now, variable_values={}):
-        """Update the training data with the last hour."""
-        pass

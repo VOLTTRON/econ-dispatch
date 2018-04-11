@@ -94,7 +94,17 @@ def build_model_from_config(weather_config,
 
     for name, config_dict in forecast_model_configs.iteritems():
         model_type = config_dict["type"]
-        forecast_model = get_forecast_model_class(name, model_type, **config_dict.get("settings",{}))
+        klass = get_forecast_model_class(name, model_type)
+        forecast_model = klass(training_window=config_dict.get("training_window", 365),
+                               training_sources=config_dict.get("training_sources", {}),
+                               **config_dict.get("settings",{}))
+
+        training_data = config_dict.get("initial_training_data")
+        if training_data is not None:
+            _log.info("Applying config supplied training data for {} forcast model".format(name))
+            training_data = normalize_training_data(training_data)
+            forecast_model.train(training_data)
+
         system_model.add_forecast_model(forecast_model, name)
 
     for component_dict in component_configs:

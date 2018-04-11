@@ -81,10 +81,6 @@ class Model(ForecastModelBase):
         
         return {"solar_radiation": solar_radiation}
 
-    def add_training_data(self, now, variable_values={}):
-        """Do nothing for now."""
-        pass
-
     def _training(self):
         #Reading radiation, cloud cover and time data from TMY3 excel file. Note
         #that TMY3 files do not contain Month variable
