@@ -271,18 +271,23 @@ class SystemModel(object):
 
         return results
 
-    def get_training_parameters(self):
+    def get_training_parameters(self, forecast_models=False):
         results = dict()
-        for name, component in self.instance_map.iteritems():
+        source = self.forecast_models if forecast_models else self.instance_map
+        for name, component in source.iteritems():
             # Skip components without training sources configrued.
             if component.training_sources:
                 results[name] = (component.training_window, component.training_sources.keys())
 
         return results
 
-    def apply_all_training_data(self, training_data):
+    def apply_all_training_data(self, training_data, forecast_models=False):
+        target = self.forecast_models if forecast_models else self.instance_map
         for name, data in training_data.iteritems():
-            component = self.instance_map[name]
+            component = target.get(name)
+            if component is None:
+                _log.warning("No component named {} to train.".format(name))
+                continue
             training_map = component.training_sources
             normalized_data = {}
             for topic , topic_data in data.iteritems():
@@ -290,6 +295,8 @@ class SystemModel(object):
                 if mapped_name is not None:
                     normalized = normalize_training_data(topic_data)
                     normalized_data[mapped_name] = normalized
+                else:
+                    _log.warning("Topic {} has no mapped name for component {}".format(topic, name))
             component.train(normalized_data)
 
     def invalid_parameters_list(self):
