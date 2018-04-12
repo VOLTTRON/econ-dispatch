@@ -58,7 +58,7 @@
 from econ_dispatch.forecast_models import HistoryModelBase
 
 class Model(HistoryModelBase):
-    def __init__(self, **kwargs):
-        super(Model, self).__init__(**kwargs)
+    def train(self, training_data):
+        super(Model, self).train(training_data)
         self.historical_data["cool_load"] /= 293.1
         self.historical_data["heat_load"] /= 293.1

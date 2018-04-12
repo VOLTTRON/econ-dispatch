@@ -357,20 +357,27 @@ class EconDispatchAgent(Agent):
         results = {}
         all_parameters = self.model.get_training_parameters()
 
-        for name, parameters in all_parameters.iteritems():
-            window, sources = parameters
-            end = now
-            start = end - td(days=window)
-            training_data = {}
-            for topic in sources:
-                self.vip.rpc.call(self.historian_vip_id,
-                                  "query",
-                                  topic,
-                                  utils.format_timestamp(start),
-                                  utils.format_timestamp(end),
-                                   ).get(timeout=4)
+        for forecast_models in (False, True):
+            results = {}
+            all_parameters = self.model.get_training_parameters(forecast_models)
 
-        self.model.apply_all_training_data(results)
+            for name, parameters in all_parameters.iteritems():
+                window, sources = parameters
+                end = now
+                start = end - td(days=window)
+                training_data = {}
+                for topic in sources:
+                    value = self.vip.rpc.call(self.historian_vip_id,
+                                      "query",
+                                      topic,
+                                      utils.format_timestamp(start),
+                                      utils.format_timestamp(end),
+                                       ).get(timeout=4)
+                    training_data[topic] = value
+
+                results[name] = training_data
+
+            self.model.apply_all_training_data(results, forecast_models)
 
 
     def reserve_actuator(self, topic_values):

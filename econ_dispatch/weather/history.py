@@ -60,15 +60,18 @@ import logging
 _log = logging.getLogger(__name__)
 import pandas as pd
 import datetime as dt
+from econ_dispatch import utils
 
 time_step = dt.timedelta(hours=1)
 
 from econ_dispatch.forecast_models import HistoryModelBase
 
 class Weather(HistoryModelBase):
-    def __init__(self, hours_forecast=24, **kwargs):
+    def __init__(self, hours_forecast=24, history_data={}, **kwargs):
         super(Weather, self).__init__(**kwargs)
         self.hours_forecast = hours_forecast
+        training_data = utils.normalize_training_data(history_data)
+        self.train(training_data)
 
     def get_weather_forecast(self, now):
         # The Solar Radiation model needs the current weather data as
@@ -95,7 +98,7 @@ class Weather(HistoryModelBase):
         results = []
         for _ in xrange(self.hours_forecast):
             record = self.get_historical_hour(now)
-            record[self.time_column] = now
+            record["timestamp"] = now
             results.append(record)
             now += time_step
             now = now.replace(year=self.history_year)

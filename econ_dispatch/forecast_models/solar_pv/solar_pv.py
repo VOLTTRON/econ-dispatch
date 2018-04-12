@@ -75,7 +75,7 @@ class Model(ForecastModelBase):
                  local_latitude=None,
                  local_longitude=None,
                  time_zone_longitude=None,
-                 solar_radiation_model_settings=None):
+                 solar_radiation_model_settings={}):
 
         self.dynamic_data_file = dynamic_data_file
         self.history_data_file = history_data_file
@@ -86,9 +86,9 @@ class Model(ForecastModelBase):
         self.local_longitude = local_longitude
         self.time_zone_longitude = time_zone_longitude
 
-        self.solar_radiation_model = get_forecast_model_class("solar_radiation",
-                                                              "dependent_variable_model",
-                                                              **solar_radiation_model_settings)
+        klass = get_forecast_model_class("solar_radiation",
+                                      "dependent_variable_model")
+        self.solar_radiation_model = klass(**solar_radiation_model_settings)
 
         # G&R model coefficients (Annual Model)
         self.a1, self.a2, self.a3 = self.train()
@@ -103,10 +103,6 @@ class Model(ForecastModelBase):
         solar_kW = self.predict(solar_radiation, temperature, now)
 
         return {"solar_kW": solar_kW}
-
-    def add_training_data(self, now, variable_values={}):
-        """Do nothing for now."""
-        pass
 
     def predict(self, ITf, Taf, now):
         # *********** scenario 5- DC Power, ambient temperature, and IT are measured at-site ********

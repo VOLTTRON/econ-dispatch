@@ -65,6 +65,3 @@ class Model(ForecastModelBase):
         """Get the predicted load values based on the independent variables."""
         return {"electricity_cost": self.cost}
 
-    def add_training_data(self, now, variable_values={}):
-        """Update the training data with the last hour."""
-        pass

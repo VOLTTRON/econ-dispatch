@@ -94,6 +94,3 @@ class Model(ForecastModelBase):
 
         return result
 
-    def add_training_data(self, now, variable_values={}):
-        """Do nothing for now."""
-        pass
