@@ -156,8 +156,12 @@ class Component(ComponentBase):
         }
 
     def get_mapped_commands(self, component_loads):
-        return {"set_point":
-                component_loads["turbine_x_{}_0".format(self.name)]*293.1}
+        try:
+            return {"set_point": component_loads["turbine_x_{}_0".format(self.name)]*293.1}
+        except KeyError:
+            # Running use case 1.
+            return {"set_point": component_loads["Q_prime_mover_{}_hour00".format(self.name)]*293.1}
+
 
 
     # def get_optimization_parameters(self):
