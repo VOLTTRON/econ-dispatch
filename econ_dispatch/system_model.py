@@ -327,6 +327,9 @@ class SystemModel(object):
         if (self.next_optimization <= now):
             _log.info("Running optimizer: " + str(now))
             self.next_optimization = self.next_optimization + self.optimization_frequency
+            if self.next_optimization < now:
+                # Catch case where we jump way ahead in time
+                self.next_optimization = None
             commands = self.validate_run_optimizer(now)
             _log.info("Next optimization: {}".format(self.next_optimization))
 
