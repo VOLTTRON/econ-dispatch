@@ -1,9 +1,67 @@
+# -*- coding: utf-8 -*- {{{
+# vim: set fenc=utf-8 ft=python sw=4 ts=4 sts=4 et:
+
+# Copyright (c) 2017, Battelle Memorial Institute
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in
+#    the documentation and/or other materials provided with the
+#    distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# The views and conclusions contained in the software and documentation
+# are those of the authors and should not be interpreted as representing
+# official policies, either expressed or implied, of the FreeBSD
+# Project.
+#
+# This material was prepared as an account of work sponsored by an
+# agency of the United States Government.  Neither the United States
+# Government nor the United States Department of Energy, nor Battelle,
+# nor any of their employees, nor any jurisdiction or organization that
+# has cooperated in the development of these materials, makes any
+# warranty, express or implied, or assumes any legal liability or
+# responsibility for the accuracy, completeness, or usefulness or any
+# information, apparatus, product, software, or process disclosed, or
+# represents that its use would not infringe privately owned rights.
+#
+# Reference herein to any specific commercial product, process, or
+# service by trade name, trademark, manufacturer, or otherwise does not
+# necessarily constitute or imply its endorsement, recommendation, or
+# favoring by the United States Government or any agency thereof, or
+# Battelle Memorial Institute. The views and opinions of authors
+# expressed herein do not necessarily state or reflect those of the
+# United States Government or any agency thereof.
+#
+# PACIFIC NORTHWEST NATIONAL LABORATORY
+# operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
+# under Contract DE-AC05-76RL01830
+# }}}
+
 import numpy as np
 import pandas as pd
 import random
 import csv
 import re
-import simplejson as json
+import json
+import os.path
 from cStringIO import StringIO
 
 
@@ -166,5 +224,144 @@ def _test_regression():
     assert np.allclose(solution, check)
 
 
+def piecewise_linear(inputs, outputs, capacity, segment_target=5, regression_order=5):
+    """
+    Produces a piecewise linear curve from the component inputs, outputs, and max capacity.
+    """
+    x_values = outputs
+    y_values = inputs
+    max_x = capacity
+    max_y = max(y_values)
+    resolution = 100.0
+    error_threshold_max = 1.0
+    error_threshold_min = 0.0
+    error_threshold = 0.5
+
+    def find_y(x):
+        y = regression_coefs[-1]
+        for i in xrange(regression_order):
+            y += regression_coefs[i] * x ** (regression_order - i)
+        return y
+
+    segment_total = 0
+
+    regression_coefs = np.polyfit(x_values, y_values, regression_order)
+    x0 = min(x_values)
+    y0 = find_y(x0)
+    x1 = x0 + (1.0 / resolution) * (1.0 - x0)
+    y1 = find_y(x1)
+    initial_coeff = np.polyfit([x0, x1], [y0, y1], 1)
+
+
+    while segment_target != segment_total:
+
+        xmin = [x0]
+        xmax = []
+        coeffarray1 = [initial_coeff[0]]
+        coeffarray2 = [initial_coeff[1]]
+
+        n = 1
+
+        for i in range(2, int(resolution)+1):
+            xn = x0+(float(i)/resolution)*(max_x-x0)
+            yn = find_y(xn)
+            yp = coeffarray2[-1] + coeffarray1[-1] * xn
+            error = abs(yn-yp)/max_y
+
+            if error > error_threshold:
+                n+=1
+                xn_1 = x0+((i-1)/resolution)*(max_x-x0)
+                yn_1 = find_y(xn_1)
+                err_coeff = np.polyfit([xn_1, xn], [yn_1, yn], 1)
+                coeffarray1.append(err_coeff[0])
+                coeffarray2.append(err_coeff[1])
+                xmin.append(xn_1)
+                xmax.append(xn_1)
+
+        xmax.append(xn)
+
+        segment_total = n
+        # old_error_threshold = error_threshold
+        if segment_total < segment_target:
+            error_threshold_max = error_threshold
+        elif segment_total > segment_target:
+            error_threshold_min = error_threshold
+        error_threshold = (error_threshold_max + error_threshold_min) / 2.0
+        # print "Segments: {} Old Error Thresh: {} New Error Thresh: {}".format(segment_total, old_error_threshold, error_threshold)
+    a = []
+    b = []
+    for x1, x2 in zip(xmin, xmax):
+        y1 = find_y(x1)
+        y2 = find_y(x2)
+        coeff = np.polyfit([x1, x2], [y1, y2], 1)
+        a.append(coeff[0])
+        b.append(coeff[1])
+
+    return a, b, xmin, xmax
+
+def _test_piecewise():
+    data = pd.read_csv("component_test_data/test_piecewise_linear_chiller.csv")
+    x = data["X"]
+    y = data["Y"]
+
+    valid = x > 0.0
+
+    x = x[valid]
+    y = y[valid]
+
+    a, b, xmin, xmax = piecewise_linear(y.values, x.values, 600)
+
+    print "a", a
+    print "b", b
+    print "xmin", xmin
+    print "xmax", xmax
+
+
+def _get_default_curve_data(curve_name):
+    base_path = os.path.dirname(__file__)
+    file_name = os.path.join(base_path, "component_models",
+                             "normalized_default_curves",
+                             "{}.csv".format(curve_name))
+    data_frame = pd.read_csv(file_name)
+    if "eff" in data_frame:
+        eff_cop_div_rated = data_frame["eff"].values
+    else:
+        eff_cop_div_rated = data_frame["cop"].values
+
+    plf = data_frame["plf"].values
+
+    return eff_cop_div_rated, plf
+
+
+def get_default_curve(curve_name, capacity, rated_eff_cop, conversion_factor=1.0):
+    """
+    :param curve_name: name component type (base name of the CSV file to load)
+    :param capacity: capacity of the component
+    :param rated_eff_cop: efficiency or COP (depends on the component what you call it but it's used the same either way...)
+    :param conversion_factor: Factor to multiply the results by to convert units.
+    :return: input values, output values ready to be passed into the training function
+    """
+    eff_cop_div_rated, plf = _get_default_curve_data(curve_name)
+
+    outputs = plf * capacity
+    inputs = outputs * conversion_factor / (rated_eff_cop * eff_cop_div_rated)
+
+    return outputs, inputs
+
+
+def _test_default_curve():
+    curve_tests = [["chiller", 600, 5.5, 3.5168],
+                   ["abchiller", 150, 0.8, 0.012],
+                   ["boiler", 300, 0.9],
+                   ["microturbine", 300, 0.35, 0.8/3.28**3/1026/1055.06*1000]]
+
+    for test in curve_tests:
+        outputs, inputs = get_default_curve(*test)
+        print test
+        print "output", outputs[:10]
+        print "input", inputs[:10]
+
 if __name__ == '__main__':
-    _test_regression()
+    _test_default_curve()
+    # _test_regression()
+    # _test_piecewise()
