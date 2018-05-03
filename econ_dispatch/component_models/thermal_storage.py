@@ -102,7 +102,7 @@ class Component(ComponentBase):
         heat_capacity = tank_volume * cp_fluid * abs(design_chilled_water_return_temp - design_chilled_water_supply_temp) / 3600.0 #convert to kWh
 
         self.parameters["heat_cap"] = heat_capacity / 293.3 # to mmBTU
-        self.parameters["eff"] = 1.0
+        self.parameters["eff"] = 0.98
 
 
     def get_output_metadata(self):

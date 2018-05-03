@@ -106,12 +106,17 @@ class Component(ComponentBase):
     #     return EXPECTED_PARAMETERS <= k
 
     def get_mapped_commands(self, component_loads):
-        return {"command":int(component_loads["boiler_x_{}_0".format(self.name)]>0.0)}
+        try:
+            return {"command":int(component_loads["boiler_x_{}_0".format(self.name)]>0.0)}
+        except KeyError:
+            #Running use case 1.
+            return {"command": int(component_loads["Q_boiler_{}_hour00".format(self.name)] > 0.0)}
 
     def train(self, training_data):
-        # TODO: Update to calc these from sensor data
-        historical_Qbp = training_data["heat_output"]
-        historical_Gbp = training_data["gas_input"]
+        valid = training_data["heat_output"] > 0.0
+
+        historical_Qbp = training_data["heat_output"][valid]
+        historical_Gbp = training_data["gas_input"][valid]
 
         sort_indexes = np.argsort(historical_Qbp)
         historical_Qbp = historical_Qbp[sort_indexes]
@@ -137,8 +142,9 @@ class Component(ComponentBase):
         xmin_boiler[1] = xmax_boiler[0]
         xmin_boiler[2] = xmax_boiler[1]
     
-        x1 = xmax_boiler[0]
+        x1 = xmin_boiler[0]
         x2 = xmin_boiler[2]
+
         y1 = mat_boiler[0][0] + mat_boiler[1][0] * xmax_boiler[0]
         y2 = mat_boiler[0][2] + mat_boiler[1][2] * xmin_boiler[2]
     
