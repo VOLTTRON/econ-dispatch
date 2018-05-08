@@ -62,7 +62,7 @@ import os
 import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
-from econ_dispatch.utils import least_squares_regression
+from econ_dispatch import utils
 import logging
 
 
@@ -81,8 +81,13 @@ class Coefs(object):
 # Coef.Eff = np.array([-0.2065, 0.3793, 0.1043])
 # Coef.FlowOut = np.array([-65.85, 164.5])
 
-EXPECTED_PARAMETERS = set(["xmin",
-                           "cap"])
+EXPECTED_PARAMETERS = set(["fundata",
+                            "ramp_up",
+                            "ramp_down",
+                            "start_cost",
+                            "min_on",
+                            "output"
+])
 
 class Component(ComponentBase):
     def __init__(self,
@@ -90,6 +95,10 @@ class Component(ComponentBase):
                  fuel_lhv=50144.0,
                  temp_derate_threshold=None,
                  temp_derate=None,
+                 ramp_up=None,
+                 ramp_down=None,
+                 start_cost=None,
+                 min_on=0,
                  **kwargs):
         super(Component, self).__init__(**kwargs)
 
@@ -111,7 +120,13 @@ class Component(ComponentBase):
         self.coef.Eff = np.array([-0.2065, 0.3793, 0.1043]) # Calculated later
         self.coef.FlowOut = np.array([-65.85, 164.5]) # Calculated later
 
-        self.parameters["cap"] = self.coef.NominalPower
+        self.min_on = min_on
+
+        self.ramp_up = ramp_up
+        self.ramp_down = ramp_down
+        self.start_cost = start_cost
+
+        # self.parameters["cap"] = self.coef.NominalPower
 
 
     def get_output_metadata(self):
@@ -120,9 +135,9 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return [u"natural_gas"]
 
-    # def validate_parameters(self):
-    #     k = set(self.parameters.keys())
-    #     return EXPECTED_PARAMETERS <= k
+    def validate_parameters(self):
+        parameters = [self.parameters.get(x) for x in EXPECTED_PARAMETERS]
+        return None not in parameters
 
     def get_mapped_commands(self, component_loads):
         try:
@@ -151,13 +166,29 @@ class Component(ComponentBase):
         n1 = np.nonzero(Xdata <= xmin + (xmax - xmin) * 0.3)[-1][-1]
         n2 = np.nonzero(Xdata <= xmin + (xmax - xmin) * 0.6)[-1][-1]
 
-        mat = least_squares_regression(inputs=Xdata[n1:n2 + 1], output=Ydata[n1:n2 + 1])
+        # mat = least_squares_regression(inputs=Xdata[n1:n2 + 1], output=Ydata[n1:n2 + 1])
+        #
+        # self.parameters = {
+        #     "mat": mat.tolist(),
+        #     "xmax": xmax,
+        #     "xmin": xmin,
+        #     "cap": self.coef.NominalPower
+        # }
+
+        a, b, xmin, xmax = utils.piecewise_linear(Xdata[n1:n2 + 1], Ydata[n1:n2 + 1], self.coef.NominalPower)
 
         self.parameters = {
-            "mat": mat.tolist(),
-            "xmax": xmax,
-            "xmin": xmin,
-            "cap": self.coef.NominalPower
+            "fundata": {
+                "a": a,
+                "b": b,
+                "min": xmin,
+                "max": xmax
+            },
+            "ramp_up": self.ramp_up,
+            "ramp_down": self.ramp_down,
+            "start_cost": self.start_cost,
+            "min_on": self.min_on,
+            "output": self.coef.NominalPower
         }
 
     def GasTurbine_Operate(self, Power, Tin, NetHours, Coef):

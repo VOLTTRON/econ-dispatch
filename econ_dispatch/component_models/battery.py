@@ -79,7 +79,7 @@ DEFAULT_IR_DISCHARGE = 0.7
 DEFAULT_IDLE_A = -0.00012
 DEFAULT_IDLE_B = -0.00024
 
-EXPECTED_PARAMETERS = set(["current_soc",
+EXPECTED_PARAMETERS = set(["soc",
                            "charge_eff",
                            "discharge_eff",
                            "min_power",
@@ -112,7 +112,7 @@ class Component(ComponentBase):
 
     def validate_parameters(self):
         k = set(self.parameters.keys())
-        return EXPECTED_PARAMETERS <= k and self.parameters["current_soc"] is not None
+        return EXPECTED_PARAMETERS <= k and self.parameters["soc"] is not None
 
     def get_mapped_commands(self, component_loads):
         try:
@@ -132,13 +132,13 @@ class Component(ComponentBase):
         """
         if name == "soc":
             self.current_soc = value
-            self.parameters["current_soc"] = value
+            self.parameters["soc"] = value
 
     def train(self, training_data):
         charge_eff = self.calculate_charge_eff(training_data, True)
         discharge_eff = self.calculate_charge_eff(training_data, False)
 
-        self.parameters["current_soc"] = self.current_soc
+        self.parameters["soc"] = self.current_soc
         self.parameters["charge_eff"] = charge_eff
         self.parameters["discharge_eff"] = discharge_eff
         self.parameters["min_power"] = self.min_power

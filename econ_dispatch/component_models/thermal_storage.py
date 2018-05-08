@@ -70,6 +70,11 @@ DEFAULT_T_CHWSTORAGESUPPLY = 7.0 #C
 SPECIFIC_HEAT_WATER = 4.186 #kJ/kG-C
 DENSITY_WATER = 1.000 #kg/L
 
+EXPECTED_PARAMETERS = set([ "heat_cap",
+                            "eff",
+                            "soc"
+])
+
 
 class Component(ComponentBase):
     def __init__(self,
@@ -110,6 +115,10 @@ class Component(ComponentBase):
 
     def get_input_metadata(self):
         return []
+
+    def validate_parameters(self):
+        parameters = [self.parameters.get(x) for x in EXPECTED_PARAMETERS]
+        return None not in parameters
 
     def process_input(self, timestamp, name, value):
         """Override this to process input data from the platform.

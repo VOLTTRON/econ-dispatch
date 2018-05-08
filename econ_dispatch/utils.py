@@ -64,6 +64,10 @@ import json
 import os.path
 from cStringIO import StringIO
 
+import logging
+
+_log = logging.getLogger(__name__)
+
 
 def least_squares_regression(inputs=None, output=None):
     if inputs is None:
@@ -230,64 +234,72 @@ def piecewise_linear(inputs, outputs, capacity, segment_target=5, regression_ord
     """
     x_values = outputs
     y_values = inputs
-    max_x = capacity
+    #max_x = capacity
+    max_x = max(x_values)
     max_y = max(y_values)
     resolution = 100.0
     error_threshold_max = 1.0
     error_threshold_min = 0.0
     error_threshold = 0.5
 
-    def find_y(x):
-        y = regression_coefs[-1]
-        for i in xrange(regression_order):
-            y += regression_coefs[i] * x ** (regression_order - i)
-        return y
+    # def find_y(x):
+    #     y = regression_coefs[-1]
+    #     for i in xrange(regression_order):
+    #         y += regression_coefs[i] * x ** (regression_order - i)
+    #     return y
 
     segment_total = 0
 
     regression_coefs = np.polyfit(x_values, y_values, regression_order)
+    find_y = np.poly1d(regression_coefs)
+
+    _log.debug("Regression Coefs: {}".format(regression_coefs))
+
     x0 = min(x_values)
     y0 = find_y(x0)
     x1 = x0 + (1.0 / resolution) * (1.0 - x0)
     y1 = find_y(x1)
     initial_coeff = np.polyfit([x0, x1], [y0, y1], 1)
 
+    max_iterations = 50
 
-    while segment_target != segment_total:
-
+    for iteration in xrange(1, max_iterations+1):
         xmin = [x0]
         xmax = []
-        coeffarray1 = [initial_coeff[0]]
-        coeffarray2 = [initial_coeff[1]]
-
-        n = 1
+        coeffarray1 = initial_coeff[0]
+        coeffarray2 = initial_coeff[1]
 
         for i in range(2, int(resolution)+1):
             xn = x0+(float(i)/resolution)*(max_x-x0)
             yn = find_y(xn)
-            yp = coeffarray2[-1] + coeffarray1[-1] * xn
+            yp = coeffarray2 + coeffarray1 * xn
             error = abs(yn-yp)/max_y
 
             if error > error_threshold:
-                n+=1
                 xn_1 = x0+((i-1)/resolution)*(max_x-x0)
                 yn_1 = find_y(xn_1)
                 err_coeff = np.polyfit([xn_1, xn], [yn_1, yn], 1)
-                coeffarray1.append(err_coeff[0])
-                coeffarray2.append(err_coeff[1])
+                coeffarray1 = err_coeff[0]
+                coeffarray2 = err_coeff[1]
                 xmin.append(xn_1)
                 xmax.append(xn_1)
 
         xmax.append(xn)
 
-        segment_total = n
-        # old_error_threshold = error_threshold
+        segment_total = len(xmin)
+        old_error_threshold = error_threshold
         if segment_total < segment_target:
             error_threshold_max = error_threshold
         elif segment_total > segment_target:
             error_threshold_min = error_threshold
+        else:
+            break
         error_threshold = (error_threshold_max + error_threshold_min) / 2.0
-        # print "Segments: {} Old Error Thresh: {} New Error Thresh: {}".format(segment_total, old_error_threshold, error_threshold)
+        _log.debug("Segments: {} Old Error Thresh: {} New Error Thresh: {}".format(segment_total, old_error_threshold, error_threshold))
+
+    else:
+        raise ValueError("Max iterations hit while testing for target segment count.")
+
     a = []
     b = []
     for x1, x2 in zip(xmin, xmax):

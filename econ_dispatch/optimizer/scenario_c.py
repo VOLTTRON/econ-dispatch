@@ -67,7 +67,7 @@ def binary_var(name):
 
 
 class BuildAsset(object):
-    def __init__(self, fundata=None, component_name=None, ramp_up=None, ramp_down=None, startcost=0, min_on=0, min_off=0):
+    def __init__(self, fundata=None, component_name=None, ramp_up=None, ramp_down=None, start_cost=0, min_on=0, min_off=0):
         self.fundata = {}
         for k, v in fundata.items():
             self.fundata[k] = np.array(v)
@@ -76,7 +76,7 @@ class BuildAsset(object):
 
         self.ramp_up = ramp_up
         self.ramp_down = ramp_down
-        self.startcost = startcost
+        self.start_cost = start_cost
         self.min_on = min_on
         self.min_off = min_off
 
@@ -168,10 +168,11 @@ class VariableGroup(object):
         if type(key) != tuple:
             key = (key,)
 
-        n_range = 0
-        for i, x in enumerate(key):
-            if x == RANGE:
-                n_range += 1
+        # n_range = 0
+        # for i, x in enumerate(key):
+        #     if x == RANGE:
+        #         n_range += 1
+        n_range = key.count(RANGE)
 
         if n_range == 0:
             return self.variables[key]
@@ -215,15 +216,15 @@ def get_optimization_problem(forecast, parameters={}):
         fundata = parameters["fundata"]
         ramp_up = parameters["ramp_up"]
         ramp_down = parameters["ramp_down"]
-        startcost = parameters["startcost"]
+        start_cost = parameters["start_cost"]
         min_on = parameters["min_on"]
         output = parameters["output"]
-        turbine_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, startcost=startcost) # fuel cell
+        turbine_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, start_cost=start_cost) # fuel cell
         turbine_init[name] = BuildAsset_init(status=1, output=output)
 
-    # turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine1.csv"), ramp_up=150, ramp_down=-150, startcost=20, min_on=3)) # fuel cell
-    # turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine2.csv"), ramp_up=200, ramp_down=-200, startcost=10, min_on=3)) # microturbine
-    # turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine3.csv"), ramp_up=20, ramp_down=-20, startcost=5, min_on=3)) # diesel
+    # turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine1.csv"), ramp_up=150, ramp_down=-150, start_cost=20, min_on=3)) # fuel cell
+    # turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine2.csv"), ramp_up=200, ramp_down=-200, start_cost=10, min_on=3)) # microturbine
+    # turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine3.csv"), ramp_up=20, ramp_down=-20, start_cost=5, min_on=3)) # diesel
 
 
     # turbine_init.append(BuildAsset_init(status=1, output=300.0))
@@ -238,12 +239,12 @@ def get_optimization_problem(forecast, parameters={}):
         fundata = parameters["fundata"]
         ramp_up = parameters["ramp_up"]
         ramp_down = parameters["ramp_down"]
-        startcost = parameters["startcost"]
-        boiler_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, startcost=startcost)
+        start_cost = parameters["start_cost"]
+        boiler_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, start_cost=start_cost)
         boiler_init[name] = BuildAsset_init(status=0)
 
-    # boiler_para.append(BuildAsset(fundata=pandas.read_csv("paraboiler1.csv"), ramp_up=8, ramp_down=-8, startcost=0.8)) # boiler1
-    # boiler_para.append(BuildAsset(fundata=pandas.read_csv("paraboiler2.csv"), ramp_up=2, ramp_down=-2, startcost=0.25)) # boiler2
+    # boiler_para.append(BuildAsset(fundata=pandas.read_csv("paraboiler1.csv"), ramp_up=8, ramp_down=-8, start_cost=0.8)) # boiler1
+    # boiler_para.append(BuildAsset(fundata=pandas.read_csv("paraboiler2.csv"), ramp_up=2, ramp_down=-2, start_cost=0.25)) # boiler2
     # boiler_init.append(BuildAsset_init(status=0))
     # boiler_init.append(BuildAsset_init(status=0))
 
@@ -253,16 +254,16 @@ def get_optimization_problem(forecast, parameters={}):
         fundata = parameters["fundata"]
         ramp_up = parameters["ramp_up"]
         ramp_down = parameters["ramp_down"]
-        startcost = parameters["startcost"]
-        chiller_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, startcost=startcost)
+        start_cost = parameters["start_cost"]
+        chiller_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, start_cost=start_cost)
         chiller_init[name] = BuildAsset_init(status=0)
 
-    # chiller_para.append(BuildAsset(fundata=pandas.read_csv("parachiller.csv"), ramp_up=6, ramp_down=-6, startcost=15)) # chiller1
+    # chiller_para.append(BuildAsset(fundata=pandas.read_csv("parachiller.csv"), ramp_up=6, ramp_down=-6, start_cost=15)) # chiller1
     # temp_data = pandas.read_csv("parachiller.csv")
     # temp_data["a"] += +1e-4
     # temp_data["b"] += +1e-4
-    # chiller_para.append(BuildAsset(fundata=temp_data, ramp_up=1.5, ramp_down=-1.5, startcost=20)) # chiller2
-    # chiller_para.append(BuildAsset(fundata=pandas.read_csv("parachiller3.csv"), ramp_up=1, ramp_down=-1, startcost=5)) # chiller3
+    # chiller_para.append(BuildAsset(fundata=temp_data, ramp_up=1.5, ramp_down=-1.5, start_cost=20)) # chiller2
+    # chiller_para.append(BuildAsset(fundata=pandas.read_csv("parachiller3.csv"), ramp_up=1, ramp_down=-1, start_cost=5)) # chiller3
 
     # chiller_init.append(BuildAsset_init(status=0))
     # chiller_init.append(BuildAsset_init(status=1, output=1))
@@ -275,14 +276,14 @@ def get_optimization_problem(forecast, parameters={}):
         fundata = parameters["fundata"]
         ramp_up = parameters["ramp_up"]
         ramp_down = parameters["ramp_down"]
-        startcost = parameters["startcost"]
-        abs_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, startcost=startcost)# chiller1
+        start_cost = parameters["start_cost"]
+        abs_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, start_cost=start_cost)# chiller1
         abs_init[name] = BuildAsset_init(status=0)
 
-    # abs_para.append(BuildAsset(fundata=pandas.read_csv("paraabs.csv"), ramp_up=0.25, ramp_down=-0.25, startcost=2))# chiller1
+    # abs_para.append(BuildAsset(fundata=pandas.read_csv("paraabs.csv"), ramp_up=0.25, ramp_down=-0.25, start_cost=2))# chiller1
     # abs_init.append(BuildAsset_init(status=0))
 
-    KK = 3 # number of pieces in piecewise model
+    KK = 5 # number of pieces in piecewise model
 
     a_hru = 0.8
 
@@ -294,7 +295,7 @@ def get_optimization_problem(forecast, parameters={}):
                                        eta_ch=parameters["charge_eff"],
                                        eta_disch=parameters["discharge_eff"],
                                        soc_min=parameters["min_soc"],
-                                       now_soc=parameters["current_soc"],
+                                       now_soc=parameters["soc"],
                                        component_name=name)
 
     assert len(battery_params) == 1
@@ -858,19 +859,19 @@ def get_optimization_problem(forecast, parameters={}):
 
     for i in turbine_names:
         for var in turbine_start[i, RANGE]:
-            objective_components.append(var * turbine_para[i].startcost)
+            objective_components.append(var * turbine_para[i].start_cost)
 
     for i in boiler_names:
         for var in boiler_start[i, RANGE]:
-            objective_components.append(var * boiler_para[i].startcost)
+            objective_components.append(var * boiler_para[i].start_cost)
 
     for i in chiller_names:
         for var in chiller_start[i, RANGE]:
-            objective_components.append(var * chiller_para[i].startcost)
+            objective_components.append(var * chiller_para[i].start_cost)
 
     for i in abs_names:
         for var in abs_start[i, RANGE]:
-            objective_components.append(var * abs_para[i].startcost)
+            objective_components.append(var * abs_para[i].start_cost)
 
     for group in (E_unserve, E_dump, Heat_unserve, Heat_dump, Cool_unserve, Cool_dump):
         for var in group[RANGE]:

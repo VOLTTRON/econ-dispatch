@@ -60,7 +60,7 @@ import os
 import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
-from econ_dispatch.utils import least_squares_regression
+from econ_dispatch import utils
 
 
 def fahrenheit_to_kelvin(t):
@@ -75,16 +75,23 @@ DEFAULT_TCHR = 55.0
 SPECIFIC_HEAT_WATER = 4.184 # KJ/Kg-C
 DENSITY_WATER = 1.000 # kg/L
 
-EXPECTED_PARAMETERS = set(["xmax",
-                            "xmin",
-                            "mat",
-                            "cap",
+EXPECTED_PARAMETERS = set(["fundata",
                             "min_on",
                             "min_off",
-                            "command_history"])
+                            "command_history",
+                            "ramp_up",
+                            "ramp_down",
+                            "start_cost"])
 
 class Component(ComponentBase):
-    def __init__(self, capacity=464.0, min_off=0, min_on=0, **kwargs):
+    def __init__(self,
+                 capacity=464.0,
+                 min_off=0,
+                 min_on=0,
+                 ramp_up=None,
+                 ramp_down=None,
+                 start_cost=None,
+                 **kwargs):
         super(Component, self).__init__(**kwargs)
         #Chilled water temperature setpoint outlet from absorption chiller
         self.Tcho = DEFAULT_TCHO
@@ -106,15 +113,19 @@ class Component(ComponentBase):
         self.min_on = min_on
         self.min_off = min_off
 
+        self.ramp_up = ramp_up
+        self.ramp_down = ramp_down
+        self.start_cost = start_cost
+
         #self.historical_data = {}
         #self.cached_parameters = {}
 
         self.command_history = [0] * 24
 
-        self.parameters["cap"] = self.capacity
-        self.parameters["min_on"] = self.min_on
-        self.parameters["min_off"] = self.min_off
-        self.parameters["command_history"] = self.command_history[:]
+        # self.parameters["cap"] = self.capacity
+        # self.parameters["min_on"] = self.min_on
+        # self.parameters["min_off"] = self.min_off
+        # self.parameters["command_history"] = self.command_history[:]
 
         # Set to True whenever something happens that causes us to need to recalculate
         # the optimization parameters.
@@ -124,10 +135,9 @@ class Component(ComponentBase):
         # self.a0, self.a1 = self.train()
 
 
-    # def validate_parameters(self):
-    #     k = set(self.parameters.keys())
-    #     return EXPECTED_PARAMETERS <= k
-
+    def validate_parameters(self):
+        parameters = [self.parameters.get(x) for x in EXPECTED_PARAMETERS]
+        return None not in parameters
 
     def get_output_metadata(self):
         return [u"chilled_water"]
@@ -155,22 +165,41 @@ class Component(ComponentBase):
         Qin = training_data["Qin(MMBtu/h)"] # chiller heat input in mmBTU/hr
 
         n1 = np.nonzero(Qch < 8)[-1]
-        Xdata = Qch[n1]
-        Ydata = Qin[n1]
+        Ydata = Qch[n1]
+        Xdata = Qin[n1]
 
-        m_AbsChiller = least_squares_regression(inputs=Xdata, output=Ydata)
-        xmax_AbsChiller = np.amax(Xdata)
-        xmin_AbsChiller = np.amin(Xdata)
+
+
+        a,b,xmin,xmax = utils.piecewise_linear(Ydata, Xdata, self.capacity)
 
         self.parameters = {
-            "xmax": xmax_AbsChiller,
-            "xmin": xmin_AbsChiller,
-            "mat": m_AbsChiller.tolist(),
-            "cap": self.capacity,
+            "fundata": {
+                "a": a,
+                "b":b,
+                "min":xmin,
+                "max":xmax
+            },
+            "ramp_up": self.ramp_up,
+            "ramp_down": self.ramp_down,
+            "start_cost": self.start_cost,
             "min_on": self.min_on,
             "min_off": self.min_off,
             "command_history": self.command_history[:]
         }
+
+        # m_AbsChiller = least_squares_regression(inputs=Ydata, output=Xdata)
+        # xmax_AbsChiller = np.amax(Ydata)
+        # xmin_AbsChiller = np.amin(Ydata)
+        #
+        # self.parameters = {
+        #     "xmax": xmax_AbsChiller,
+        #     "xmin": xmin_AbsChiller,
+        #     "mat": m_AbsChiller.tolist(),
+        #     "cap": self.capacity,
+        #     "min_on": self.min_on,
+        #     "min_off": self.min_off,
+        #     "command_history": self.command_history[:]
+        # }
 
     # def get_optimization_parameters(self):
     #     if not self.opt_params_dirty:
