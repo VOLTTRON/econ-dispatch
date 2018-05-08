@@ -58,20 +58,25 @@
 import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
-from econ_dispatch.utils import least_squares_regression
+#from econ_dispatch.utils import least_squares_regression
+from econ_dispatch import utils
 
 
 DEFAULT_TCHO = 47
 DEFAULT_TCDI = 75
 DEFAULT_QCH_KW = 500
 
-EXPECTED_PARAMETERS = set(["xmin",
-                           "xmax",
-                           "mat",
-                           "cap"])
+EXPECTED_PARAMETERS = set(["fundata",
+                            "ramp_up",
+                            "ramp_down",
+                            "start_cost"])
 
 class Component(ComponentBase):
-    def __init__(self, capacity=200.0, **kwargs):
+    def __init__(self, capacity=200.0,
+                 ramp_up=None,
+                 ramp_down=None,
+                 start_cost=None,
+                 **kwargs):
         super(Component, self).__init__(**kwargs)
 
 
@@ -87,7 +92,11 @@ class Component(ComponentBase):
         # self.Qch_kW = DEFAULT_QCH_KW
 
         self.capacity = float(capacity)
-        self.parameters["cap"] = self.capacity
+        self.ramp_up = ramp_up
+        self.ramp_down = ramp_down
+        self.start_cost = start_cost
+
+        #self.parameters["cap"] = self.capacity
 
         # Set to True whenever something happens that causes us to need to recalculate
         # the optimization parameters.
@@ -107,9 +116,9 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return [u"electricity"]
 
-    # def validate_parameters(self):
-    #     k = set(self.parameters.keys())
-    #     return EXPECTED_PARAMETERS <= k
+    def validate_parameters(self):
+        parameters = [self.parameters.get(x) for x in EXPECTED_PARAMETERS]
+        return None not in parameters
 
     def get_mapped_commands(self, component_loads):
         points = dict()
@@ -122,21 +131,36 @@ class Component(ComponentBase):
 
     def train(self, training_data):
         # TODO: Update to calc these from sensor data
+        valid = training_data["Qch(tons)"] > 0
         # chiller cooling output in mmBtu/hr (converted from cooling Tons)
-        Qch = training_data["Qch(tons)"] * 3.517 / 293.1
+        Qch = training_data["Qch(tons)"][valid] * 3.517 / 293.1
 
         # chiller power input in kW
-        P = training_data["P(kW)"]
+        P = training_data["P(kW)"][valid]
 
-        m_ChillerIGV = least_squares_regression(inputs=Qch, output=P)
-        xmax_ChillerIGV = max(Qch)
-        xmin_ChillerIGV = min(Qch)
+        # m_ChillerIGV = least_squares_regression(inputs=Qch, output=P)
+        # xmax_ChillerIGV = max(Qch)
+        # xmin_ChillerIGV = min(Qch)
+        #
+        # self.parameters = {
+        #     "mat": m_ChillerIGV.tolist(),
+        #     "xmax": xmax_ChillerIGV,
+        #     "xmin": xmin_ChillerIGV,
+        #     "cap": self.capacity
+        # }
+
+        a, b, xmin, xmax = utils.piecewise_linear(Qch, P, self.capacity)
 
         self.parameters = {
-            "mat": m_ChillerIGV.tolist(),
-            "xmax": xmax_ChillerIGV,
-            "xmin": xmin_ChillerIGV,
-            "cap": self.capacity
+            "fundata": {
+                "a": a,
+                "b": b,
+                "min": xmin,
+                "max": xmax
+            },
+            "ramp_up": self.ramp_up,
+            "ramp_down": self.ramp_down,
+            "start_cost": self.start_cost
         }
 
     # def get_optimization_parameters(self):

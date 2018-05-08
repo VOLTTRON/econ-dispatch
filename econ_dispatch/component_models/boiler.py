@@ -60,17 +60,21 @@ import os
 import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
-from econ_dispatch.utils import least_squares_regression
+from econ_dispatch import utils
 
 DEFAULT_QBP = 55
 
-EXPECTED_PARAMETERS = set(["xmin",
-                           "xmax",
-                           "mat",
-                           "cap"])
+EXPECTED_PARAMETERS = set(["fundata",
+                            "ramp_up",
+                            "ramp_down",
+                            "start_cost"])
 
 class Component(ComponentBase):
-    def __init__(self, history_data_file=None, capacity=8.0, **kwargs):
+    def __init__(self, capacity=8.0,
+                 ramp_up=None,
+                 ramp_down=None,
+                 start_cost=None,
+                 **kwargs):
         super(Component, self).__init__(**kwargs)
 
         # Building heating load assigned to Boiler
@@ -79,6 +83,9 @@ class Component(ComponentBase):
         self.capacity = float(capacity)
 
         self.parameters["cap"] = self.capacity
+        self.ramp_up = ramp_up
+        self.ramp_down = ramp_down
+        self.start_cost = start_cost
 
         # # Boiler Nameplate parameters (User Inputs)
         # self.Qbprated = 60 #mmBtu/hr
@@ -101,9 +108,9 @@ class Component(ComponentBase):
     def get_input_metadata(self):
         return [u"natural_gas"]
 
-    # def validate_parameters(self):
-    #     k = set(self.parameters.keys())
-    #     return EXPECTED_PARAMETERS <= k
+    def validate_parameters(self):
+        parameters = [self.parameters.get(x) for x in EXPECTED_PARAMETERS]
+        return None not in parameters
 
     def get_mapped_commands(self, component_loads):
         try:
@@ -118,45 +125,59 @@ class Component(ComponentBase):
         historical_Qbp = training_data["heat_output"][valid]
         historical_Gbp = training_data["gas_input"][valid]
 
-        sort_indexes = np.argsort(historical_Qbp)
-        historical_Qbp = historical_Qbp[sort_indexes]
-        historical_Gbp = historical_Gbp[sort_indexes]
-    
-        n1 = np.nonzero(historical_Qbp < 24)[-1][-1]
-        n2 = np.nonzero(historical_Qbp < 45)[-1][-1]
-    
-        xmin_boiler = np.zeros(3)
-        xmax_boiler = np.zeros(3)
-    
-        m1 = least_squares_regression(inputs=historical_Qbp[  :n1+1], output=historical_Gbp[  :n1+1])
-        m2 = least_squares_regression(inputs=historical_Qbp[n1:n2+1], output=historical_Gbp[n1:n2+1])
-        m3 = least_squares_regression(inputs=historical_Qbp[n2:  ], output=historical_Gbp[n2:  ])
-    
-        mat_boiler = np.array([m1,m2,m3]).T
-    
-        xmax_boiler[0] = max(historical_Qbp[  :n1+1])
-        xmax_boiler[1] = max(historical_Qbp[n1:n2+1])
-        xmax_boiler[2] = max(historical_Qbp[n2:  ])
-    
-        xmin_boiler[0] = min(historical_Qbp[:n1+1])
-        xmin_boiler[1] = xmax_boiler[0]
-        xmin_boiler[2] = xmax_boiler[1]
-    
-        x1 = xmin_boiler[0]
-        x2 = xmin_boiler[2]
-
-        y1 = mat_boiler[0][0] + mat_boiler[1][0] * xmax_boiler[0]
-        y2 = mat_boiler[0][2] + mat_boiler[1][2] * xmin_boiler[2]
-    
-        mat_boiler[1][1] = (y2 - y1) / (x2 - x1)
-        mat_boiler[0][1] = y1 - mat_boiler[1][1] * x1
+        a, b, xmin, xmax = utils.piecewise_linear(historical_Gbp, historical_Qbp, self.capacity)
 
         self.parameters = {
-                                "xmin": xmin_boiler.tolist(),
-                                "xmax": xmax_boiler.tolist(),
-                                "mat": mat_boiler.tolist(),
-                                "cap": self.capacity
-                          }
+            "fundata": {
+                "a": a,
+                "b": b,
+                "min": xmin,
+                "max": xmax
+            },
+            "ramp_up": self.ramp_up,
+            "ramp_down": self.ramp_down,
+            "start_cost": self.start_cost
+        }
+
+        # sort_indexes = np.argsort(historical_Qbp)
+        # historical_Qbp = historical_Qbp[sort_indexes]
+        # historical_Gbp = historical_Gbp[sort_indexes]
+        #
+        # n1 = np.nonzero(historical_Qbp < 24)[-1][-1]
+        # n2 = np.nonzero(historical_Qbp < 45)[-1][-1]
+        #
+        # xmin_boiler = np.zeros(3)
+        # xmax_boiler = np.zeros(3)
+        #
+        # m1 = least_squares_regression(inputs=historical_Qbp[  :n1+1], output=historical_Gbp[  :n1+1])
+        # m2 = least_squares_regression(inputs=historical_Qbp[n1:n2+1], output=historical_Gbp[n1:n2+1])
+        # m3 = least_squares_regression(inputs=historical_Qbp[n2:  ], output=historical_Gbp[n2:  ])
+        #
+        # mat_boiler = np.array([m1,m2,m3]).T
+        #
+        # xmax_boiler[0] = max(historical_Qbp[  :n1+1])
+        # xmax_boiler[1] = max(historical_Qbp[n1:n2+1])
+        # xmax_boiler[2] = max(historical_Qbp[n2:  ])
+        #
+        # xmin_boiler[0] = min(historical_Qbp[:n1+1])
+        # xmin_boiler[1] = xmax_boiler[0]
+        # xmin_boiler[2] = xmax_boiler[1]
+        #
+        # x1 = xmin_boiler[0]
+        # x2 = xmin_boiler[2]
+        #
+        # y1 = mat_boiler[0][0] + mat_boiler[1][0] * xmax_boiler[0]
+        # y2 = mat_boiler[0][2] + mat_boiler[1][2] * xmin_boiler[2]
+        #
+        # mat_boiler[1][1] = (y2 - y1) / (x2 - x1)
+        # mat_boiler[0][1] = y1 - mat_boiler[1][1] * x1
+        #
+        # self.parameters = {
+        #                         "xmin": xmin_boiler.tolist(),
+        #                         "xmax": xmax_boiler.tolist(),
+        #                         "mat": mat_boiler.tolist(),
+        #                         "cap": self.capacity
+        #                   }
 
     # def update_parameters(self, timestamp, inputs):
     #     self.current_Qbp = inputs.get("Qbp", DEFAULT_QBP)
