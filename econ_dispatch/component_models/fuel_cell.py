@@ -92,7 +92,6 @@ EXPECTED_PARAMETERS = set(["xmin",
 class Component(ComponentBase):
     def __init__(self, capacity=500.0,
                  fuel_type="CH4",
-                 nominal_power=402.0,
                  nominal_ocv=0.8,
                  ramp_up=None,
                  ramp_down=None,
@@ -102,7 +101,6 @@ class Component(ComponentBase):
         super(Component, self).__init__(**kwargs)
         self.capacity = capacity
         self.fuel_type = fuel_type
-        self.nominal_power = nominal_power
         self.nominal_ocv = nominal_ocv
 
         self.min_on = min_on
@@ -180,7 +178,7 @@ class Component(ComponentBase):
             "ramp_down": self.ramp_down,
             "start_cost": self.start_cost,
             "min_on": self.min_on,
-            "output": self.nominal_power
+            "output": self.capacity
         }
 
     def get_mapped_commands(self, component_loads):
@@ -248,9 +246,9 @@ class Component(ComponentBase):
         else:
             raise ValueError("Unknown fuel type {}".format(self.fuel_type))
 
-        cells = self.nominal_power
+        cells = self.capacity
 
-        nPower = Power / self.nominal_power
+        nPower = Power / self.capacity
         ASR = Coef.NominalASR + Coef.ReStartDegradation * Starts + Coef.LinearDegradation * max(0,np.amax(NetHours - Coef.ThresholdDegradation)) #ASR  in Ohm*cm^2 
         Utilization = Coef.Utilization[0] * (1 - nPower)**2 + Coef.Utilization[1] * (1 - nPower) + Coef.Utilization[2] #decrease in utilization at part load
         Current = Coef.Area * (Coef.NominalCurrent[0] * nPower**2 + Coef.NominalCurrent[1] * nPower + Coef.NominalCurrent[2]) #first guess of current
