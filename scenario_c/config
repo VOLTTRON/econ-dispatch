@@ -90,7 +90,7 @@
         },
         "settings":
         {
-            "capacity": 200.0,
+            "capacity": 500.0,
             "ramp_up": 6,
             "ramp_down": -6,
             "start_cost": 15
@@ -128,7 +128,7 @@
         },
         "settings":
         {
-            "capacity": 200.0,
+            "capacity": 500.0,
             "ramp_up": 6,
             "ramp_down": -6,
             "start_cost": 15
@@ -166,7 +166,7 @@
         },
         "settings":
         {
-            "capacity": 200.0,
+            "capacity": 133.3,
             "ramp_up": 6,
             "ramp_down": -6,
             "start_cost": 15
@@ -183,12 +183,12 @@
             "charge_eff": 0.8,
             "discharge_eff": 0.7
         },
-        "training_window": 90, # Length of training data window in days.
-        "training_sources": # Topics to query from historian for training data mapped to names the component expects.
-        {
-            "battery/power": "power",
-            "battery/soc": "soc"
-        },
+#        "training_window": 90, # Length of training data window in days.
+#        "training_sources": # Topics to query from historian for training data mapped to names the component expects.
+#        {
+#            "battery/power": "power",
+#            "battery/soc": "soc"
+#        },
         # Output topics for a component
         # Maps the outputs of the component model to actuation point names.
         "outputs":
@@ -202,7 +202,7 @@
         },
         "settings":
         {
-            "capacity": 24000.0,
+            "capacity": 2000.0,
             "min_power": 0.0,
             "max_power": 500.0,
             "min_soc": 0.3,
@@ -248,7 +248,7 @@
             "ramp_down": -200,
             "start_cost": 10,
             "min_on": 3,
-            "capacity": 250.0,
+            "capacity": 500.0,
             "fuel_lhv": 50144.0,
             "temp_derate_threshold": 15.556,
             "temp_derate": 0.12
@@ -292,13 +292,12 @@
         },
         "settings":
         {
-            "capacity": 500.0,
+            "capacity": 600.0,
             "fuel_type": "CH4",
             "ramp_up": 150,
             "ramp_down": -150,
             "start_cost": 20,
             "min_on": 3,
-            "nominal_power": 402.0,
             "nominal_ocv": 0.8
         }
      },
@@ -331,7 +330,7 @@
         },
         "settings":
         {
-            "capacity": 464.0,
+            "capacity": 62.5,
             "min_off": 3,
             "min_on": 3,
             "ramp_up": 0.25,
@@ -473,7 +472,7 @@
         },
         "settings":
         {
-            "tank_volume": 37800, # In liters
+            "tank_volume": 606980, # In liters
             "design_chilled_water_return_temp": 15.0, # Chiller return water temp in C
             "design_chilled_water_supply_temp": 6.7 # Chiller water water supply temp in C
         }
