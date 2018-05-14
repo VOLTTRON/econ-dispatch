@@ -61,6 +61,8 @@ import itertools
 import numpy as np
 import pulp
 
+from econ_dispatch.optimizer import get_pulp_optimization_function
+
 
 def binary_var(name):
     return pulp.LpVariable(name, 0, 1, pulp.LpInteger)
@@ -182,7 +184,7 @@ class VariableGroup(object):
             raise ValueError("Can only get RANGE for one index.")
 
 
-def get_optimization_problem(forecast, parameters={}):
+def build_problem(forecast, parameters={}):
 
     # forecast is parasys, parameters are all the other csvs
 
@@ -219,7 +221,12 @@ def get_optimization_problem(forecast, parameters={}):
         start_cost = parameters["start_cost"]
         min_on = parameters["min_on"]
         output = parameters["output"]
-        turbine_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, start_cost=start_cost) # fuel cell
+        turbine_para[name] = BuildAsset(fundata=fundata,
+                                        component_name=name,
+                                        ramp_up=ramp_up,
+                                        ramp_down=ramp_down,
+                                        start_cost=start_cost,
+                                        min_on=min_on) # fuel cell
         turbine_init[name] = BuildAsset_init(status=1, output=output)
 
     # turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine1.csv"), ramp_up=150, ramp_down=-150, start_cost=20, min_on=3)) # fuel cell
@@ -331,9 +338,13 @@ def get_optimization_problem(forecast, parameters={}):
     def constant_zero(*args, **kwargs):
         return 0
 
+    def turbine_upper_bound(index):
+        i, t = index
+        return turbine_init[i].output
+
     index_turbine = turbine_names, range(H_t)
     turbine_y = VariableGroup("turbine_y", indexes=index_turbine, lower_bound_func=constant_zero)
-    turbine_x = VariableGroup("turbine_x", indexes=index_turbine, lower_bound_func=constant_zero)
+    turbine_x = VariableGroup("turbine_x", indexes=index_turbine, lower_bound_func=constant_zero, upper_bound_func=turbine_upper_bound)
     turbine_x_k = VariableGroup("turbine_x_k", indexes=index_turbine + (range(KK),), lower_bound_func=constant_zero)
     turbine_s = VariableGroup("turbine_s", indexes=index_turbine, is_binary_var=True)
     turbine_s_k = VariableGroup("turbine_s_k", indexes=index_turbine + (range(KK),), is_binary_var=True)
@@ -885,3 +896,7 @@ def get_optimization_problem(forecast, parameters={}):
         prob += c
 
     return prob
+
+
+def get_optimization_function(config):
+    return get_pulp_optimization_function(build_problem, config)

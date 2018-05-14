@@ -16,8 +16,8 @@
     {
         "name": "scenario_c",
         #"use_glpk": true,
-        #"glpk_options": ["--tmlim", "10"],
-        "write_lp": false,
+        "time_limit": 10,
+        "write_lp": true,
         "lp_out_dir": "lps"
     },
     "weather":

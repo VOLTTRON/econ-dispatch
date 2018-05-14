@@ -63,9 +63,15 @@ import os
 
 def get_optimization_function(config):
     name = config["name"]
+
+    module = __import__(name, globals(), locals(), ['get_optimization_function'], 1)
+    return module.get_optimization_function(config)
+
+
+def get_pulp_optimization_function(pulp_build_function, config):
     write_lp = config.get("write_lp", False)
     use_glpk = config.get("use_glpk", False)
-    glpk_options = config.get("glpk_options", [])
+    time_limit = config.get("time_limit")
     lp_out_dir = config.get("lp_out_dir", "lps")
 
     if write_lp:
@@ -74,11 +80,8 @@ def get_optimization_function(config):
         except Exception:
             pass
 
-    module = __import__(name, globals(), locals(), ['get_optimization_problem'], 1)
-    get_optimization_problem = module.get_optimization_problem
-
-    def optimize(now, forecast, parameters = {}):
-        prob = get_optimization_problem(forecast, parameters)
+    def _optimize(now, forecast, parameters = {}):
+        prob = pulp_build_function(forecast, parameters)
 
         if write_lp:
             prob.writeLP(os.path.join(lp_out_dir, str(now).replace(":", "_")+".lp"))
@@ -88,10 +91,12 @@ def get_optimization_function(config):
 
         try:
             if use_glpk:
+                glpk_options = []
+                if time_limit is not None:
+                    glpk_options = ["--tmlim", str(time_limit)]
                 prob.solve(pulp.solvers.GLPK_CMD(options=glpk_options))
             else:
-                prob.solve()
-            #
+                prob.solve(pulp.solvers.PULP_CBC_CMD(maxSeconds=time_limit))
         except Exception as e:
             _log.warning("PuLP failed: " + str(e))
         else:
@@ -112,4 +117,4 @@ def get_optimization_function(config):
 
         return result
 
-    return optimize
+    return _optimize
