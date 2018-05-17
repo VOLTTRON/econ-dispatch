@@ -338,13 +338,9 @@ def build_problem(forecast, parameters={}):
     def constant_zero(*args, **kwargs):
         return 0
 
-    def turbine_upper_bound(index):
-        i, t = index
-        return turbine_init[i].output
-
     index_turbine = turbine_names, range(H_t)
     turbine_y = VariableGroup("turbine_y", indexes=index_turbine, lower_bound_func=constant_zero)
-    turbine_x = VariableGroup("turbine_x", indexes=index_turbine, lower_bound_func=constant_zero, upper_bound_func=turbine_upper_bound)
+    turbine_x = VariableGroup("turbine_x", indexes=index_turbine, lower_bound_func=constant_zero)
     turbine_x_k = VariableGroup("turbine_x_k", indexes=index_turbine + (range(KK),), lower_bound_func=constant_zero)
     turbine_s = VariableGroup("turbine_s", indexes=index_turbine, is_binary_var=True)
     turbine_s_k = VariableGroup("turbine_s_k", indexes=index_turbine + (range(KK),), is_binary_var=True)
