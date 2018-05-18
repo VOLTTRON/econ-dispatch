@@ -590,11 +590,17 @@ def build_problem(forecast, parameters={}):
         return turbine_start[i,t] >= turbine_s[i,t] - turbine_s[i,t-1]
     add_constraint("turbinestartstatus",index_turbine + index_without_first_hour, turbinestartstatus)
 
-    def turbineramp1(index):
+    def turbineramp1_min(index):
         # [i=1:N_turbine,t=1]
         i, t = index[0], 0
-        return turbine_init[i].output + turbine_para[i].ramp_down  <= turbine_x[i,t] <= turbine_init[i].output + turbine_para[i].ramp_up
-    add_constraint("turbineramp1", index_turbine, turbineramp1)
+        return turbine_x[i,t] <= turbine_init[i].output + turbine_para[i].ramp_up
+    add_constraint("turbineramp1_min", index_turbine, turbineramp1_min)
+
+    def turbineramp1_max(index):
+        # [i=1:N_turbine,t=1]
+        i, t = index[0], 0
+        return turbine_init[i].output + turbine_para[i].ramp_down  <= turbine_x[i,t]
+    add_constraint("turbineramp1_max", index_turbine, turbineramp1_max)
 
     def turbinerampup(index):
         # [i=1:N_turbine,t=2:H_t]
@@ -613,7 +619,7 @@ def build_problem(forecast, parameters={}):
         i, t = index[0], 0
         partial = []
         for tau in range(t-1):
-            partial.apend(turbine_s[i,tau])
+            partial.append(turbine_s[i,tau])
         return turbine_para[i].min_on * (turbine_init[i].status1[-1] - turbine_s[i,t]) <= pulp.lpSum(partial) + pulp.lpSum(turbine_init[i].status1[24+t-turbine_para[i].min_on:24])
     add_constraint("turbineslockon1", index_turbine, turbineslockon1)
 
@@ -625,14 +631,14 @@ def build_problem(forecast, parameters={}):
         for t in range(1, turbine_para[i].min_on):
             name = "turbineslockon2_{}_{}".format(i, t)
             partial = []
-            for tau in range(1, t-1):
+            for tau in range(t):
                 partial.append(turbine_s[i,tau])
 
             c = turbine_para[i].min_on * (turbine_s[i,t-1] - turbine_s[i,t]) <= pulp.lpSum(partial) + pulp.lpSum(turbine_init[i].status1[24+t-turbine_para[i].min_on:24])
             constraints.append((c, name))
 
     for i in turbine_names:
-        for t in range(turbine_para[i].min_on+1, H_t):
+        for t in range(turbine_para[i].min_on, H_t):
             name = "turbineslockon_{}_{}".format(i, t)
             partial = []
             for tau in range(t-turbine_para[i].min_on, t-1):
@@ -686,11 +692,17 @@ def build_problem(forecast, parameters={}):
         return boiler_start[i,t] >= boiler_s[i,t] - boiler_s[i,t-1]
     add_constraint("boilerstartstatus", index_boiler + index_without_first_hour, boilerstartstatus)
 
-    def boilerramp1(index):
+    def boilerramp1_min(index):
         # [i=1:N_boiler,t=1]
         i, t = index[0], 0
-        return boiler_init[i].output + boiler_para[i].ramp_down  <= boiler_x[i,t] <= boiler_init[i].output + boiler_para[i].ramp_up
-    add_constraint("boilerramp1", index_boiler, boilerramp1)
+        return boiler_x[i,t] <= boiler_init[i].output + boiler_para[i].ramp_up
+    add_constraint("boilerramp1_min", index_boiler, boilerramp1_min)
+
+    def boilerramp1_max(index):
+        # [i=1:N_boiler,t=1]
+        i, t = index[0], 0
+        return boiler_init[i].output + boiler_para[i].ramp_down  <= boiler_x[i,t]
+    add_constraint("boilerramp1_max", index_boiler, boilerramp1_max)
 
     def boilerrampup(index):
         # [i=1:N_boiler,t=2:H_t]
@@ -747,11 +759,17 @@ def build_problem(forecast, parameters={}):
         return chiller_start[i,t] >= chiller_s[i,t] - chiller_s[i,t-1]
     add_constraint("chillerstartstatus", index_chiller + index_without_first_hour, chillerstartstatus)
 
-    def chillerramp1(index):
+    def chillerramp1_min(index):
         # [i=1:N_chiller,t=1]
         i, t = index[0], 0
-        return chiller_init[i].output + chiller_para[i].ramp_down  <= chiller_x[i,t] <= chiller_init[i].output + chiller_para[i].ramp_up
-    add_constraint("chillerramp1", index_chiller, chillerramp1)
+        return chiller_x[i,t] <= chiller_init[i].output + chiller_para[i].ramp_up
+    add_constraint("chillerramp1_min", index_chiller, chillerramp1_min)
+
+    def chillerramp1_max(index):
+        # [i=1:N_chiller,t=1]
+        i, t = index[0], 0
+        return chiller_init[i].output + chiller_para[i].ramp_down  <= chiller_x[i,t]
+    add_constraint("chillerramp1_max", index_chiller, chillerramp1_max)
 
     def chillerrampup(index):
         # [i=1:N_chiller,t=2:H_t]
@@ -808,11 +826,17 @@ def build_problem(forecast, parameters={}):
         return abs_start[i,t] >= abs_s[i,t] - abs_s[i,t-1]
     add_constraint("absstartstatus", index_abs + index_without_first_hour, absstartstatus)
 
-    def absramp1(index):
+    def absramp1_min(index):
         # [i=1:N_abs,t=1]
         i, t = index[0], 0
-        return abs_init[i].output + abs_para[i].ramp_down  <= abs_x[i,t] <= abs_init[i].output + abs_para[i].ramp_up
-    add_constraint("absramp1", index_abs, absramp1)
+        return abs_x[i,t] <= abs_init[i].output + abs_para[i].ramp_up
+    add_constraint("absramp1_min", index_abs, absramp1_min)
+
+    def absramp1_max(index):
+        # [i=1:N_abs,t=1]
+        i, t = index[0], 0
+        return abs_init[i].output + abs_para[i].ramp_down  <= abs_x[i,t]
+    add_constraint("absramp1_max", index_abs, absramp1_max)
 
     def absrampup(index):
         # [i=1:N_abs,t=2:H_t]
