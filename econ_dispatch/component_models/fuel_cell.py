@@ -147,7 +147,7 @@ class Component(ComponentBase):
                                                                                          Start, Hours)
 
         sort_indexes = np.argsort(Power)
-        Xdata = Power[sort_indexes]
+        Xdata = Power[sort_indexes] / 293.1 # kW - > mmBtu/hr
         Ydata = FuelFlow[sort_indexes] * 171.11  # fuel: kg/s -> mmBtu/hr
 
         xmin = min(Xdata)
@@ -178,7 +178,7 @@ class Component(ComponentBase):
             "ramp_down": self.ramp_down,
             "start_cost": self.start_cost,
             "min_on": self.min_on,
-            "output": self.capacity
+            "output": self.capacity  / 293.1 # kW - > mmBtu/hr
         }
 
     def get_mapped_commands(self, component_loads):

@@ -157,7 +157,7 @@ class Component(ComponentBase):
         AirFlow, FuelFlow, Tout, Efficiency = self.GasTurbine_Operate(Power, Temperature, 0, self.coef)
 
         sort_indexes = np.argsort(Power)
-        Xdata = Power[sort_indexes]
+        Xdata = Power[sort_indexes] / 293.1 # kW - > mmBtu/hr
         Ydata = FuelFlow[sort_indexes] * 171.11  # fuel: kg/s -> mmBtu/hr
 
         xmin = min(Xdata)
@@ -188,7 +188,7 @@ class Component(ComponentBase):
             "ramp_down": self.ramp_down,
             "start_cost": self.start_cost,
             "min_on": self.min_on,
-            "output": self.coef.NominalPower
+            "output": self.coef.NominalPower / 293.1 # kW - > mmBtu/hr
         }
 
     def GasTurbine_Operate(self, Power, Tin, NetHours, Coef):
