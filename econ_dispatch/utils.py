@@ -242,6 +242,8 @@ def piecewise_linear(inputs, outputs, capacity, segment_target=5, regression_ord
     error_threshold_min = 0.0
     error_threshold = 0.5
 
+    _log.debug("Max X: {}, max y: {}".format(max_x, max_y))
+
     # def find_y(x):
     #     y = regression_coefs[-1]
     #     for i in xrange(regression_order):
@@ -374,6 +376,7 @@ def _test_default_curve():
         print "input", inputs[:10]
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
     _test_default_curve()
-    # _test_regression()
-    # _test_piecewise()
+    _test_regression()
+    _test_piecewise()
