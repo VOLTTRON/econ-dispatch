@@ -61,6 +61,9 @@ import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
 from econ_dispatch import utils
+import logging
+
+_log = logging.getLogger(__name__)
 
 DEFAULT_QBP = 55
 
@@ -70,7 +73,7 @@ EXPECTED_PARAMETERS = set(["fundata",
                             "start_cost"])
 
 class Component(ComponentBase):
-    def __init__(self, capacity=8.0,
+    def __init__(self,
                  ramp_up=None,
                  ramp_down=None,
                  start_cost=None,
@@ -79,8 +82,6 @@ class Component(ComponentBase):
 
         # Building heating load assigned to Boiler
         self.current_Qbp = 55
-
-        self.capacity = float(capacity)
 
         self.parameters["cap"] = self.capacity
         self.ramp_up = ramp_up
@@ -119,11 +120,21 @@ class Component(ComponentBase):
             #Running use case 1.
             return {"command": int(component_loads["Q_boiler_{}_hour00".format(self.name)] > 0.0)}
 
+    training_inputs_name_map = {
+        "outputs": "heat_output",
+        "inputs": "gas_input"
+    }
+
     def train(self, training_data):
         valid = training_data["heat_output"] > 0.0
 
         historical_Qbp = training_data["heat_output"][valid]
         historical_Gbp = training_data["gas_input"][valid]
+
+        _log.debug("X: {}".format(historical_Qbp))
+        _log.debug("Y: {}".format(historical_Gbp))
+
+        _log.debug("X max: {}".format(max(historical_Qbp)))
 
         a, b, xmin, xmax = utils.piecewise_linear(historical_Gbp, historical_Qbp, self.capacity)
 
