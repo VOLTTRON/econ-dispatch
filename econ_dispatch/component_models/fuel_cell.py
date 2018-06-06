@@ -63,6 +63,10 @@ import pandas as pd
 from econ_dispatch.component_models import ComponentBase
 from econ_dispatch import utils
 
+import logging
+
+_log = logging.getLogger(__name__)
+
 FARADAY_CONSTANT = 96485 # C/mol
 
 class Coefs(object):
@@ -90,7 +94,7 @@ EXPECTED_PARAMETERS = set(["xmin",
                            "cap"])
 
 class Component(ComponentBase):
-    def __init__(self, capacity=500.0,
+    def __init__(self,
                  fuel_type="CH4",
                  nominal_ocv=0.8,
                  ramp_up=None,
@@ -99,7 +103,6 @@ class Component(ComponentBase):
                  min_on=None,
                  **kwargs):
         super(Component, self).__init__(**kwargs)
-        self.capacity = capacity
         self.fuel_type = fuel_type
         self.nominal_ocv = nominal_ocv
 
@@ -124,48 +127,58 @@ class Component(ComponentBase):
     #     k = set(self.parameters.keys())
     #     return EXPECTED_PARAMETERS <= k
 
+    training_inputs_name_map = {
+        "outputs": "power",
+        "inputs": "fuel_flow"
+    }
+
     def train(self, training_data):
 
         # Valid = Power > 1% of cap and AmbTemperature > 5.0
         # TODO: replace valid with this
-        Valid = training_data['Valid']
+        # Valid = training_data['valid']
 
-        Power = training_data['Power']
-        Power = Power[Valid]
-
-        AmbTemperature = training_data['AmbTemperature']
-        AmbTemperature = AmbTemperature[Valid]
-
-        # TODO: calc from timestamps and other stuff
-        Start = training_data['Start']
-        Start = Start[Valid]
-
-        Hours = training_data['Hours']
-        Hours = Hours[Valid]
-
-        FuelFlow, ExhaustFlow, ExhaustTemperature, NetEfficiency = self.FuelCell_Operate(Coef, Power, AmbTemperature,
-                                                                                         Start, Hours)
-
-        sort_indexes = np.argsort(Power)
-        Xdata = Power[sort_indexes] / 293.1 # kW - > mmBtu/hr
-        Ydata = FuelFlow[sort_indexes] * 171.11  # fuel: kg/s -> mmBtu/hr
-
-        xmin = min(Xdata)
-        xmax = max(Xdata)
-
-        n1 = np.nonzero(Xdata <= xmin + (xmax - xmin) * 0.3)[-1][-1]
-        n2 = np.nonzero(Xdata <= xmin + (xmax - xmin) * 0.6)[-1][-1]
-
-        # mat = least_squares_regression(inputs=Xdata[n1:n2 + 1], output=Ydata[n1:n2 + 1])
+        # Power = training_data['power']
+        # Power = Power[Valid]
         #
-        # self.parameters = {
-        #     "mat": mat.tolist(),
-        #     "xmax": xmax,
-        #     "xmin": xmin,
-        #     "cap": self.capacity
-        # }
+        # AmbTemperature = training_data['amb_temperature']
+        # AmbTemperature = AmbTemperature[Valid]
+        #
+        # # TODO: calc from timestamps and other stuff
+        # Start = training_data['start']
+        # Start = Start[Valid]
+        #
+        # Hours = training_data['hours']
+        # Hours = Hours[Valid]
 
-        a, b, xmin, xmax = utils.piecewise_linear(Xdata[n1:n2 + 1], Ydata[n1:n2 + 1], self.capacity)
+        # FuelFlow, ExhaustFlow, ExhaustTemperature, NetEfficiency = self.FuelCell_Operate(Coef, Power, AmbTemperature,
+        #                                                                                  Start, Hours)
+        #
+        # sort_indexes = np.argsort(Power)
+        # Xdata = Power[sort_indexes]
+        # Ydata = FuelFlow[sort_indexes] * 171.11  # fuel: kg/s -> mmBtu/hr
+        #
+        # xmin = min(Xdata)
+        # xmax = max(Xdata)
+        #
+        # n1 = np.nonzero(Xdata <= xmin + (xmax - xmin) * 0.3)[-1][-1]
+        # n2 = np.nonzero(Xdata <= xmin + (xmax - xmin) * 0.6)[-1][-1]
+        #
+        # # mat = least_squares_regression(inputs=Xdata[n1:n2 + 1], output=Ydata[n1:n2 + 1])
+        # #
+        # # self.parameters = {
+        # #     "mat": mat.tolist(),
+        # #     "xmax": xmax,
+        # #     "xmin": xmin,
+        # #     "cap": self.capacity
+        # # }
+        #
+        # a, b, xmin, xmax = utils.piecewise_linear(Xdata[n1:n2 + 1], Ydata[n1:n2 + 1], self.capacity)
+
+        fuel_flow = training_data["fuel_flow"] * 171.11  # fuel: kg/s -> mmBtu/hr
+        power = training_data["power"]
+
+        a, b, xmin, xmax = utils.piecewise_linear(fuel_flow, power, self.capacity)
 
         self.parameters = {
             "fundata": {
@@ -178,8 +191,10 @@ class Component(ComponentBase):
             "ramp_down": self.ramp_down,
             "start_cost": self.start_cost,
             "min_on": self.min_on,
-            "output": self.capacity  / 293.1 # kW - > mmBtu/hr
+            "output": self.capacity
         }
+
+        _log.debug("Fuel cell {} parameters: {}".format(self.name, self.parameters))
 
     def get_mapped_commands(self, component_loads):
         try:
