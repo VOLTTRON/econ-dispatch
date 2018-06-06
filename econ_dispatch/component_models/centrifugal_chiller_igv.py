@@ -61,6 +61,10 @@ from econ_dispatch.component_models import ComponentBase
 #from econ_dispatch.utils import least_squares_regression
 from econ_dispatch import utils
 
+import logging
+
+_log = logging.getLogger(__name__)
+
 
 DEFAULT_TCHO = 47
 DEFAULT_TCDI = 75
@@ -72,7 +76,7 @@ EXPECTED_PARAMETERS = set(["fundata",
                             "start_cost"])
 
 class Component(ComponentBase):
-    def __init__(self, capacity=200.0,
+    def __init__(self,
                  ramp_up=None,
                  ramp_down=None,
                  start_cost=None,
@@ -91,7 +95,6 @@ class Component(ComponentBase):
         # building cooling load ASSIGNED TO THIS CHILLER in kW
         # self.Qch_kW = DEFAULT_QCH_KW
 
-        self.capacity = float(capacity)
         self.ramp_up = ramp_up
         self.ramp_down = ramp_down
         self.start_cost = start_cost
@@ -129,11 +132,16 @@ class Component(ComponentBase):
             points["command"] = int(component_loads["E_chillerelec_{}_hour00".format(self.name)] > 0.0)
         return points
 
+    training_inputs_name_map = {
+        "outputs": "Qch(tons)",
+        "inputs": "P(kW)"
+    }
+
     def train(self, training_data):
         # TODO: Update to calc these from sensor data
         valid = training_data["Qch(tons)"] > 0
         # chiller cooling output in mmBtu/hr (converted from cooling Tons)
-        Qch = training_data["Qch(tons)"][valid] * 3.517 / 293.1
+        Qch = training_data["Qch(tons)"][valid] * (3.517 / 293.1)
 
         # chiller power input in kW
         P = training_data["P(kW)"][valid]
@@ -149,7 +157,12 @@ class Component(ComponentBase):
         #     "cap": self.capacity
         # }
 
-        a, b, xmin, xmax = utils.piecewise_linear(Qch, P, self.capacity)
+        _log.debug("X: {}".format(Qch))
+        _log.debug("Y: {}".format(P))
+
+        _log.debug("X max: {}".format(max(Qch)))
+
+        a, b, xmin, xmax = utils.piecewise_linear(P, Qch, self.capacity * (3.517 / 293.1))
 
         self.parameters = {
             "fundata": {
