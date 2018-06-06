@@ -93,7 +93,8 @@
             "capacity": 500.0,
             "ramp_up": 6,
             "ramp_down": -6,
-            "start_cost": 15
+            "start_cost": 15,
+            "cop": 5.0
         }
      },
      {
@@ -131,7 +132,8 @@
             "capacity": 500.0,
             "ramp_up": 6,
             "ramp_down": -6,
-            "start_cost": 15
+            "start_cost": 15,
+            "cop": 5.0
         }
      },
      {
@@ -169,7 +171,8 @@
             "capacity": 133.3,
             "ramp_up": 6,
             "ramp_down": -6,
-            "start_cost": 15
+            "start_cost": 15,
+            "cop": 5.0
         }
      },
      {
@@ -206,7 +209,8 @@
             "min_power": 0.0,
             "max_power": 500.0,
             "min_soc": 0.3,
-            "max_soc": 0.8
+            "max_soc": 0.8,
+            "efficiency": 0.9
         }
      },
      {
@@ -251,14 +255,15 @@
             "capacity": 500.0,
             "fuel_lhv": 50144.0,
             "temp_derate_threshold": 15.556,
-            "temp_derate": 0.12
+            "temp_derate": 0.12,
+            "efficiency": 0.28
 		}
      },
      {
         "type": "fuel_cell",
         "name": "fuel_cell",
         # Initial training data for component.
-        "initial_training_data": "./scenario_c/fuelcell.csv",
+        "initial_training_data": "./scenario_c/fuelcell_flow.csv",
         # Default parameters if no training data or training sources available.
 #        "default_parameters":
 #        {
@@ -298,7 +303,8 @@
             "ramp_down": -150,
             "start_cost": 20,
             "min_on": 3,
-            "nominal_ocv": 0.8
+            "nominal_ocv": 0.8,
+            "efficiency": 0.40
         }
      },
      {
@@ -335,7 +341,8 @@
             "min_on": 3,
             "ramp_up": 0.25,
             "ramp_down": -0.25,
-            "start_cost": 2
+            "start_cost": 2,
+            "efficiency": 0.70
         }
      },
      {
@@ -372,7 +379,8 @@
             "capacity": 8.0,
             "ramp_up": 8,
             "ramp_down": -8,
-            "start_cost": 0.8
+            "start_cost": 0.8,
+            "efficiency": 0.8
         }
      },
      {
@@ -409,7 +417,8 @@
             "capacity": 8.0,
             "ramp_up": 8,
             "ramp_down": -8,
-            "start_cost": 0.8
+            "start_cost": 0.8,
+            "efficiency": 0.8
         }
      },
      {
@@ -446,7 +455,8 @@
             "capacity": 8.0,
             "ramp_up": 8,
             "ramp_down": -8,
-            "start_cost": 0.8
+            "start_cost": 0.8,
+            "efficiency": 0.8
         }
      },
     {
