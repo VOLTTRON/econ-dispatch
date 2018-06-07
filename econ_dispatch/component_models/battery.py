@@ -178,10 +178,13 @@ class Component(ComponentBase):
         if charging:
             eff = (delta_kWh) / (current_power * delta_time)
         else:
-            eff = (current_power * delta_time) / (delta_kWh) 
-        eff_avg = abs(eff.mean())
+            eff = (current_power * delta_time) / (delta_kWh)
 
-        _log.debug("calculate_charge_eff charging {} result {}".format(charging, eff_avg))
+        # Remove garbage values.
+        valid_eff = eff[eff<1.0]
+        eff_avg = abs(valid_eff.mean())
+
+        _log.debug("calculate_charge_eff charging {} result {}, dropped {} values before calculation".format(charging, eff_avg, len(eff)-len(valid_eff)))
 
         return eff_avg
 
