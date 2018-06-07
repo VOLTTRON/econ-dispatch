@@ -230,19 +230,38 @@ def _test_regression():
 class PiecewiseError(StandardError):
     pass
 
-def piecewise_linear(inputs, outputs, capacity, segment_target=5, regression_order=5):
+def piecewise_linear(inputs, outputs, capacity,
+                     segment_target=5, regression_order=5, min_cap_ratio=0.90):
     """
     Produces a piecewise linear curve from the component inputs, outputs, and max capacity.
+
+    inputs - input values for component
+    outputs - output values for component
+    capacity - sets the max output value regardless of the output values
+    segment_target - Number of segments to target, failure to hit this target after 50
+                    iterations is an error.
+    regression_order - number of coefficients to use for the polyfit.
+    min_cap_ratio - minimum ratio of max(outputs)/capacity allowed.
+                    failure to exceed this value is an automatic failure.
     """
     x_values = outputs
     y_values = inputs
     max_x = capacity
-    #max_x = max(x_values)
+    max_x_value = max(x_values)
     max_y = max(y_values)
     resolution = 100.0
     error_threshold_max = 1.0
     error_threshold_min = 0.0
     error_threshold = 0.5
+
+    cap_ratio = float(max_x_value)/float(max_x)
+
+    if cap_ratio < min_cap_ratio:
+        raise PiecewiseError("Ratio of max(outputs)/capacity "
+                             "({}/{}={}) below min_cap_ratio ({}).".format(max_x,
+                                                                           max_x_value,
+                                                                           cap_ratio,
+                                                                           min_cap_ratio))
 
     _log.debug("Max X: {}, max Y: {}".format(max_x, max_y))
 

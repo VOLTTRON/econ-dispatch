@@ -150,7 +150,7 @@ def build_model_from_config(weather_config,
                 component.train(training_data)
             except StandardError as e:
                 _log.warning("Failed to train component {} with initial_training_data. Using default curve.".format(component_name))
-                _log.exception(e)
+                _log.warning("Exception raised by train function: {}".format(repr(e)))
 
         if not component.parameters:
             _log.warning("Component {} has no parameters after initialization.".format(component_name))
