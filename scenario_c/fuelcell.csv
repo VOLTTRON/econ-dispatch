@@ -1,4 +1,4 @@
-Power,AmbTemperature,Valid,Start,Hours
+power,amb_temperature,valid,start,hours
 200,15.64712176,TRUE,1,649.75
 200,15.8586446,TRUE,1,650.5
 200,16.01772721,TRUE,1,651.25

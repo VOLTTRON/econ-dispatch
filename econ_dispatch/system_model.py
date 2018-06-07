@@ -60,7 +60,7 @@ import logging
 import datetime
 from pprint import pformat
 from collections import defaultdict
-from econ_dispatch.utils import normalize_training_data, OptimizerCSVOutput
+from econ_dispatch.utils import normalize_training_data, OptimizerCSVOutput, PiecewiseError, get_default_curve
 from econ_dispatch.component_models import get_component_class
 from econ_dispatch.forecast_models import get_forecast_model_class
 from econ_dispatch.optimizer import get_optimization_function
@@ -103,7 +103,10 @@ def build_model_from_config(weather_config,
         if training_data is not None:
             _log.info("Applying config supplied training data for {} forcast model".format(name))
             training_data = normalize_training_data(training_data)
-            forecast_model.train(training_data)
+            try:
+                forecast_model.train(training_data)
+            except PiecewiseError:
+                pass
 
         system_model.add_forecast_model(forecast_model, name)
 
@@ -128,11 +131,26 @@ def build_model_from_config(weather_config,
             _log.exception("Error creating component " + klass_name)
             continue
 
+        if component.capacity is not None and component.eff_cop is not None:
+            try:
+                training_data = get_default_curve(klass_name, component.capacity, component.eff_cop)
+                _log.debug("Training data: \n{}".format(pformat(training_data)))
+            except ValueError:
+                _log.warning("Unable to create default curve for {}, unsupported type.".format(klass_name))
+            else:
+                _log.info("Applying default curve training data to component {}".format(component_name))
+                training_data = klass.rename_default_curve_data(training_data)
+                component.train(training_data)
+
         training_data = component_dict.get("initial_training_data")
         if training_data is not None:
             _log.info("Applying config supplied training data for {}".format(component_name))
             training_data = normalize_training_data(training_data)
-            component.train(training_data)
+            try:
+                component.train(training_data)
+            except StandardError as e:
+                _log.warning("Failed to train component {} with initial_training_data. Using default curve.".format(component_name))
+                _log.warning("Exception raised by train function: {}".format(repr(e)))
 
         if not component.parameters:
             _log.warning("Component {} has no parameters after initialization.".format(component_name))

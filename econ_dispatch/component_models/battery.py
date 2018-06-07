@@ -94,14 +94,12 @@ class Component(ComponentBase):
                  max_power=None,
                  min_soc=0.3,
                  max_soc=0.8,
-                 capacity=None,
                  **kwargs):
         super(Component, self).__init__(**kwargs)
         self.min_power = float(min_power)
         self.max_power = float(max_power)
         self.min_soc = float(min_soc)
         self.max_soc = float(max_soc)
-        self.capacity = float(capacity)
         self.current_soc = None
 
         self.parameters["min_power"] = self.min_power
@@ -177,10 +175,16 @@ class Component(ComponentBase):
         delta_time = delta_time.astype("timedelta64[s]").astype("float64")/3600.0
 
         current_power = PowerIn[valid]
-        eff = (delta_kWh) / (current_power * delta_time)
-        eff_avg = abs(eff.mean())
+        if charging:
+            eff = (delta_kWh) / (current_power * delta_time)
+        else:
+            eff = (current_power * delta_time) / (delta_kWh)
 
-        _log.debug("calculate_charge_eff charging {} result {}".format(charging, eff_avg))
+        # Remove garbage values.
+        valid_eff = eff[eff<1.0]
+        eff_avg = abs(valid_eff.mean())
+
+        _log.debug("calculate_charge_eff charging {} result {}, dropped {} values before calculation".format(charging, eff_avg, len(eff)-len(valid_eff)))
 
         return eff_avg
 

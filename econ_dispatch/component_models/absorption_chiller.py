@@ -62,6 +62,10 @@ import numpy as np
 from econ_dispatch.component_models import ComponentBase
 from econ_dispatch import utils
 
+import logging
+
+_log = logging.getLogger(__name__)
+
 
 def fahrenheit_to_kelvin(t):
     return (t - 32) / 1.8 + 273.15
@@ -85,7 +89,6 @@ EXPECTED_PARAMETERS = set(["fundata",
 
 class Component(ComponentBase):
     def __init__(self,
-                 capacity=464.0,
                  min_off=0,
                  min_on=0,
                  ramp_up=None,
@@ -107,8 +110,6 @@ class Component(ComponentBase):
 
         # Chilled water return temperature.
         self.Tchr = DEFAULT_TCHR
-
-        self.capacity = float(capacity)
 
         self.min_on = min_on
         self.min_off = min_off
@@ -159,18 +160,26 @@ class Component(ComponentBase):
         self.parameters["command_history"] = self.command_history[:]
         return {"command":int(vol_flow_rate_setpoint_abs>0)}
 
+    training_inputs_name_map = {
+        "outputs": "Qch(tons)",
+        "inputs": "Qin(MMBtu/h)"
+    }
+
     def train(self, training_data):
         # TODO: Update to calc these from sensor data
         Qch = training_data["Qch(tons)"] * (3.517 / 293.1) # chiller cooling output in mmBTU/hr (converted from cooling Tons)
         Qin = training_data["Qin(MMBtu/h)"] # chiller heat input in mmBTU/hr
 
-        n1 = np.nonzero(Qch < 8)[-1]
-        Ydata = Qch[n1]
-        Xdata = Qin[n1]
+        valid = Qch > 0.0
+        Xdata = Qch[valid]
+        Ydata = Qin[valid]
 
+        _log.debug("X: {}".format(Xdata))
+        _log.debug("Y: {}".format(Ydata))
 
+        _log.debug("X max: {}".format(max(Xdata)))
 
-        a,b,xmin,xmax = utils.piecewise_linear(Ydata, Xdata, self.capacity)
+        a,b,xmin,xmax = utils.piecewise_linear(Ydata, Xdata, self.capacity * (3.517 / 293.1))
 
         self.parameters = {
             "fundata": {

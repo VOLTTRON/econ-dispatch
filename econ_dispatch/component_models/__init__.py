@@ -83,16 +83,32 @@ class ComponentBase(object):
                  training_window=365,
                  training_sources={},
                  inputs={},
-                 outputs={}):
+                 outputs={},
+                 cop=None,
+                 efficiency=None,
+                 capacity=None):
 
-        if not default_parameters:
-            _log.info("No default parameters supplied for component: {}".format(name))
         self.name = name
         self.parameters = default_parameters
         self.training_window = int(training_window)
         self.training_sources = training_sources
         self.input_map = inputs
         self.output_map = outputs
+        self.eff_cop = efficiency if efficiency is not None else cop
+        self.capacity = capacity
+
+    training_inputs_name_map = {
+        "outputs": "outputs",
+        "inputs": "inputs"
+    }
+
+    @classmethod
+    def rename_default_curve_data(cls, training_data):
+        results = {}
+        results[cls.training_inputs_name_map["outputs"]] = training_data["outputs"]
+        results[cls.training_inputs_name_map["inputs"]] = training_data["inputs"]
+        return results
+
 
     def get_input_metadata(self):
         """Must return a string describing the required input for this component.

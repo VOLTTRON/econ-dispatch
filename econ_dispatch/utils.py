@@ -227,22 +227,43 @@ def _test_regression():
     check = [2, 3, 5]
     assert np.allclose(solution, check)
 
+class PiecewiseError(StandardError):
+    pass
 
-def piecewise_linear(inputs, outputs, capacity, segment_target=5, regression_order=5):
+def piecewise_linear(inputs, outputs, capacity,
+                     segment_target=5, regression_order=5, min_cap_ratio=0.90):
     """
     Produces a piecewise linear curve from the component inputs, outputs, and max capacity.
+
+    inputs - input values for component
+    outputs - output values for component
+    capacity - sets the max output value regardless of the output values
+    segment_target - Number of segments to target, failure to hit this target after 50
+                    iterations is an error.
+    regression_order - number of coefficients to use for the polyfit.
+    min_cap_ratio - minimum ratio of max(outputs)/capacity allowed.
+                    failure to exceed this value is an automatic failure.
     """
     x_values = outputs
     y_values = inputs
-    #max_x = capacity
-    max_x = max(x_values)
+    max_x = capacity
+    max_x_value = max(x_values)
     max_y = max(y_values)
     resolution = 100.0
     error_threshold_max = 1.0
     error_threshold_min = 0.0
     error_threshold = 0.5
 
-    _log.debug("Max X: {}, max y: {}".format(max_x, max_y))
+    cap_ratio = float(max_x_value)/float(max_x)
+
+    if cap_ratio < min_cap_ratio:
+        raise PiecewiseError("Ratio of max(outputs)/capacity "
+                             "({}/{}={}) below min_cap_ratio ({}).".format(max_x,
+                                                                           max_x_value,
+                                                                           cap_ratio,
+                                                                           min_cap_ratio))
+
+    _log.debug("Max X: {}, max Y: {}".format(max_x, max_y))
 
     # def find_y(x):
     #     y = regression_coefs[-1]
@@ -300,7 +321,7 @@ def piecewise_linear(inputs, outputs, capacity, segment_target=5, regression_ord
         _log.debug("Segments: {} Old Error Thresh: {} New Error Thresh: {}".format(segment_total, old_error_threshold, error_threshold))
 
     else:
-        raise ValueError("Max iterations hit while testing for target segment count.")
+        raise PiecewiseError("Max iterations hit while testing for target segment count.")
 
     a = []
     b = []
@@ -336,6 +357,9 @@ def _get_default_curve_data(curve_name):
     file_name = os.path.join(base_path, "component_models",
                              "normalized_default_curves",
                              "{}.csv".format(curve_name))
+    if not os.path.exists(file_name):
+        raise ValueError("Invalid default curve: {}".format(curve_name))
+
     data_frame = pd.read_csv(file_name)
     if "eff" in data_frame:
         eff_cop_div_rated = data_frame["eff"].values
@@ -346,8 +370,13 @@ def _get_default_curve_data(curve_name):
 
     return eff_cop_div_rated, plf
 
+_conversion_factors = {"centrifugal_chiller_igv": 3.5168,
+                       "absorption_chiller": 0.012,
+                       "micro_turbine_generator": 0.8/3.28**3/1026/1055.06*1000}
 
-def get_default_curve(curve_name, capacity, rated_eff_cop, conversion_factor=1.0):
+_conversion_factors["fuel_cell"] =_conversion_factors["micro_turbine_generator"]
+
+def get_default_curve(curve_name, capacity, rated_eff_cop):
     """
     :param curve_name: name component type (base name of the CSV file to load)
     :param capacity: capacity of the component
@@ -357,17 +386,19 @@ def get_default_curve(curve_name, capacity, rated_eff_cop, conversion_factor=1.0
     """
     eff_cop_div_rated, plf = _get_default_curve_data(curve_name)
 
+    conversion_factor = _conversion_factors.get(curve_name, 1.0)
+
     outputs = plf * capacity
     inputs = outputs * conversion_factor / (rated_eff_cop * eff_cop_div_rated)
 
-    return outputs, inputs
+    return {"outputs": outputs, "inputs": inputs}
 
 
 def _test_default_curve():
-    curve_tests = [["chiller", 600, 5.5, 3.5168],
-                   ["abchiller", 150, 0.8, 0.012],
+    curve_tests = [["centrifugal_chiller_igv", 600, 5.5],
+                   ["absorption_chiller", 150, 0.8],
                    ["boiler", 300, 0.9],
-                   ["microturbine", 300, 0.35, 0.8/3.28**3/1026/1055.06*1000]]
+                   ["micro_turbine_generator", 300, 0.35]]
 
     for test in curve_tests:
         outputs, inputs = get_default_curve(*test)
