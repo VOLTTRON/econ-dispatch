@@ -284,6 +284,8 @@ def build_problem(forecast, parameters={}):
         ramp_up = parameters["ramp_up"]
         ramp_down = parameters["ramp_down"]
         start_cost = parameters["start_cost"]
+        min_on = parameters["min_on"]
+        min_off = parameters["min_off"]
         abs_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, start_cost=start_cost)# chiller1
         abs_init[name] = BuildAsset_init(status=0)
 
@@ -615,12 +617,9 @@ def build_problem(forecast, parameters={}):
     add_constraint("turbinerampdown", index_turbine + index_without_first_hour, turbinerampdown)
 
     def turbineslockon1(index):
-        # [i=1:N_turbine,t=1]
+        # [i=1:N_turbine,t=0]
         i, t = index[0], 0
-        partial = []
-        for tau in range(t-1):
-            partial.append(turbine_s[i,tau])
-        return turbine_para[i].min_on * (turbine_init[i].status1[-1] - turbine_s[i,t]) <= pulp.lpSum(partial) + pulp.lpSum(turbine_init[i].status1[24+t-turbine_para[i].min_on:24])
+        return turbine_para[i].min_on * (turbine_init[i].status1[-1] - turbine_s[i,t]) <= pulp.lpSum(turbine_init[i].status1[24+t-turbine_para[i].min_on:24])
     add_constraint("turbineslockon1", index_turbine, turbineslockon1)
 
     ################################################################################
@@ -628,20 +627,22 @@ def build_problem(forecast, parameters={}):
     # another so I'm not going to try forcing them into the add constraint utility
 
     for i in turbine_names:
-        for t in range(1, turbine_para[i].min_on):
+        # [t=1:min_on]
+        for t in range(1, turbine_para[i].min_on+1):
             name = "turbineslockon2_{}_{}".format(i, t)
             partial = []
-            for tau in range(t):
+            # [tau=1,t-1]
+            for tau in range(0, t):
                 partial.append(turbine_s[i,tau])
-
             c = turbine_para[i].min_on * (turbine_s[i,t-1] - turbine_s[i,t]) <= pulp.lpSum(partial) + pulp.lpSum(turbine_init[i].status1[24+t-turbine_para[i].min_on:24])
             constraints.append((c, name))
 
     for i in turbine_names:
-        for t in range(turbine_para[i].min_on, H_t):
+        for t in range(turbine_para[i].min_on+1, H_t):
             name = "turbineslockon_{}_{}".format(i, t)
             partial = []
-            for tau in range(t-turbine_para[i].min_on, t-1):
+            # [tau=t-min_on:t-1]
+            for tau in range(t-turbine_para[i].min_on, t):
                 partial.append(turbine_s[i,tau])
 
             c = turbine_para[i].min_on * (turbine_s[i,t-1] - turbine_s[i,t]) <= pulp.lpSum(partial)
@@ -850,6 +851,40 @@ def build_problem(forecast, parameters={}):
         return abs_x[i,t] <= abs_x[i,t-1] + abs_para[i].ramp_up
     add_constraint("absrampdown",index_abs + index_without_first_hour, absrampdown)
 
+    # Adding absorption min_on/min_off functionality
+    def abslockon1(index):
+        # [i=1:N_abs,t=0]
+        i, t = index[0], 0
+        return abs_para[i].min_on * (abs_init[i].status1[-1] - abs_s[i,t]) <= pulp.lpSum(abs_init[i].status1[24+t-abs_para[i].min_on:24])
+    add_constraint("abslockon1", index_abs, abslockon1)
+
+    ################################################################################
+    # These abs constraints are extra weird. Their index variables refer to one
+    # another so I'm not going to try forcing them into the add constraint utility
+
+    for i in abs_names:
+        # [t=1:min_on]
+        for t in range(1, abs_para[i].min_on+1):
+            name = "abslockon2_{}_{}".format(i, t)
+            partial = []
+            # [tau=1,t-1]
+            for tau in range(0, t):
+                partial.append(abs_s[i,tau])
+            c = abs_para[i].min_on * (abs_s[i,t-1] - abs_s[i,t]) <= pulp.lpSum(partial) + pulp.lpSum(abs_init[i].status1[24+t-abs_para[i].min_on:24])
+            constraints.append((c, name))
+
+    for i in abs_names:
+        for t in range(abs_para[i].min_on+1, H_t):
+            name = "abslockon_{}_{}".format(i, t)
+            partial = []
+            # [tau=t-min_on:t-1]
+            for tau in range(t-abs_para[i].min_on, t):
+                partial.append(abs_s[i,tau])
+
+            c = abs_para[i].min_on * (abs_s[i,t-1] - abs_s[i,t]) <= pulp.lpSum(partial)
+            constraints.append((c, name))
+################################################################################
+    
     abs_0 = abs_names[0]
     turbine_0 = turbine_names[0]
     turbine_1 = turbine_names[1]
