@@ -286,7 +286,7 @@ def build_problem(forecast, parameters={}):
         start_cost = parameters["start_cost"]
         min_on = parameters["min_on"]
         min_off = parameters["min_off"]
-        abs_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, start_cost=start_cost)# chiller1
+        abs_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, start_cost=start_cost, min_on=min_on, min_off=min_off)# chiller1
         abs_init[name] = BuildAsset_init(status=0)
 
     # abs_para.append(BuildAsset(fundata=pandas.read_csv("paraabs.csv"), ramp_up=0.25, ramp_down=-0.25, start_cost=2))# chiller1
@@ -628,7 +628,7 @@ def build_problem(forecast, parameters={}):
 
     for i in turbine_names:
         # [t=1:min_on]
-        for t in range(1, turbine_para[i].min_on+1):
+        for t in range(1, turbine_para[i].min_on):
             name = "turbineslockon2_{}_{}".format(i, t)
             partial = []
             # [tau=1,t-1]
@@ -638,7 +638,7 @@ def build_problem(forecast, parameters={}):
             constraints.append((c, name))
 
     for i in turbine_names:
-        for t in range(turbine_para[i].min_on+1, H_t):
+        for t in range(turbine_para[i].min_on, H_t):
             name = "turbineslockon_{}_{}".format(i, t)
             partial = []
             # [tau=t-min_on:t-1]
@@ -864,7 +864,7 @@ def build_problem(forecast, parameters={}):
 
     for i in abs_names:
         # [t=1:min_on]
-        for t in range(1, abs_para[i].min_on+1):
+        for t in range(1, abs_para[i].min_on):
             name = "abslockon2_{}_{}".format(i, t)
             partial = []
             # [tau=1,t-1]
@@ -874,7 +874,7 @@ def build_problem(forecast, parameters={}):
             constraints.append((c, name))
 
     for i in abs_names:
-        for t in range(abs_para[i].min_on+1, H_t):
+        for t in range(abs_para[i].min_on, H_t):
             name = "abslockon_{}_{}".format(i, t)
             partial = []
             # [tau=t-min_on:t-1]
