@@ -231,7 +231,7 @@ class PiecewiseError(StandardError):
     pass
 
 def piecewise_linear(inputs, outputs, capacity,
-                     segment_target=5, regression_order=5, min_cap_ratio=0.90):
+                     segment_target=5, regression_order=3, min_cap_ratio=0.90):
     """
     Produces a piecewise linear curve from the component inputs, outputs, and max capacity.
 
