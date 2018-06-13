@@ -84,9 +84,10 @@ class BuildAsset(object):
 
 
 class BuildAsset_init(object):
-    def __init__(self, status=0, output=0.0):
+    def __init__(self, status=0, output=0.0, command_history=[0]*24):
+        #status1[-1] should always == status if populated.
         self.status = status
-        self.status1 = np.zeros(24)
+        self.status1 = np.array(command_history)
         self.output = output
 
 
@@ -247,8 +248,9 @@ def build_problem(forecast, parameters={}):
         ramp_up = parameters["ramp_up"]
         ramp_down = parameters["ramp_down"]
         start_cost = parameters["start_cost"]
+        output = parameters["output"]
         boiler_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, start_cost=start_cost)
-        boiler_init[name] = BuildAsset_init(status=0)
+        boiler_init[name] = BuildAsset_init(status=0, output=output)
 
     # boiler_para.append(BuildAsset(fundata=pandas.read_csv("paraboiler1.csv"), ramp_up=8, ramp_down=-8, start_cost=0.8)) # boiler1
     # boiler_para.append(BuildAsset(fundata=pandas.read_csv("paraboiler2.csv"), ramp_up=2, ramp_down=-2, start_cost=0.25)) # boiler2
@@ -262,8 +264,9 @@ def build_problem(forecast, parameters={}):
         ramp_up = parameters["ramp_up"]
         ramp_down = parameters["ramp_down"]
         start_cost = parameters["start_cost"]
+        output = parameters["output"]
         chiller_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, start_cost=start_cost)
-        chiller_init[name] = BuildAsset_init(status=0)
+        chiller_init[name] = BuildAsset_init(status=0, output=output)
 
     # chiller_para.append(BuildAsset(fundata=pandas.read_csv("parachiller.csv"), ramp_up=6, ramp_down=-6, start_cost=15)) # chiller1
     # temp_data = pandas.read_csv("parachiller.csv")
@@ -286,8 +289,9 @@ def build_problem(forecast, parameters={}):
         start_cost = parameters["start_cost"]
         min_on = parameters["min_on"]
         min_off = parameters["min_off"]
+        output = parameters["output"]
         abs_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, start_cost=start_cost, min_on=min_on, min_off=min_off)# chiller1
-        abs_init[name] = BuildAsset_init(status=0)
+        abs_init[name] = BuildAsset_init(status=0, output=output)
 
     # abs_para.append(BuildAsset(fundata=pandas.read_csv("paraabs.csv"), ramp_up=0.25, ramp_down=-0.25, start_cost=2))# chiller1
     # abs_init.append(BuildAsset_init(status=0))
