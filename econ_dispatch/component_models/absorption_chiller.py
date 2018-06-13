@@ -117,6 +117,9 @@ class Component(ComponentBase):
         self.ramp_up = ramp_up
         self.ramp_down = ramp_down
         self.start_cost = start_cost
+        self.max_output = self.capacity
+        self.output = 0
+
 
         #self.historical_data = {}
         #self.cached_parameters = {}
@@ -156,9 +159,12 @@ class Component(ComponentBase):
         abs_chiller_load_kW = abs_chller_load_mmBTU*1000/3.412
         mass_flow_rate_abs =  abs_chiller_load_kW / (SPECIFIC_HEAT_WATER*(self.Tchr-self.Tcho))
         vol_flow_rate_setpoint_abs = mass_flow_rate_abs / DENSITY_WATER
-        self.command_history = self.command_history[1:] + [int(vol_flow_rate_setpoint_abs > 0.0)]
+        run_abs = vol_flow_rate_setpoint_abs>0
+        self.output = self.max_output if run_abs else 0
+        self.parameters["output"] = self.output
+        self.command_history = self.command_history[1:] + [int(run_abs)]
         self.parameters["command_history"] = self.command_history[:]
-        return {"command":int(vol_flow_rate_setpoint_abs>0)}
+        return {"command":int(run_abs)}
 
     training_inputs_name_map = {
         "outputs": "Qch(tons)",
@@ -193,6 +199,7 @@ class Component(ComponentBase):
             "start_cost": self.start_cost,
             "min_on": self.min_on,
             "min_off": self.min_off,
+            "output": self.output,
             "command_history": self.command_history[:]
         }
 

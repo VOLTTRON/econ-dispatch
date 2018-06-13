@@ -111,6 +111,7 @@ class Component(ComponentBase):
         self.ramp_up = ramp_up
         self.ramp_down = ramp_down
         self.start_cost = start_cost
+        self.output = 0
 
         #self.power = 300
         #self.T_amb = 20.0
@@ -191,19 +192,20 @@ class Component(ComponentBase):
             "ramp_down": self.ramp_down,
             "start_cost": self.start_cost,
             "min_on": self.min_on,
-            "output": self.capacity
+            "output": self.output
         }
 
         _log.debug("Fuel cell {} parameters: {}".format(self.name, self.parameters))
 
     def get_mapped_commands(self, component_loads):
         try:
-            return {"set_point": component_loads["turbine_x_{}_0".format(self.name)]*293.1}
+            set_point = component_loads["turbine_x_{}_0".format(self.name)] * 293.1
         except KeyError:
-            # Running use case 1.
-            return {"set_point": component_loads["Q_prime_mover_{}_hour00".format(self.name)]*293.1}
+            set_point = component_loads["Q_prime_mover_{}_hour00".format(self.name)] * 293.1
 
-
+        self.output = set_point
+        self.parameters["output"] = self.output
+        return {"set_point": set_point}
 
     # def get_optimization_parameters(self):
     #     if not self.opt_params_dirty:
