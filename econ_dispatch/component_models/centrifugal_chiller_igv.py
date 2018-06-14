@@ -178,7 +178,7 @@ class Component(ComponentBase):
             "ramp_up": self.ramp_up,
             "ramp_down": self.ramp_down,
             "start_cost": self.start_cost,
-            "outout": self.output
+            "output": self.output
         }
 
     # def get_optimization_parameters(self):
