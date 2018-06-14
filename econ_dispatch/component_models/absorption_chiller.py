@@ -173,7 +173,10 @@ class Component(ComponentBase):
 
     def train(self, training_data):
         # TODO: Update to calc these from sensor data
-        Qch = training_data["Qch(tons)"] * (3.517 / 293.1) # chiller cooling output in mmBTU/hr (converted from cooling Tons)
+        try:
+            Qch = training_data["Qch(tons)"] * (3.517 / 293.1) # chiller cooling output in mmBTU/hr (converted from cooling Tons)
+        except KeyError:
+            Qch = training_data["Qch(MMBtu/h)"]
         Qin = training_data["Qin(MMBtu/h)"] # chiller heat input in mmBTU/hr
 
         valid = Qch > 0.0
