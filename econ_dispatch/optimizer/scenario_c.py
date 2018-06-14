@@ -222,13 +222,14 @@ def build_problem(forecast, parameters={}):
         start_cost = parameters["start_cost"]
         min_on = parameters["min_on"]
         output = parameters["output"]
+        command_history = parameters["command_history"]
         turbine_para[name] = BuildAsset(fundata=fundata,
                                         component_name=name,
                                         ramp_up=ramp_up,
                                         ramp_down=ramp_down,
                                         start_cost=start_cost,
                                         min_on=min_on) # fuel cell
-        turbine_init[name] = BuildAsset_init(status=1, output=output)
+        turbine_init[name] = BuildAsset_init(status=int(output>0.0), command_history=command_history, output=output)
 
     # turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine1.csv"), ramp_up=150, ramp_down=-150, start_cost=20, min_on=3)) # fuel cell
     # turbine_para.append(BuildAsset(fundata=pandas.read_csv("paraturbine2.csv"), ramp_up=200, ramp_down=-200, start_cost=10, min_on=3)) # microturbine
@@ -250,7 +251,7 @@ def build_problem(forecast, parameters={}):
         start_cost = parameters["start_cost"]
         output = parameters["output"]
         boiler_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, start_cost=start_cost)
-        boiler_init[name] = BuildAsset_init(status=0, output=output)
+        boiler_init[name] = BuildAsset_init(status=int(output>0.0), output=output)
 
     # boiler_para.append(BuildAsset(fundata=pandas.read_csv("paraboiler1.csv"), ramp_up=8, ramp_down=-8, start_cost=0.8)) # boiler1
     # boiler_para.append(BuildAsset(fundata=pandas.read_csv("paraboiler2.csv"), ramp_up=2, ramp_down=-2, start_cost=0.25)) # boiler2
@@ -266,7 +267,7 @@ def build_problem(forecast, parameters={}):
         start_cost = parameters["start_cost"]
         output = parameters["output"]
         chiller_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, start_cost=start_cost)
-        chiller_init[name] = BuildAsset_init(status=0, output=output)
+        chiller_init[name] = BuildAsset_init(status=int(output>0.0), output=output)
 
     # chiller_para.append(BuildAsset(fundata=pandas.read_csv("parachiller.csv"), ramp_up=6, ramp_down=-6, start_cost=15)) # chiller1
     # temp_data = pandas.read_csv("parachiller.csv")
@@ -290,8 +291,9 @@ def build_problem(forecast, parameters={}):
         min_on = parameters["min_on"]
         min_off = parameters["min_off"]
         output = parameters["output"]
+        command_history = parameters["command_history"]
         abs_para[name] = BuildAsset(fundata=fundata, component_name=name, ramp_up=ramp_up, ramp_down=ramp_down, start_cost=start_cost, min_on=min_on, min_off=min_off)# chiller1
-        abs_init[name] = BuildAsset_init(status=0, output=output)
+        abs_init[name] = BuildAsset_init(status=int(output>0.0), command_history=command_history, output=output)
 
     # abs_para.append(BuildAsset(fundata=pandas.read_csv("paraabs.csv"), ramp_up=0.25, ramp_down=-0.25, start_cost=2))# chiller1
     # abs_init.append(BuildAsset_init(status=0))

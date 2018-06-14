@@ -125,6 +125,8 @@ class Component(ComponentBase):
         self.start_cost = start_cost
         self.output = 0
 
+        self.command_history = [0] * 24
+
         # self.parameters["cap"] = self.coef.NominalPower
 
 
@@ -146,6 +148,10 @@ class Component(ComponentBase):
 
         self.output = set_point
         self.parameters["output"] = self.output
+
+        self.command_history = self.command_history[1:] + [int(set_point>0)]
+        self.parameters["command_history"] = self.command_history[:]
+
         return {"set_point": set_point}
 
     training_inputs_name_map = {
@@ -199,7 +205,8 @@ class Component(ComponentBase):
             "ramp_down": self.ramp_down,
             "start_cost": self.start_cost,
             "min_on": self.min_on,
-            "output": self.output
+            "output": self.output,
+            "command_history": self.command_history[:]
         }
 
         _log.debug("Fuel cell {} parameters: {}".format(self.name, self.parameters))
