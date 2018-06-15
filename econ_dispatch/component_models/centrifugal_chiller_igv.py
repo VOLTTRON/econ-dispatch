@@ -99,7 +99,7 @@ class Component(ComponentBase):
         self.ramp_down = ramp_down
         self.start_cost = start_cost
         self.output = 0
-        self.output_max = self.capacity
+        self.max_output = self.capacity
 
         #self.parameters["cap"] = self.capacity
 
