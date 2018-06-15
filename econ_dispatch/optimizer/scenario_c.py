@@ -197,13 +197,13 @@ def build_problem(forecast, parameters={}):
             except KeyError:
                 parasys[key] = [value]
 
-    print "================================================================================"
-    for k, v in parasys.items():
-        print k
-    print "================================================================================"
-    import json
-    print(json.dumps(parameters, indent=4, sort_keys=True))
-    print "================================================================================"
+    # print "================================================================================"
+    # for k, v in parasys.items():
+    #     print k
+    # print "================================================================================"
+    # import json
+    # print(json.dumps(parameters, indent=4, sort_keys=True))
+    # print "================================================================================"
 
     fuel_cell_params = parameters["fuel_cell"]
     microturbine_params = parameters["micro_turbine_generator"]
