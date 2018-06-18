@@ -60,6 +60,7 @@ import logging
 _log = logging.getLogger(__name__)
 import os.path
 import os
+from pprint import pformat
 
 def get_optimization_function(config):
     name = config["name"]
@@ -84,7 +85,12 @@ def get_pulp_optimization_function(pulp_build_function, config):
         prob = pulp_build_function(forecast, parameters)
 
         if write_lp:
-            prob.writeLP(os.path.join(lp_out_dir, str(now).replace(":", "_")+".lp"))
+            base_file = os.path.join(lp_out_dir, str(now).replace(":", "_"))
+            prob.writeLP(base_file+".lp")
+            with open(base_file+".forecast", "w") as f:
+                f.write(pformat(forecast)+"\n")
+            with open(base_file+".parameters", "w") as f:
+                f.write(pformat(parameters) + "\n")
 
         convergence_time = -1
         objective_value = -1
@@ -114,6 +120,13 @@ def get_pulp_optimization_function(pulp_build_function, config):
 
         result["Objective Value"] = objective_value
         result["Convergence Time"] = convergence_time
+
+        if write_lp:
+            with open(base_file+".result", "w") as f:
+                f.write("Status: {}\n".format(status))
+                f.write("Objective Value: {}\n".format(objective_value))
+                f.write("Convergence Time: {}\n\n".format(convergence_time))
+                f.write(pformat(result) + "\n")
 
         return result
 
