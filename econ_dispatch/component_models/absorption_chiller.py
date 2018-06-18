@@ -117,7 +117,8 @@ class Component(ComponentBase):
         self.ramp_up = ramp_up
         self.ramp_down = ramp_down
         self.start_cost = start_cost
-        self.max_output = self.capacity
+        #Convert to mmBTU/hr
+        self.max_output = self.capacity * (3.517 / 293.1)
         self.output = 0
 
 

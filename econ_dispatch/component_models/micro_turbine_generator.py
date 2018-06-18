@@ -142,9 +142,9 @@ class Component(ComponentBase):
 
     def get_mapped_commands(self, component_loads):
         try:
-            set_point = component_loads["turbine_x_{}_0".format(self.name)] * 293.1
+            set_point = component_loads["turbine_x_{}_0".format(self.name)]
         except KeyError:
-            set_point = component_loads["Q_prime_mover_{}_hour00".format(self.name)] * 293.1
+            set_point = component_loads["Q_prime_mover_{}_hour00".format(self.name)]
 
         self.output = set_point
         self.parameters["output"] = self.output
