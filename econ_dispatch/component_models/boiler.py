@@ -83,7 +83,8 @@ class Component(ComponentBase):
         # Building heating load assigned to Boiler
         self.current_Qbp = 55
 
-        self.parameters["cap"] = self.capacity
+        self.max_output = self.capacity
+        self.output = 0
         self.ramp_up = ramp_up
         self.ramp_down = ramp_down
         self.start_cost = start_cost
@@ -115,10 +116,14 @@ class Component(ComponentBase):
 
     def get_mapped_commands(self, component_loads):
         try:
-            return {"command":int(component_loads["boiler_x_{}_0".format(self.name)]>0.0)}
+            run_boiler = component_loads["boiler_x_{}_0".format(self.name)]>0.0
         except KeyError:
             #Running use case 1.
-            return {"command": int(component_loads["Q_boiler_{}_hour00".format(self.name)] > 0.0)}
+            run_boiler = component_loads["Q_boiler_{}_hour00".format(self.name)] > 0.0
+
+        self.output = self.max_output if run_boiler else 0
+        self.parameters["output"] = self.output
+        return {"command": int(run_boiler)}
 
     training_inputs_name_map = {
         "outputs": "heat_output",
@@ -147,7 +152,8 @@ class Component(ComponentBase):
             },
             "ramp_up": self.ramp_up,
             "ramp_down": self.ramp_down,
-            "start_cost": self.start_cost
+            "start_cost": self.start_cost,
+            "output": self.output
         }
 
         # sort_indexes = np.argsort(historical_Qbp)

@@ -98,6 +98,9 @@ class Component(ComponentBase):
         self.ramp_up = ramp_up
         self.ramp_down = ramp_down
         self.start_cost = start_cost
+        self.output = 0
+        # Convert to mmBTU/hr
+        self.max_output = self.capacity * (3.517 / 293.1)
 
         #self.parameters["cap"] = self.capacity
 
@@ -124,13 +127,15 @@ class Component(ComponentBase):
         return None not in parameters
 
     def get_mapped_commands(self, component_loads):
-        points = dict()
         try:
-            points["command"] = int(component_loads["chiller_x_{}_0".format(self.name)] > 0.0)
+            run_chiller = component_loads["chiller_x_{}_0".format(self.name)] > 0.0
         except KeyError:
             #Running use case 1.
-            points["command"] = int(component_loads["E_chillerelec_{}_hour00".format(self.name)] > 0.0)
-        return points
+            run_chiller = component_loads["E_chillerelec_{}_hour00".format(self.name)] > 0.0
+
+        self.output = self.max_output if run_chiller else 0
+        self.parameters["output"] = self.output
+        return {"command": int(run_chiller)}
 
     training_inputs_name_map = {
         "outputs": "Qch(tons)",
@@ -173,7 +178,8 @@ class Component(ComponentBase):
             },
             "ramp_up": self.ramp_up,
             "ramp_down": self.ramp_down,
-            "start_cost": self.start_cost
+            "start_cost": self.start_cost,
+            "output": self.output
         }
 
     # def get_optimization_parameters(self):
