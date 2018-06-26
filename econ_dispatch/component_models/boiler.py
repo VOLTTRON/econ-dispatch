@@ -147,7 +147,8 @@ class Component(ComponentBase):
             _log.debug("Training data does not meet standards: {}".format(err))
             inputs, outputs = utils.get_default_curve("boiler", self.capacity, 0.9)
 
-        a, b, xmin, xmax = utils.piecewise_linear(inputs, outputs, self.capacity)
+        a, b, xmin, xmax = utils.piecewise_linear(inputs, outputs, self.capacity,
+                                                  curve_func=lambda x, p0, p1, p2, p3: p0*x/(p1+p2*x+p3*x**2))
 
         self.parameters = {
             "fundata": {

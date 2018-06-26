@@ -64,6 +64,7 @@ import json
 import os.path
 from cStringIO import StringIO
 from datetime import timedelta
+from scipy.optimize import curve_fit
 
 import logging
 
@@ -288,7 +289,7 @@ def clean_training_data(inputs, outputs, capacity, timestamps=None, delete_outli
 
 
 def piecewise_linear(inputs, outputs, capacity,
-                     segment_target=5, regression_order=3, min_cap_ratio=0.90):
+                     segment_target=5, curve_func=lambda x, a, b, c: a+b*x+c*x**2):
     """
     Produces a piecewise linear curve from the component inputs, outputs, and max capacity.
 
@@ -304,7 +305,6 @@ def piecewise_linear(inputs, outputs, capacity,
     x_values = outputs
     y_values = inputs
     max_x = capacity
-    max_x_value = max(x_values)
     max_y = max(y_values)
     resolution = 100.0
     error_threshold_max = 1.0
@@ -313,18 +313,10 @@ def piecewise_linear(inputs, outputs, capacity,
 
     _log.debug("Max X: {}, max Y: {}".format(max_x, max_y))
 
-    # def find_y(x):
-    #     y = regression_coefs[-1]
-    #     for i in xrange(regression_order):
-    #         y += regression_coefs[i] * x ** (regression_order - i)
-    #     return y
+    params, _ = curve_fit(curve_func, x_values, y_values)
+    find_y = curve_func(x_values, *params)
 
-    segment_total = 0
-
-    regression_coefs = np.polyfit(x_values, y_values, regression_order)
-    find_y = np.poly1d(regression_coefs)
-
-    _log.debug("Regression Coefs: {}".format(regression_coefs))
+    _log.debug("Regression Coefs: {}".format(params))
 
     x0 = min(x_values)
     y0 = find_y(x0)
