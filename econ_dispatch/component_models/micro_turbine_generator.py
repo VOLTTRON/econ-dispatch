@@ -192,7 +192,13 @@ class Component(ComponentBase):
         Xdata = Power
         Ydata = FuelFlow * 171.11  # fuel: kg/s -> mmBtu/hr
 
-        a, b, xmin, xmax = utils.piecewise_linear(Ydata, Xdata, self.capacity)
+        try:
+            inputs, outputs = utils.clean_training_data(Ydata, Xdata, self.capacity)
+        except ValueError as err:
+            _log.debug("Training data does not meet standards: {}".format(err))
+            inputs, outputs = utils.get_default_curve("micro_turbine_generator", self.capacity, 0.35)
+
+        a, b, xmin, xmax = utils.piecewise_linear(inputs, outputs, self.capacity)
 
         self.parameters = {
             "fundata": {
