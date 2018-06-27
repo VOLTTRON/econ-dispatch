@@ -167,8 +167,11 @@ class Component(ComponentBase):
 
         _log.debug("X max: {}".format(max(Qch)))
 
+        timestamps = training_data.get("timestamps", None)
+
         try:
-            inputs, outputs = utils.clean_training_data(P, Qch, self.capacity * (3.517 / 293.1))
+            inputs, outputs = utils.clean_training_data(P, Qch, self.capacity * (3.517 / 293.1),
+                                                        timestamps=timestamps)
         except ValueError as err:
             _log.debug("Training data does not meet standards: {}".format(err))
             inputs, outputs = utils.get_default_curve("centrifugal_chiller_igv", self.capacity * (3.517 / 293.1), 5.5)

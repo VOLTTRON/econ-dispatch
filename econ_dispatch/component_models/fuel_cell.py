@@ -181,11 +181,14 @@ class Component(ComponentBase):
         fuel_flow = training_data["fuel_flow"] * 171.11  # fuel: kg/s -> mmBtu/hr
         power = training_data["power"]
 
+        timestamps = training_data.get("timestamps", None)
+
         try:
             inputs, outputs = utils.clean_training_data(fuel_flow, power, self.capacity)
         except ValueError as err:
             _log.debug("Training data does not meet standards: {}".format(err))
-            inputs, outputs = utils.get_default_curve("micro_turbine_generator", self.capacity, 0.35)
+            inputs, outputs = utils.get_default_curve("micro_turbine_generator", self.capacity, 0.35,
+                                                        timestamps=timestamps)
 
         a, b, xmin, xmax = utils.piecewise_linear(inputs, outputs, self.capacity,
                                                   curve_func=lambda x, p0, p1, p2, p3: p0*x/(p1+p2*x+p3*x**2))

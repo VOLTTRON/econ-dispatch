@@ -141,8 +141,11 @@ class Component(ComponentBase):
 
         _log.debug("X max: {}".format(max(historical_Qbp)))
 
+        timestamps = training_data.get("timestamps", None)
+
         try:
-            inputs, outputs = utils.clean_training_data(historical_Gbp, historical_Qbp, self.capacity)
+            inputs, outputs = utils.clean_training_data(historical_Gbp, historical_Qbp, self.capacity,
+                                                        timestamps=timestamps)
         except ValueError as err:
             _log.debug("Training data does not meet standards: {}".format(err))
             inputs, outputs = utils.get_default_curve("boiler", self.capacity, 0.9)
