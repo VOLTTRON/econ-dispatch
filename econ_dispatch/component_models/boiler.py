@@ -141,7 +141,17 @@ class Component(ComponentBase):
 
         _log.debug("X max: {}".format(max(historical_Qbp)))
 
-        a, b, xmin, xmax = utils.piecewise_linear(historical_Gbp, historical_Qbp, self.capacity)
+        timestamps = training_data.get("timestamps", None)
+
+        try:
+            inputs, outputs = utils.clean_training_data(historical_Gbp, historical_Qbp, self.capacity,
+                                                        timestamps=timestamps)
+        except ValueError as err:
+            _log.debug("Training data does not meet standards: {}".format(err))
+            inputs, outputs = utils.get_default_curve("boiler", self.capacity, 0.9)
+
+        a, b, xmin, xmax = utils.piecewise_linear(inputs, outputs, self.capacity,
+                                                  curve_func=lambda x, p0, p1, p2, p3: p0*x/(p1+p2*x+p3*x**2))
 
         self.parameters = {
             "fundata": {

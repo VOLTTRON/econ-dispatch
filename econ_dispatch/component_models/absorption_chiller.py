@@ -189,7 +189,16 @@ class Component(ComponentBase):
 
         _log.debug("X max: {}".format(max(Xdata)))
 
-        a,b,xmin,xmax = utils.piecewise_linear(Ydata, Xdata, self.capacity * (3.517 / 293.1))
+        timestamps = training_data.get("timestamps", None)
+
+        try:
+            inputs, outputs = utils.clean_training_data(Ydata, Xdata, self.capacity * (3.517 / 293.1),
+                                                        timestamps=timestamps)
+        except ValueError as err:
+            _log.debug("Training data does not meet standards: {}".format(err))
+            inputs, outputs = utils.get_default_curve("absorption_chiller", self.capacity * (3.517 / 293.1), 0.8)
+
+        a, b, xmin, xmax = utils.piecewise_linear(inputs, outputs, self.capacity * (3.517 / 293.1))
 
         self.parameters = {
             "fundata": {

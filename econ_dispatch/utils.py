@@ -63,6 +63,8 @@ import re
 import json
 import os.path
 from cStringIO import StringIO
+from datetime import timedelta
+from scipy.optimize import curve_fit
 
 import logging
 
@@ -230,8 +232,64 @@ def _test_regression():
 class PiecewiseError(StandardError):
     pass
 
+
+def clean_training_data(inputs, outputs, capacity, timestamps=None, delete_outliers_sigmas=None, min_cap_ratio=0.9):
+    """
+    Test if training data meets common-sense tests and coverage standards, then clean it up a little.
+
+    :param inputs:
+    :param outputs:
+    :param capacity:
+    :param timestamps:
+    :param delete_outliers_sigmas: TODO. Number of standard deviations from mean to define outliers.
+    :param min_cap_ratio: how close to capacity to we require data
+    :return inputs, outputs: cleaned version of parameters
+    :raises ValueError: if training data does not meet standards
+    """
+    x_values = outputs
+    y_values = inputs
+
+    if (min(y_values) < 0) or (min(x_values) < 0):
+        raise ValueError("Training data is not non-negative.")
+
+    if len(y_values) != len(x_values):
+        raise ValueError("Training data is not one-to-one.")
+
+    max_x_value = max(x_values)
+    cap_ratio = float(max_x_value)/float(max_x)
+
+    if cap_ratio > 1.0:
+        raise ValueError("max(outputs) {} is greater than capacity {}.".format(max_x_value,
+                                                                               capacity))
+    if cap_ratio < min_cap_ratio:
+        raise ValueError("Ratio of max(outputs)/capacity "
+                         "({}/{}={}) below min_cap_ratio ({}).".format(capacity,
+                                                                       max_x_value,
+                                                                       cap_ratio,
+                                                                       min_cap_ratio))
+
+    if timestamps is not None:
+        time_start = min(timestamps)
+        time_end = max(timestamps)
+        time_delta = time_end - time_start
+        if time_delta < timedelta(days=365):
+            raise ValueError("Training data does not represent a full year of operation. "
+                             "Date range: {} to {}".format(time_start,
+                                                           time_end))
+
+    valid = y_values > 0.0
+    y_values = y_values[valid]
+    x_values = x_values[valid]
+
+    if delete_outliers_sigmas is not None:
+        # what does this mean? noise should be around underlying curve
+        pass
+
+    return y_values, x_values
+
+
 def piecewise_linear(inputs, outputs, capacity,
-                     segment_target=5, regression_order=3, min_cap_ratio=0.90):
+                     segment_target=5, curve_func=lambda x, a, b, c: a+b*x+c*x**2):
     """
     Produces a piecewise linear curve from the component inputs, outputs, and max capacity.
 
@@ -247,36 +305,18 @@ def piecewise_linear(inputs, outputs, capacity,
     x_values = outputs
     y_values = inputs
     max_x = capacity
-    max_x_value = max(x_values)
     max_y = max(y_values)
     resolution = 100.0
     error_threshold_max = 1.0
     error_threshold_min = 0.0
     error_threshold = 0.5
 
-    cap_ratio = float(max_x_value)/float(max_x)
-
-    if cap_ratio < min_cap_ratio:
-        raise PiecewiseError("Ratio of max(outputs)/capacity "
-                             "({}/{}={}) below min_cap_ratio ({}).".format(max_x,
-                                                                           max_x_value,
-                                                                           cap_ratio,
-                                                                           min_cap_ratio))
-
     _log.debug("Max X: {}, max Y: {}".format(max_x, max_y))
 
-    # def find_y(x):
-    #     y = regression_coefs[-1]
-    #     for i in xrange(regression_order):
-    #         y += regression_coefs[i] * x ** (regression_order - i)
-    #     return y
+    params, _ = curve_fit(curve_func, x_values, y_values)
+    find_y = curve_func(x_values, *params)
 
-    segment_total = 0
-
-    regression_coefs = np.polyfit(x_values, y_values, regression_order)
-    find_y = np.poly1d(regression_coefs)
-
-    _log.debug("Regression Coefs: {}".format(regression_coefs))
+    _log.debug("Regression Coefs: {}".format(params))
 
     x0 = min(x_values)
     y0 = find_y(x0)
@@ -335,7 +375,7 @@ def piecewise_linear(inputs, outputs, capacity,
     return a, b, xmin, xmax
 
 def _test_piecewise():
-    data = pd.read_csv("component_test_data/test_piecewise_linear_chiller.csv")
+    data = pd.read_csv("../component_test_data/test_piecewise_linear_chiller.csv")
     x = data["X"]
     y = data["Y"]
 
@@ -401,10 +441,10 @@ def _test_default_curve():
                    ["micro_turbine_generator", 300, 0.35]]
 
     for test in curve_tests:
-        outputs, inputs = get_default_curve(*test)
+        results = get_default_curve(*test)
         print test
-        print "output", outputs[:10]
-        print "input", inputs[:10]
+        print "output", results["outputs"][:10]
+        print "input", results["inputs"][:10]
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
