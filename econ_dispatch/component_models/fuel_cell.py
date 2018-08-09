@@ -191,7 +191,8 @@ class Component(ComponentBase):
                                                         timestamps=timestamps)
 
         a, b, xmin, xmax = utils.piecewise_linear(inputs, outputs, self.capacity,
-                                                  curve_func=lambda x, p0, p1, p2, p3: p0*x/(p1+p2*x+p3*x**2))
+                                                  curve_func=lambda x, p0, p1, p2: p0 + p1*x + p2*x**2)
+                                                  # curve_func=lambda x, p0, p1, p2, p3: p0*x/(p1+p2*x+p3*x**2))
 
         self.parameters = {
             "fundata": {
