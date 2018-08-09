@@ -917,7 +917,7 @@ def build_problem(forecast, parameters={}):
     for var, _lambda in zip(E_gridelectogrid[(RANGE,)], parasys["electricity_cost"]):
         objective_components.append(var * _lambda)
 
-    for i in range(2):
+    for i in turbine_names:
         for var, _lambda in zip(turbine_y[i, RANGE], parasys["natural_gas_cost"]):
             objective_components.append(var * _lambda)
 

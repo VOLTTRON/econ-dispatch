@@ -201,8 +201,9 @@ class Component(ComponentBase):
             inputs, outputs = utils.get_default_curve("micro_turbine_generator", self.capacity, 0.35,
                                                         timestamps=timestamps)
 
-        a, b, xmin, xmax = utils.piecewise_linear(inputs, outputs, self.capacity,
-                                                  curve_func=lambda x, p0, p1, p2, p3: p0*x/(p1+p2*x+p3*x**2))
+        # a, b, xmin, xmax = utils.piecewise_linear(inputs, outputs, self.capacity,
+        #                                           curve_func=lambda x, p0, p1, p2, p3: p0*x/(p1+p2*x+p3*x**2))
+        a, b, xmin, xmax = utils.piecewise_linear(inputs, outputs, self.capacity)
 
         self.parameters = {
             "fundata": {
