@@ -247,6 +247,7 @@ def clean_training_data(inputs, outputs, capacity, timestamps=None, delete_outli
     :raises ValueError: if training data does not meet standards
     """
     x_values = outputs
+    max_x = max(x_values)
     y_values = inputs
 
     if (min(y_values) < 0) or (min(x_values) < 0):
@@ -314,14 +315,13 @@ def piecewise_linear(inputs, outputs, capacity,
     _log.debug("Max X: {}, max Y: {}".format(max_x, max_y))
 
     params, _ = curve_fit(curve_func, x_values, y_values)
-    find_y = curve_func(x_values, *params)
 
     _log.debug("Regression Coefs: {}".format(params))
 
     x0 = min(x_values)
-    y0 = find_y(x0)
+    y0 = curve_func(x0, *params)
     x1 = x0 + (1.0 / resolution) * (1.0 - x0)
-    y1 = find_y(x1)
+    y1 = curve_func(x1, *params)
     initial_coeff = np.polyfit([x0, x1], [y0, y1], 1)
 
     max_iterations = 50
@@ -334,13 +334,13 @@ def piecewise_linear(inputs, outputs, capacity,
 
         for i in range(2, int(resolution)+1):
             xn = x0+(float(i)/resolution)*(max_x-x0)
-            yn = find_y(xn)
+            yn = curve_func(xn, *params)
             yp = coeffarray2 + coeffarray1 * xn
             error = abs(yn-yp)/max_y
 
             if error > error_threshold:
                 xn_1 = x0+((i-1)/resolution)*(max_x-x0)
-                yn_1 = find_y(xn_1)
+                yn_1 = curve_func(xn_1, *params)
                 err_coeff = np.polyfit([xn_1, xn], [yn_1, yn], 1)
                 coeffarray1 = err_coeff[0]
                 coeffarray2 = err_coeff[1]
@@ -366,8 +366,8 @@ def piecewise_linear(inputs, outputs, capacity,
     a = []
     b = []
     for x1, x2 in zip(xmin, xmax):
-        y1 = find_y(x1)
-        y2 = find_y(x2)
+        y1 = curve_func(x1, *params)
+        y2 = curve_func(x2, *params)
         coeff = np.polyfit([x1, x2], [y1, y2], 1)
         a.append(coeff[0])
         b.append(coeff[1])
