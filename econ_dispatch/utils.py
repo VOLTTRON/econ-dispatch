@@ -64,7 +64,7 @@ import json
 import os.path
 from cStringIO import StringIO
 from datetime import timedelta
-from scipy.optimize import curve_fit
+from cvxopt import matrix, solvers
 
 import logging
 
@@ -289,8 +289,71 @@ def clean_training_data(inputs, outputs, capacity, timestamps=None, delete_outli
     return y_values, x_values
 
 
+def fit_prime_mover(x, y, xmin=None, xmax=None, n_fine=100, epsilon=1e-10, verbose=False):
+    """
+    Solves a quadratic program to fit the function y = p0*x/(p1+p2*x+p3*x**2) without singularities.
+        Ensures p1+p2*x+p3*x**3 >= epsilon for all x in a fine mesh
+    x - x data to fit
+    y - y data to fit
+    xmin - left limit of fine mesh
+    xmax - right limit of fine mesh
+    n_fine - number of points in fine mesh
+    epsilon - small value to enforce > 0
+    verbose -
+    """
+    solvers.options['show_progress'] = verbose
+
+    if xmin is None:
+        xmin = 0
+
+    if xmax is None:
+        xmax = max(x)
+
+    fine_x = np.linspace(xmin, xmax, n_fine)
+
+    x2 = x ** 2
+    x3 = x ** 3
+    x4 = x ** 4
+    y2 = y ** 2
+
+    P = np.zeros((4, 4))
+    P[0, 0] = sum(x2)
+    P[0, 1] = sum(-x * y)
+    P[1, 0] = sum(-x * y)
+    P[0, 2] = sum(-x2 * y)
+    P[2, 0] = sum(-x2 * y)
+    P[0, 3] = sum(-x3 * y)
+    P[3, 0] = sum(-x3 * y)
+    P[1, 1] = sum(y2)
+    P[1, 2] = sum(x * y2)
+    P[2, 1] = sum(x * y2)
+    P[1, 3] = sum(x2 * y2)
+    P[3, 1] = sum(x2 * y2)
+    P[2, 2] = sum(x2 * y2)
+    P[2, 3] = sum(x3 * y2)
+    P[3, 2] = sum(x3 * y2)
+    P[3, 3] = sum(x4 * y2)
+    P = 2 * P.T
+
+    q = np.zeros((4, 1))
+
+    if n_fine > 0:
+        G = np.zeros((n_fine, 4))
+        G[:, 1] = np.ones((1, n_fine))
+        G[:, 2] = fine_x
+        G[:, 3] = fine_x ** 2
+        G = -1 * G
+
+        h = -epsilon * np.ones((n_fine, 1))
+        sol = solvers.qp(matrix(P), matrix(q), matrix(G), matrix(h))
+    else:
+        sol = solvers.qp(matrix(P), matrix(q))
+
+    return np.array(sol['x'])[:, 0]
+
+
 def piecewise_linear(inputs, outputs, capacity,
-                     segment_target=5, curve_func=lambda x, a, b, c: a+b*x+c*x**2):
+                     segment_target=5, curve_type='poly', **kwargs):
     """
     Produces a piecewise linear curve from the component inputs, outputs, and max capacity.
 
@@ -299,9 +362,8 @@ def piecewise_linear(inputs, outputs, capacity,
     capacity - sets the max output value regardless of the output values
     segment_target - Number of segments to target, failure to hit this target after 50
                     iterations is an error.
-    regression_order - number of coefficients to use for the polyfit.
-    min_cap_ratio - minimum ratio of max(outputs)/capacity allowed.
-                    failure to exceed this value is an automatic failure.
+    curve_type - type of regression to perform: 'poly' for numpy polyfit, 'prime_mover' for cvxopt
+    kwargs - keyword arguments to regression function
     """
     x_values = outputs
     y_values = inputs
@@ -314,9 +376,18 @@ def piecewise_linear(inputs, outputs, capacity,
 
     _log.debug("Max X: {}, max Y: {}".format(max_x, max_y))
 
-    params, _ = curve_fit(curve_func, x_values, y_values)
+    if curve_type == 'poly':
+        if 'deg' not in kwargs:
+            kwargs['deg'] = 2
+        params = np.polyfit(x_values, y_values, **kwargs)
+        curve_func = lambda x, *params: np.polyval(params, x)
+    elif curve_type == 'prime_mover':
+        params = fit_prime_mover(x_values, y_values, **kwargs)
+        curve_func = lambda x, P0, P1, P2, P3: P0*x/(P1 + P2*x + P3*x**2)
+    else:
+        raise ValueError("Unimplemented regression option '{}'. Choose from 'poly' or 'prime_mover'.".format(curve_type))
 
-    _log.debug("Regression Coefs: {}".format(params))
+    _log.debug("Curve type: {}. Regression Coefs: {}".format(curve_type, params))
 
     x0 = min(x_values)
     y0 = curve_func(x0, *params)
