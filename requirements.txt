@@ -6,4 +6,4 @@ numpy
 pandas
 coolprop
 pulp
-scipy
+cvxopt
