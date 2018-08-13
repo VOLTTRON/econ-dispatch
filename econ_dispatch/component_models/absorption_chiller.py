@@ -196,7 +196,7 @@ class Component(ComponentBase):
                                                         timestamps=timestamps)
         except ValueError as err:
             _log.debug("Training data does not meet standards: {}".format(err))
-            inputs, outputs = utils.get_default_curve("absorption_chiller", self.capacity * (3.517 / 293.1), 0.8)
+            return
 
         a, b, xmin, xmax = utils.piecewise_linear(inputs, outputs, self.capacity * (3.517 / 293.1))
 
