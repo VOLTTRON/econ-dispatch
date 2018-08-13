@@ -187,8 +187,7 @@ class Component(ComponentBase):
             inputs, outputs = utils.clean_training_data(fuel_flow, power, self.capacity)
         except ValueError as err:
             _log.debug("Training data does not meet standards: {}".format(err))
-            inputs, outputs = utils.get_default_curve("micro_turbine_generator", self.capacity, 0.35,
-                                                        timestamps=timestamps)
+            return
 
         a, b, xmin, xmax = utils.piecewise_linear(inputs, outputs, self.capacity,curve_type='prime_mover')
 

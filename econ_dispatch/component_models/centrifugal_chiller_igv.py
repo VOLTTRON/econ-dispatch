@@ -174,7 +174,7 @@ class Component(ComponentBase):
                                                         timestamps=timestamps)
         except ValueError as err:
             _log.debug("Training data does not meet standards: {}".format(err))
-            inputs, outputs = utils.get_default_curve("centrifugal_chiller_igv", self.capacity * (3.517 / 293.1), 5.5)
+            return
 
         a, b, xmin, xmax = utils.piecewise_linear(inputs, outputs, self.capacity * (3.517 / 293.1))
         self.parameters = {
