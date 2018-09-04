@@ -25,7 +25,7 @@
         "type": "history",
         "settings":
         {
-            "history_data": "scenario_c/Los_Angeles_weather.csv",
+            "history_data": "scenario_c/NY2017-2018.csv",
             "hours_forecast": 24
         }
     },
@@ -34,7 +34,7 @@
         "building_load":
         {
             "type": "history",
-            "initial_training_data": "scenario_c/LA_Loads.csv"
+            "initial_training_data": "scenario_c/NY_Loads.csv"
 #            "training_sources": # Topics to query from historian for training data mapped to names the component expects.
 #            {
 #                "building/heat_load": "heat_load",
@@ -48,12 +48,12 @@
         "natural_gas_cost":
         {
             "type": "history",
-            "initial_training_data": "scenario_c/natural_gas_price_LA.csv"
+            "initial_training_data": "scenario_c/natural_gas_price_NY.csv"
         },
         "electricity_cost":
         {
             "type": "history",
-            "initial_training_data": "scenario_c/electricity_price_LA.csv"
+            "initial_training_data": "scenario_c/electricity_price_NY.csv"
         }
     },
     "components":
