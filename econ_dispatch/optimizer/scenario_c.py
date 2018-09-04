@@ -205,13 +205,13 @@ def build_problem(forecast, parameters={}):
     # print(json.dumps(parameters, indent=4, sort_keys=True))
     # print "================================================================================"
 
-    fuel_cell_params = parameters["fuel_cell"]
-    microturbine_params = parameters["micro_turbine_generator"]
-    boiler_params = parameters["boiler"]
-    chiller_params = parameters["centrifugal_chiller_igv"]
-    abs_params = parameters["absorption_chiller"]
-    battery_params = parameters["battery"]
-    thermal_storage_params = parameters["thermal_storage"]
+    fuel_cell_params = parameters.get("fuel_cell", {})
+    microturbine_params = parameters.get("micro_turbine_generator", {})
+    boiler_params = parameters.get("boiler", {})
+    chiller_params = parameters.get("centrifugal_chiller_igv", {})
+    abs_params = parameters.get("absorption_chiller", {})
+    battery_params = parameters.get("battery", {})
+    thermal_storage_params = parameters.get("thermal_storage", {})
 
     turbine_para = OrderedDict()
     turbine_init = OrderedDict()
@@ -313,7 +313,7 @@ def build_problem(forecast, parameters={}):
                                        now_soc=parameters["soc"],
                                        component_name=name)
 
-    assert len(battery_params) == 1
+    # assert len(battery_params) == 1
 
 
 
@@ -326,7 +326,7 @@ def build_problem(forecast, parameters={}):
                                           now_soc=parameters["soc"],
                                           component_name=name)
 
-    assert len(thermal_storage_params) == 1
+    # assert len(thermal_storage_params) == 1
 
     
     bigM = 1e4
