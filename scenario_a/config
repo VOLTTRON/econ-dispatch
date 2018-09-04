@@ -25,7 +25,7 @@
         "type": "history",
         "settings":
         {
-            "history_data": "scenario_c/Los_Angeles_weather.csv",
+            "history_data": "scenario_c/NY2017-2018.csv",
             "hours_forecast": 24
         }
     },
@@ -34,7 +34,7 @@
         "building_load":
         {
             "type": "history",
-            "initial_training_data": "scenario_c/LA_Loads.csv"
+            "initial_training_data": "scenario_c/NY_Loads.csv"
 #            "training_sources": # Topics to query from historian for training data mapped to names the component expects.
 #            {
 #                "building/heat_load": "heat_load",
@@ -48,12 +48,12 @@
         "natural_gas_cost":
         {
             "type": "history",
-            "initial_training_data": "scenario_c/natural_gas_price_LA.csv"
+            "initial_training_data": "scenario_a/natural_gas_price_NY.csv"
         },
         "electricity_cost":
         {
             "type": "history",
-            "initial_training_data": "scenario_c/electricity_price_LA.csv"
+            "initial_training_data": "scenario_a/electricity_price_NY.csv"
         }
     },
     "components":
@@ -62,7 +62,7 @@
         "type": "centrifugal_chiller_igv",
         "name": "centrifugal_chiller0",
         # Initial training data for component.
-        "initial_training_data": "./scenario_c/chiller1and2.csv",
+        "initial_training_data": "./scenario_a/Scenario A Chillers.csv",
         # Default parameters if no training data or training sources available.
 #        "default_parameters":
 #         {
@@ -90,7 +90,7 @@
         },
         "settings":
         {
-            "capacity": 500.0,
+            "capacity": 200.0,
             "ramp_up": 6,
             "ramp_down": -6,
             "start_cost": 15,
@@ -101,7 +101,7 @@
         "type": "centrifugal_chiller_igv",
         "name": "centrifugal_chiller1",
         # Initial training data for component.
-        "initial_training_data": "./scenario_c/chiller1and2.csv",
+        "initial_training_data": "./scenario_a/Scenario A Chillers.csv",
         # Default parameters if no training data or training sources available.
 #        "default_parameters":
 #         {
@@ -129,7 +129,7 @@
         },
         "settings":
         {
-            "capacity": 500.0,
+            "capacity": 200.0,
             "ramp_up": 6,
             "ramp_down": -6,
             "start_cost": 15,
@@ -140,7 +140,7 @@
         "type": "centrifugal_chiller_igv",
         "name": "centrifugal_chiller2",
         # Initial training data for component.
-        "initial_training_data": "./scenario_c/chiller3.csv",
+        "initial_training_data": "./scenario_a/Scenario A Chillers.csv",
         # Default parameters if no training data or training sources available.
 #        "default_parameters":
 #         {
@@ -168,55 +168,56 @@
         },
         "settings":
         {
-            "capacity": 133.3,
+            "capacity": 200.0,
             "ramp_up": 6,
             "ramp_down": -6,
             "start_cost": 15,
-            "cop": 5.0
+            "cop": 6.74
         }
      },
      {
-        "type": "battery",
-        "name": "battery",
+        "type": "centrifugal_chiller_igv",
+        "name": "centrifugal_chiller3",
         # Initial training data for component.
-        "initial_training_data": "./scenario_c/battery.csv",
+        "initial_training_data": "./scenario_a/Scenario A Chillers.csv",
         # Default parameters if no training data or training sources available.
-        "default_parameters":
-        {
-            "charge_eff": 0.8,
-            "discharge_eff": 0.7
-        },
+#        "default_parameters":
+#         {
+#             "fundata": {
+#                 "a": [28.28653004,42.18962324,66.98844306],
+#                 "b": [31.44670603,-22.77535742,-149.2493385],
+#                 "min": [1.5,3.9,5.1],
+#                 "max": [3.9,5.1,6]
+#             },
+#             "ramp_up": 6,
+#             "ramp_down": -6,
+#             "start_cost": 15
+#        },
 #        "training_window": 90, # Length of training data window in days.
 #        "training_sources": # Topics to query from historian for training data mapped to names the component expects.
 #        {
-#            "battery/power": "power",
-#            "battery/soc": "soc"
+#            "centrifugal_chiller3/P(kW)": "P(kW)",
+#            "centrifugal_chiller3/Qch(tons)": "Qch(tons)"
 #        },
         # Output topics for a component
         # Maps the outputs of the component model to actuation point names.
         "outputs":
         {
-            "charge_load": "battery/charge_load",
-            "discharge_load": "battery/discharge_load"
-        },
-        "inputs":
-        {
-            "devices/battery/soc": "soc"
+            "command": "centrifugal_chiller3/command"
         },
         "settings":
         {
-            "capacity": 2000.0,
-            "min_power": 0.0,
-            "max_power": 500.0,
-            "min_soc": 0.3,
-            "max_soc": 0.8,
-            "efficiency": 0.9
+            "capacity": 200.0,
+            "ramp_up": 6,
+            "ramp_down": -6,
+            "start_cost": 15,
+            "cop": 6.74
         }
      },
-     {
+        {
         "type": "micro_turbine_generator",
         "name": "micro_turbine_generator",
-        "initial_training_data": "./scenario_c/microturbine.csv",
+        "initial_training_data": "./scenario_a/microturbine.csv",
 #         "default_parameters":
 #        {
 #            "fundata": {
@@ -259,59 +260,11 @@
             "efficiency": 0.28
 		}
      },
-     {
-        "type": "fuel_cell",
-        "name": "fuel_cell",
-        # Initial training data for component.
-        "initial_training_data": "./scenario_c/fuelcell_flow.csv",
-        # Default parameters if no training data or training sources available.
-#        "default_parameters":
-#        {
-#            "fundata": {
-#                "a":[0.006180193,0.022282239,0.069634483],
-#                "b":[0.691878943,-5.990469852,-31.56068196],
-#                "min":[150,415,540],
-#                "max":[415,540,600]
-#             },
-#            "ramp_up": 150,
-#            "ramp_down": -150,
-#            "start_cost": 20,
-#            "min_on": 3,
-#            "output": 300
-#
-#        },
-#        "training_window": 90, # Length of training data window in days.
-#        "training_sources": # Topics to query from historian for training data mapped to names the component expects.
-#        {
-#            "fuel_cell/valid": "valid", # This will probably go away...
-#            "fuel_cell/power": "power",
-#            "fuel_cell/amb_temperature": "amb_temperature",
-#            "fuel_cell/start": "start",
-#            "fuel_cell/hours": "hours"
-#        },
-        # Output topics for a component
-        # Maps the outputs of the component model to actuation point names.
-        "outputs":
-        {
-            "set_point": "fuel_cell/set_point"
-        },
-        "settings":
-        {
-            "capacity": 600.0,
-            "fuel_type": "CH4",
-            "ramp_up": 150,
-            "ramp_down": -150,
-            "start_cost": 20,
-            "min_on": 3,
-            "nominal_ocv": 0.8,
-            "efficiency": 0.40
-        }
-     },
-     {
+       {
         "type": "absorption_chiller",
         "name": "absorption_chiller",
         # Initial training data for component.
-        "initial_training_data": "./scenario_c/ab_chiller.csv",
+        "initial_training_data": "./scenario_a/ab_chiller.csv",
         # Default parameters if no training data or training sources available.
 #        "default_parameters":
 #        {
@@ -336,7 +289,7 @@
         },
         "settings":
         {
-            "capacity": 62.5,
+            "capacity": 131.9,
             "min_off": 3,
             "min_on": 3,
             "ramp_up": 0.25,
@@ -382,74 +335,8 @@
             "start_cost": 0.8,
             "efficiency": 0.82
         }
-     },
-     {
-        "type": "boiler",
-        "name": "boiler1",
-        # Initial training data for component.
-        "initial_training_data": "./scenario_c/boiler.csv",
-        # Default parameters if no training data or training sources available.
-#        "default_parameters": {
-#             "fundata": {
-#                 "a": [1.451120189, 1.201299255, 1.450670102],
-#                 "b": [0.687845722, 1.267430288, -0.328543131],
-#                 "min": [1.2, 2.32, 6.4],
-#                 "max": [2.32, 6.4, 8]
-#             },
-#             "ramp_up": 8,
-#             "ramp_down": -8,
-#             "start_cost": 0.8
-#        },
-        # "training_window": 90, # Length of training data window in days.
-        # "training_sources": # Topics to query from historian for training data mapped to names the component expects.
-        # {
-        #     "boiler1/heat_output": "heat_output",
-        #     "boiler1/gas_input": "gas_input"
-        # },
-        # Output topics for a component
-        # Maps the outputs of the component model to actuation point names.
-        "outputs":
-        {
-            "command": "boiler1/command"
-        },
-        "settings":
-        {
-            "capacity": 8.0,
-            "ramp_up": 8,
-            "ramp_down": -8,
-            "start_cost": 0.8,
-            "efficiency": 0.82
-        }
-     },
-     {
-        "type": "thermal_storage",
-        "name": "thermal_storage",
-        # Output topics for a component
-        # Maps the outputs of the component model to actuation point names.
-#        "default_parameters": {
-#             "soc": 0.0
-#        },
-        "outputs":
-        {
-            "charge_load": "thermal_storage/charge_load",
-            "discharge_load": "thermal_storage/discharge_load"
-        },
-        "inputs":
-        {
-            "devices/thermal_storage/chilled_water_return_temp": "chilled_water_return_temp",
-            "devices/thermal_storage/chilled_water_supply_temp": "chilled_water_supply_temp",
-            "devices/thermal_storage/building_chilled_water_supply_temp": "building_chilled_water_supply_temp",
-            "devices/thermal_storage/building_chilled_water_return_temp": "building_chilled_water_return_temp",
-            "devices/thermal_storage/soc": "soc"
-        },
-        "settings":
-        {
-            "tank_volume": 606980, # In liters
-            "design_chilled_water_return_temp": 15.0, # Chiller return water temp in C
-            "design_chilled_water_supply_temp": 6.7 # Chiller water water supply temp in C
-        }
      }
-    ]
+       ]
 
 #    "connections": []
 #    [
