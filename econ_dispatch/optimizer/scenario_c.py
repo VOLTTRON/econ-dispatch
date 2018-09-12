@@ -893,12 +893,15 @@ def build_problem(forecast, parameters={}):
             constraints.append((c, name))
     
     abs_0 = abs_names[0]
-    turbine_0 = turbine_names[0]
-    turbine_1 = turbine_names[1]
+    #turbine_0 = turbine_names[0]
+    #turbine_1 = turbine_names[1]
     def wastedheat(index):
         # [t=1:H_t]
         t = index[0]
-        return Q_HRUheating_in[t] + abs_y[abs_0, t] == turbine_y[turbine_0,t] - turbine_x[turbine_0,t]/293.1 + turbine_y[turbine_1,t] - turbine_x[turbine_1,t]/293.1
+        partial = []
+        for turbine in turbine_names:
+            partial.append(turbine_y[turbine,t] - turbine_x[turbine,t]/293.1)
+        return Q_HRUheating_in[t] + abs_y[abs_0, t] == pulp.lpSum(partial)
     add_constraint("wastedheat", index_hour, wastedheat)
 
     def HRUlimit(index):

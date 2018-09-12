@@ -232,10 +232,15 @@ class EconDispatchAgent(Agent):
         except KeyError:
             pass
 
-        for topic in all_topics:
+        if all_topics:
+            for topic in all_topics:
+                self.vip.pubsub.subscribe(peer='pubsub',
+                                          prefix=topic,
+                                          callback=self._handle_publish)
+        elif self.simulation_mode:
             self.vip.pubsub.subscribe(peer='pubsub',
-                                      prefix=topic,
-                                      callback=self._handle_publish)
+                                      prefix="eplus-simulation",
+                                      callback=self._handle_simulation_publish)
 
     def _create_all_topics(self, input_topics):
         all_topics = set()
@@ -243,6 +248,21 @@ class EconDispatchAgent(Agent):
             base, point = topic.rsplit('/', 1)
             all_topics.add(base+'/all')
         return all_topics
+
+    def _handle_simulation_publish(self, peer, sender, bus, topic, headers,
+                        message):
+
+        timestamp = utils.parse_timestamp_string(headers[headers_mod.TIMESTAMP])
+
+        if self.historian_training:
+            self.train_components(timestamp)
+
+        commands = self.model.run(timestamp, self.inputs)
+        if commands:
+            self.actuator_set(commands)
+
+            if self.command_output is not None:
+                self.command_history.append((timestamp, commands))
 
     def _handle_publish(self, peer, sender, bus, topic, headers,
                         message):
