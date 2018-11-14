@@ -61,6 +61,7 @@ _log = logging.getLogger(__name__)
 import os.path
 import os
 from pprint import pformat
+import time
 
 def get_optimization_function(config):
     name = config["name"]
@@ -95,6 +96,7 @@ def get_pulp_optimization_function(pulp_build_function, config):
         convergence_time = -1
         objective_value = -1
 
+        solve_start = time.time()
         try:
             if use_glpk:
                 glpk_options = []
@@ -106,7 +108,8 @@ def get_pulp_optimization_function(pulp_build_function, config):
         except Exception as e:
             _log.warning("PuLP failed: " + str(e))
         else:
-            convergence_time = prob.solutionTime
+            convergence_time = time.time() - solve_start
+            # convergence_time = prob.solutionTime
             objective_value = pulp.value(prob.objective)
 
         status = pulp.LpStatus[prob.status]

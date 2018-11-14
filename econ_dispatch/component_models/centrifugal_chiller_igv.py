@@ -128,12 +128,15 @@ class Component(ComponentBase):
 
     def get_mapped_commands(self, component_loads):
         try:
-            run_chiller = component_loads["chiller_x_{}_0".format(self.name)] > 0.0
+            set_point = component_loads["chiller_x_{}_0".format(self.name)]
         except KeyError:
             #Running use case 1.
-            run_chiller = component_loads["E_chillerelec_{}_hour00".format(self.name)] > 0.0
+            set_point = component_loads["E_chillerelec_{}_hour00".format(self.name)]
+        
+        run_chiller = set_point > 0.0
 
-        self.output = self.max_output if run_chiller else 0
+        # self.output = self.max_output if run_chiller else 0
+        self.output = set_point if run_chiller else 0
         self.parameters["output"] = self.output
         return {"command": int(run_chiller)}
 
