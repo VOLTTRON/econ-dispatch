@@ -116,12 +116,15 @@ class Component(ComponentBase):
 
     def get_mapped_commands(self, component_loads):
         try:
-            run_boiler = component_loads["boiler_x_{}_0".format(self.name)]>0.0
+            set_point = component_loads["boiler_x_{}_0".format(self.name)]
         except KeyError:
             #Running use case 1.
-            run_boiler = component_loads["Q_boiler_{}_hour00".format(self.name)] > 0.0
+            set_point = component_loads["Q_boiler_{}_hour00".format(self.name)]
+        
+        run_boiler = set_point > 0.0
 
-        self.output = self.max_output if run_boiler else 0
+        # self.output = self.max_output if run_boiler else 0
+        self.output = set_point if run_boiler else 0
         self.parameters["output"] = self.output
         return {"command": int(run_boiler)}
 

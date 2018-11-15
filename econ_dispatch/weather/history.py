@@ -92,7 +92,6 @@ class Weather(HistoryModelBase):
         return results
 
     def get_historical_data(self, now):
-        now += time_step
         now = now.replace(year=self.history_year)
 
         results = []

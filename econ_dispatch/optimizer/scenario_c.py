@@ -480,11 +480,11 @@ def build_problem(forecast, parameters={}):
             - E_dump[t] == parasys["elec_load"][t] - parasys["solar_kW"][t]
 
     add_constraint("ElecBalance", index_hour, ElecBalance)
-
+     
     def HeatBalance(index):
         # [t=1:H_t]
         t = index[0]
-        return Q_HRUheating_out[t] + pulp.lpSum(boiler_x[RANGE,t]) + Heat_unserve[t] - Heat_dump[t] == parasys["heat_load"][t]
+        return Q_HRUheating_out[t] + pulp.lpSum(boiler_x[RANGE,t]) - pulp.lpSum(abs_y[RANGE, t]) + Heat_unserve[t] - Heat_dump[t] == parasys["heat_load"][t]
     add_constraint("HeatBalance",index_hour,HeatBalance)
 
     def CoolBalance(index):
@@ -892,16 +892,13 @@ def build_problem(forecast, parameters={}):
             c = abs_para[i].min_off * (abs_s[i,t] - abs_s[i,t-1]) <= pulp.lpSum(partial)
             constraints.append((c, name))
     
-    abs_0 = abs_names[0]
-    #turbine_0 = turbine_names[0]
-    #turbine_1 = turbine_names[1]
     def wastedheat(index):
         # [t=1:H_t]
         t = index[0]
         partial = []
         for turbine in turbine_names:
             partial.append(turbine_y[turbine,t] - turbine_x[turbine,t]/293.1)
-        return Q_HRUheating_in[t] + abs_y[abs_0, t] == pulp.lpSum(partial)
+        return Q_HRUheating_in[t] == pulp.lpSum(partial)
     add_constraint("wastedheat", index_hour, wastedheat)
 
     def HRUlimit(index):
@@ -917,8 +914,8 @@ def build_problem(forecast, parameters={}):
     for var, _lambda in zip(E_gridelecfromgrid[RANGE], parasys["electricity_cost"]):
         objective_components.append(var * _lambda)
 
-    for var, _lambda in zip(E_gridelectogrid[(RANGE,)], parasys["electricity_cost"]):
-        objective_components.append(var * _lambda)
+    # for var, _lambda in zip(E_gridelectogrid[(RANGE,)], parasys["electricity_cost"]):
+    #     objective_components.append(var * _lambda * -1.)
 
     for i in turbine_names:
         for var, _lambda in zip(turbine_y[i, RANGE], parasys["natural_gas_cost"]):

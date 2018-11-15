@@ -152,16 +152,18 @@ class Component(ComponentBase):
 
     def get_mapped_commands(self, component_loads):
         try:
-            abs_chller_load_mmBTU = component_loads["abs_x_{}_0".format(self.name)]
+            abs_chiller_load_mmBTU = component_loads["abs_x_{}_0".format(self.name)]
         except KeyError:
             #Running use case 1.
-            abs_chller_load_mmBTU = component_loads["Q_abs_{}_hour00".format(self.name)]
+            abs_chiller_load_mmBTU = component_loads["Q_abs_{}_hour00".format(self.name)]
 
-        abs_chiller_load_kW = abs_chller_load_mmBTU*1000/3.412
-        mass_flow_rate_abs =  abs_chiller_load_kW / (SPECIFIC_HEAT_WATER*(self.Tchr-self.Tcho))
-        vol_flow_rate_setpoint_abs = mass_flow_rate_abs / DENSITY_WATER
-        run_abs = vol_flow_rate_setpoint_abs>0
-        self.output = self.max_output if run_abs else 0
+        # abs_chiller_load_kW = abs_chiller_load_mmBTU*1000/3.412
+        # mass_flow_rate_abs =  abs_chiller_load_kW / (SPECIFIC_HEAT_WATER*(self.Tchr-self.Tcho))
+        # vol_flow_rate_setpoint_abs = mass_flow_rate_abs / DENSITY_WATER
+        # run_abs = vol_flow_rate_setpoint_abs>0
+        # self.output = self.max_output if run_abs else 0
+        run_abs = abs_chiller_load_mmBTU > 0.0
+        self.output = abs_chiller_load_mmBTU if run_abs else 0
         self.parameters["output"] = self.output
         self.command_history = self.command_history[1:] + [int(run_abs)]
         self.parameters["command_history"] = self.command_history[:]
