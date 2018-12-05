@@ -73,7 +73,8 @@ valid_io_types = set([u"heated_water",
                       u"chilled_water",
                       u"chilled_air",
                       u"electricity",
-                      u"natural_gas"])
+                      u"natural_gas",
+                      u"steam"])
 
 class ComponentBase(object):
     __metaclass__ = abc.ABCMeta

@@ -176,13 +176,17 @@ class OptimizerCSVOutput(object):
 
         flat_forecasts = {}
         for i, record in enumerate(forecasts):
-            flat_forecasts.update({"elec_load" + str(i):record.get("elec_load", 0.0),
-                                   "heat_load" + str(i): record.get("heat_load", 0.0),
-                                   "cool_load" + str(i): record.get("cool_load", 0.0),
-                                   "solar_kW" + str(i): record.get("solar_kW", 0.0),
-                                   "natural_gas_cost" + str(i): record.get("natural_gas_cost", 0.0),
-                                   "electricity_cost" + str(i): record.get("electricity_cost", 0.0)
-                                   })
+            for k, v in record.iteritems():
+                if k.lower() == 'timestamp':
+                    continue
+                flat_forecasts["{}_{}".format(k, i)] = v
+            # flat_forecasts.update({"elec_load" + str(i):record.get("elec_load", 0.0),
+            #                        "heat_load" + str(i): record.get("heat_load", 0.0),
+            #                        "cool_load" + str(i): record.get("cool_load", 0.0),
+            #                        "solar_kW" + str(i): record.get("solar_kW", 0.0),
+            #                        "natural_gas_cost" + str(i): record.get("natural_gas_cost", 0.0),
+            #                        "electricity_cost" + str(i): record.get("electricity_cost", 0.0)
+            #                        })
 
         if self.csv_file is None:
             optimization_keys = optimization.keys()
