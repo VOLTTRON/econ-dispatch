@@ -58,7 +58,8 @@
 from econ_dispatch.forecast_models import ForecastModelBase
 
 class Model(ForecastModelBase):
-    def __init__(self, cost=1.0):
+    def __init__(self, cost=1.0, **kwargs):
+        super(Model, self).__init__(**kwargs)
         self.cost = cost
 
     def derive_variables(self, now, independent_variable_values={}):
