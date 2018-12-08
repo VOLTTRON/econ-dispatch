@@ -149,6 +149,11 @@ class Model(ForecastModelBase):
 
         rounded_time = round_to_hour(now)
 
+        for _ in xrange(3):
+            if rounded_time in self.values:
+                break
+            rounded_time = rounded_time - datetime.timedelta(days=1)
+
         return {"electricity_cost": self.values.get(rounded_time,
                                                     self.last_value)}
 
@@ -187,3 +192,5 @@ class Model(ForecastModelBase):
 
         self.values = html_parser.results
         self.last_value = self.values[max(self.values.iterkeys())]
+
+        self.last_collection = now
