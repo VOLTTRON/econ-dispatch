@@ -58,6 +58,7 @@
 from econ_dispatch.forecast_models import ForecastModelBase
 from HTMLParser import HTMLParser
 from dateutil import parser
+from collections import defaultdict
 import requests
 import datetime
 
@@ -68,8 +69,8 @@ NG_DATA = {"tomorrow_month":"",
           "minimum_day":"",
           "minimum_year":"",
           "load_area":"3",
-          "svc_class":"SC-3 HP",
-          "volt_level":"2",
+          "svc_class":"all",
+          "volt_level":"all",
           "from_month":"7",
           "from_day":"15",
           "from_year":"2010",
@@ -78,8 +79,8 @@ NG_DATA = {"tomorrow_month":"",
           "to_year":"2010",
           "Display":"TEXT",
           "la":"3",
-          "vdl":"2",
-          "sc":"SC-3 HP",
+          "vdl":"all",
+          "sc":"all",
           "fd":"07152010",
           "td":"07202010"}
 
@@ -103,37 +104,66 @@ def round_to_hour(dt):
 class Parser(HTMLParser):
     def __init__(self, *args, **kwargs):
         HTMLParser.__init__(self, *args, **kwargs)
-        self.results = {}
+        self.results = defaultdict(dict)
+        self.rows = []
         self.reading_table = False
+        self.reading_row = False
+        self.reading_cell = False
         self.current_date_str = None
         self.current_date_time = None
+        self.current_row = []
+        self.header_row = None
 
     def handle_starttag(self, tag, attrs):
-        if tag == "table" and ("id", "Table3") in attrs:
+        if tag == "table" and ("id", "Table5") in attrs:
             self.reading_table = True
+        if tag == "tr" and self.reading_table:
+            self.reading_row = True
+        if tag == "td" and self.reading_row:
+            self.reading_cell = True
+
 
     def handle_endtag(self, tag):
-        if tag == "table" and self.reading_table == True:
+        if tag == "table":
+            if self.reading_table:
+                self.build_results()
             self.reading_table = False
+        if tag == "tr":
+            self.reading_row = False
+            if self.reading_table:
+                self.finish_row()
+        if tag == "td":
+            self.reading_cell = False
+
+    def finish_row(self):
+        if self.header_row is None:
+            self.header_row = self.current_row
+        else:
+            self.rows.append(self.current_row)
+        self.current_row = []
 
     def handle_data(self, data):
-        if self.reading_table:
-            if ":" in data:
-                hour, minute = data.split(":")
-                hour = int(hour) - 1
-                minute = int(minute)
+        if self.reading_cell:
+            self.current_row.append(data.strip())
 
-                self.current_date_time = parser.parse(self.current_date_str + " {}:{}".format(hour, minute),
-                                                      dayfirst=False)
-            else:
-                try:
-                    f = float(data)
-                    self.results[self.current_date_time] = f
-                except ValueError:
-                    pass
-        elif data.startswith("Prices for: "):
-            date_string = data[-10:]
-            self.current_date_str = date_string
+    def build_results(self):
+        for row in self.rows:
+            record = dict(zip(self.header_row, row))
+            hour, minute = record["Hour Ending"].split(":")
+            hour = int(hour) - 1
+            time_stamp = parser.parse(record["Date"] + " {}:{}".format(hour, minute), dayfirst=False)
+
+            service_class = "sc3a" if record["Service Class"] == "SC3A" else "sc3"
+
+            label = (record["Load Area"].lower() + "_" +
+                     service_class + "_" +
+                     record["Voltage Level"].lower())
+
+            value = float(record["$/MWh"])
+
+            self.results[time_stamp][label] = value
+
+        self.results = dict(self.results)
 
 class Model(ForecastModelBase):
     def __init__(self, load_area=3, **kwargs):
@@ -154,8 +184,7 @@ class Model(ForecastModelBase):
                 break
             rounded_time = rounded_time - datetime.timedelta(days=1)
 
-        return {"electricity_cost": self.values.get(rounded_time,
-                                                    self.last_value)}
+        return self.values.get(rounded_time, self.last_value)
 
     def get_request_params(self, start, end):
         data = NG_DATA.copy()
