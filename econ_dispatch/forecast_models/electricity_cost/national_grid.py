@@ -178,11 +178,11 @@ class Model(ForecastModelBase):
         self.update_values(now)
 
         rounded_time = round_to_hour(now)
+        date = rounded_time.date()
+        lookback = 1 if date.weekday() < 5 else 7
 
-        for _ in xrange(3):
-            if rounded_time in self.values:
-                break
-            rounded_time = rounded_time - datetime.timedelta(days=1)
+        if rounded_time not in self.values:
+            rounded_time = rounded_time - datetime.timedelta(days=lookback)
 
         return self.values.get(rounded_time, self.last_value)
 
@@ -210,9 +210,9 @@ class Model(ForecastModelBase):
 
         today = now.date()
         tomorrow = today + datetime.timedelta(days=1)
-        yesterday = today - datetime.timedelta(days=1)
+        start = today - datetime.timedelta(days=7)
 
-        request_params = self.get_request_params(yesterday, tomorrow)
+        request_params = self.get_request_params(start, tomorrow)
 
         r = requests.post(POST_URL, data=request_params)
 
