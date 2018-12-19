@@ -82,6 +82,8 @@ def econ_dispatch_agent(config_path, **kwargs):
     :param kwargs: Any driver specific parameters"""
     config = utils.load_config(config_path)
 
+    print config
+
     historian_training = bool(config.get("historian_training", False))
     training_frequency = int(config.get("training_frequency", 7))
     make_reservations = config.get("make_reservations", False)

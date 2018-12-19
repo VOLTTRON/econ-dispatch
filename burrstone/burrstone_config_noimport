@@ -1,0 +1,532 @@
+{
+    # turn off actuator reservations as they are not needed.
+    "make_reservations": false,
+
+    "historian_training": false, #Whether or not to periodically retrain component models from historian data.
+    "training_frequency": 7, # How often to retrain the models from historian data in days.
+    "optimization_frequency": 1440, #Frequency of optimization in minutes.
+
+    "simulation_mode": true, # Use timestamps from device publishes to determine when to train or optimize instead of real time clock.
+
+    "command_output": "command output.csv",
+    "optimizer_debug": "optimizer output noimport.csv",
+
+    "optimizer":
+    {
+        "name": "burrstone",
+        # "use_glpk": true,
+        "time_limit": 10,
+        "write_lp": true,
+        "lp_out_dir": "lps"
+    },
+    "weather":
+    # {
+    #     "type": "history",
+    #     "settings":
+    #     {
+    #         "hours_forecast": 24,
+    #         "history_data": "burrstone/burrstone_loads.csv"
+    #     }
+    # },
+    {
+        "type": "zero",
+        "settings":
+        {
+            "hours_forecast": 24
+        }
+    },
+    "forecast_models":
+    {
+        "building_load":
+    #     {
+    #         "type": "dependent_variable_model",
+    #         "initial_training_data": "burrstone/burrstone_loads.csv",
+    #         "settings":
+    #         {
+    #             "time_stamp_column": "timestamp",
+    #             "dependent_variables": 
+    #             [
+    #                 "college_elec_load",
+    #                 "hospital_elec_load",
+    #                 "home_elec_load",
+    #                 "steam_load",
+    #                 "heat_load"
+    #             ],
+    #             #  Must be whole number of hours
+    #             "time_diff_tolerance": 1, 
+    #             # Ignored if key not in weather forecast
+    #             "independent_variable_tolerances": 
+    #             {
+    #                 "temperature": 2.5
+    #             },
+    #             # Parameters for estimations of center/scale and tolerance interval
+    #             "scale_method": "MSE",
+    #             "alpha": 0.01,
+    #             "p": 0.99
+    #         }
+    #     },
+        {
+            "type": "burrstone_history",
+            "initial_training_data": "burrstone/inputs.csv"
+        },
+        "natural_gas_cost":
+        {
+            "type": "burrstone_history",
+            "initial_training_data": "burrstone/inputs.csv"
+        },
+        "electricity_cost":
+        {
+            "type": "burrstone_history",
+            "initial_training_data": "burrstone/inputs.csv"
+        }
+    },
+    "components":
+    [
+        {
+            "type": "burrstone_boiler",
+            "name": "boiler",
+            # Default parameters if no training data or training sources available.
+            "default_parameters":
+            {
+                "fundata": {
+                    # st_hfg/hhv/eta_boiler_real = 1019.4 / (905/0.9) / 0.62
+                    "eff": 1.6351096061308144
+                }
+            },
+            "outputs":
+            {
+                "command": "boiler/command"
+            }
+        },
+        {
+            "type": "burrstone_generator",
+            "name": "college0",
+            "default_parameters":
+            {
+                "fundata": 
+                {
+                    "gas": 
+                    {
+                        "a": 
+                        [
+                            11.500280662630272,
+                            9.316159735979062
+                        ],
+                        "b": 
+                        [
+                            2.220446049250313e-14,
+                            1080.2240891552747
+                        ],
+                        "min": 
+                        [
+                            0.0,
+                            494.5807148194494
+                        ],
+                        "max": 
+                        [
+                            494.5807148194494,
+                            1100.0
+                        ]
+                    },
+                    "st": 
+                    {
+                        "a": 
+                        [
+                            2.0500867753430563,
+                            1.6455537153060271
+                        ],
+                        "b": 
+                        [
+                            2.220446049250313e-14,
+                            200.0742495783228
+                        ],
+                        "min": 
+                        [
+                            0.0,
+                            494.58071377407055
+                        ],
+                        "max": 
+                        [
+                            494.58071377407055,
+                            1100.0
+                        ]
+                    },
+                    "q": 
+                    {
+                        "a": 
+                        [
+                            0.0022934005314216455,
+                            0.001282061979028931
+                        ],
+                        "b": 
+                        [
+                            2.220446049250313e-14,
+                            0.5001886755283904
+                        ],
+                        "min": 
+                        [
+                            0.0,
+                            494.5808447082112
+                        ],
+                        "max": 
+                        [
+                            494.5808447082112,
+                            1100.0
+                        ]
+                    }
+                }
+            },
+            # Output topics for a component
+            # Maps the outputs of the component model to actuation point names.
+            "outputs":
+            {
+                "command": "college0/command"
+            },
+            "settings":
+            {
+                "min_on": 3,
+                "min_off": 3,
+                "capacity": 1100,
+                "maint_cost": 20
+            }
+        },
+        {
+            "type": "burrstone_generator",
+            "name": "hospital0",
+            "default_parameters":
+            {
+                "fundata": 
+                {
+                    "gas": 
+                    {
+                        "a": 
+                        [
+                            11.500280662630272,
+                            9.316159735979062
+                        ],
+                        "b": 
+                        [
+                            2.220446049250313e-14,
+                            1080.2240891552747
+                        ],
+                        "min": 
+                        [
+                            0.0,
+                            494.5807148194494
+                        ],
+                        "max": 
+                        [
+                            494.5807148194494,
+                            1100.0
+                        ]
+                    },
+                    "st": 
+                    {
+                        "a": 
+                        [
+                            2.0500867753430563,
+                            1.6455537153060271
+                        ],
+                        "b": 
+                        [
+                            2.220446049250313e-14,
+                            200.0742495783228
+                        ],
+                        "min": 
+                        [
+                            0.0,
+                            494.58071377407055
+                        ],
+                        "max": 
+                        [
+                            494.58071377407055,
+                            1100.0
+                        ]
+                    },
+                    "q": 
+                    {
+                        "a": 
+                        [
+                            0.0022934005314216455,
+                            0.001282061979028931
+                        ],
+                        "b": 
+                        [
+                            2.220446049250313e-14,
+                            0.5001886755283904
+                        ],
+                        "min": 
+                        [
+                            0.0,
+                            494.5808447082112
+                        ],
+                        "max": 
+                        [
+                            494.5808447082112,
+                            1100.0
+                        ]
+                    }
+                }
+            },
+            # Output topics for a component
+            # Maps the outputs of the component model to actuation point names.
+            "outputs":
+            {
+                "command": "hospital0/command"
+            },
+            "settings":
+            {
+                "min_on": 3,
+                "min_off": 3,
+                "capacity": 1100,
+                "maint_cost": 20
+            }
+        },
+        {
+            "type": "burrstone_generator",
+            "name": "hospital1",
+            "default_parameters":
+            {
+                "fundata": 
+                {
+                    "gas": 
+                    {
+                        "a": 
+                        [
+                            11.500280662630272,
+                            9.316159735979062
+                        ],
+                        "b": 
+                        [
+                            2.220446049250313e-14,
+                            1080.2240891552747
+                        ],
+                        "min": 
+                        [
+                            0.0,
+                            494.5807148194494
+                        ],
+                        "max": 
+                        [
+                            494.5807148194494,
+                            1100.0
+                        ]
+                    },
+                    "st": 
+                    {
+                        "a": 
+                        [
+                            2.0500867753430563,
+                            1.6455537153060271
+                        ],
+                        "b": 
+                        [
+                            2.220446049250313e-14,
+                            200.0742495783228
+                        ],
+                        "min": 
+                        [
+                            0.0,
+                            494.58071377407055
+                        ],
+                        "max": 
+                        [
+                            494.58071377407055,
+                            1100.0
+                        ]
+                    },
+                    "q": 
+                    {
+                        "a": 
+                        [
+                            0.0022934005314216455,
+                            0.001282061979028931
+                        ],
+                        "b": 
+                        [
+                            2.220446049250313e-14,
+                            0.5001886755283904
+                        ],
+                        "min": 
+                        [
+                            0.0,
+                            494.5808447082112
+                        ],
+                        "max": 
+                        [
+                            494.5808447082112,
+                            1100.0
+                        ]
+                    }
+                }
+            },
+            # Output topics for a component
+            # Maps the outputs of the component model to actuation point names.
+            "outputs":
+            {
+                "command": "hospital1/command"
+            },
+            "settings":
+            {
+                "min_on": 3,
+                "min_off": 3,
+                "capacity": 1100,
+                "maint_cost": 20
+            }
+        },
+        {
+            "type": "burrstone_generator",
+            "name": "home0",
+            "default_parameters":
+            {
+                "fundata": 
+                {
+                    "gas": 
+                    {
+                        "a": 
+                        [
+                            13.646869059174682,
+                            9.83937606328935
+                        ],
+                        "b": 
+                        [
+                            2.220446049250313e-14,
+                            353.50686859857285
+                        ],
+                        "min": 
+                        [
+                            0.0,
+                            92.8450476417421
+                        ],
+                        "max": 
+                        [
+                            92.8450476417421,
+                            334.0
+                        ]
+                    },
+                    "st": {
+                        "a": 
+                        [
+                            1.4519613020103599,
+                            2.784431137729806
+                        ],
+                        "b": 
+                        [
+                            2.220446049250313e-14,
+                            -200.1556886240442
+                        ],
+                        "min": 
+                        [
+                            0.0,
+                            150.21404857241916
+                        ],
+                        "max": 
+                        [
+                            150.21404857241916,
+                            334.0
+                        ]
+                    },
+                    "q": 
+                    {
+                        "a": 
+                        [
+                            0.003207880572897414,
+                            0.0017930268494975692
+                        ],
+                        "b": 
+                        [
+                            2.220446049250313e-14,
+                            0.21253090593840324
+                        ],
+                        "min": 
+                        [
+                            0.0,
+                            150.21404857858843
+                        ],
+                        "max": 
+                        [
+                            150.21404857858843,
+                            334.0
+                        ]
+                    }
+                }
+            },
+            # Output topics for a component
+            # Maps the outputs of the component model to actuation point names.
+            "outputs":
+            {
+                "command": "home0/command"
+            },
+            "settings":
+            {
+                "min_on": 3,
+                "min_off": 3,
+                "capacity": 334,
+                "maint_cost": 6.38
+            }
+        },
+        {
+            "type": "burrstone_facility",
+            "name": "college",
+            "settings":
+            {
+                "generators":
+                [
+                    "college0"
+                ],
+                "boilers": [],
+                "pmax": 1100,
+                "import_peak_on_startup": 0,
+                "parasite": 0.03,
+                "demand_charge": 0.4731,
+                "minimum_import": 0
+            },
+            # Output topics for a component
+            # Maps the outputs of the component model to actuation point names.
+            "outputs": {}
+        },
+        {
+            "type": "burrstone_facility",
+            "name": "hospital",
+            "settings":
+            {
+                "generators":
+                [
+                    "hospital0",
+                    "hospital1"
+                ],
+                "boilers": [
+                    "boiler"
+                ],
+                "pmax": 2200,
+                "import_peak_on_startup": 0,
+                "parasite": 0.03,
+                "demand_charge": 0.4512,
+                "minimum_import": 0
+            },
+            # Output topics for a component
+            # Maps the outputs of the component model to actuation point names.
+            "outputs": {}
+        },
+        {
+            "type": "burrstone_facility",
+            "name": "home",
+            "settings":
+            {
+                "generators":
+                [
+                    "home0"
+                ],
+                "boilers": [],
+                "pmax": 334,
+                "import_peak_on_startup": 0,
+                "parasite": 0.03,
+                "demand_charge": 0.5322,
+                "minimum_import": 0
+            },
+            # Output topics for a component
+            # Maps the outputs of the component model to actuation point names.
+            "outputs": {}
+        }
+    ]
+}

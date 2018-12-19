@@ -20,6 +20,14 @@
         "lp_out_dir": "lps"
     },
     "weather":
+    # {
+    #     "type": "history",
+    #     "settings":
+    #     {
+    #         "hours_forecast": 24,
+    #         "history_data": "burrstone/burrstone_loads.csv"
+    #     }
+    # },
     {
         "type": "zero",
         "settings":
@@ -30,6 +38,33 @@
     "forecast_models":
     {
         "building_load":
+    #     {
+    #         "type": "dependent_variable_model",
+    #         "initial_training_data": "burrstone/burrstone_loads.csv",
+    #         "settings":
+    #         {
+    #             "time_stamp_column": "timestamp",
+    #             "dependent_variables": 
+    #             [
+    #                 "college_elec_load",
+    #                 "hospital_elec_load",
+    #                 "home_elec_load",
+    #                 "steam_load",
+    #                 "heat_load"
+    #             ],
+    #             #  Must be whole number of hours
+    #             "time_diff_tolerance": 1, 
+    #             # Ignored if key not in weather forecast
+    #             "independent_variable_tolerances": 
+    #             {
+    #                 "temperature": 2.5
+    #             },
+    #             # Parameters for estimations of center/scale and tolerance interval
+    #             "scale_method": "MSE",
+    #             "alpha": 0.01,
+    #             "p": 0.99
+    #         }
+    #     },
         {
             "type": "burrstone_history",
             "initial_training_data": "burrstone/inputs.csv"
@@ -487,7 +522,7 @@
                 "import_peak_on_startup": 0,
                 "parasite": 0.03,
                 "demand_charge": 0.5322,
-                "minimum_import": 0
+                "minimum_import": 40
             },
             # Output topics for a component
             # Maps the outputs of the component model to actuation point names.
