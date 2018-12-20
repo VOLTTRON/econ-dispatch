@@ -8,9 +8,9 @@
     "simulation_mode": true, # Use timestamps from device publishes to determine
                              # when to train or optimize instead of real time clock.
 
-    "command_output": "command output.csv",
+    "command_output": "command output A LA.csv",
 
-    "optimizer_debug": "optimizer output.csv",
+    "optimizer_debug": "optimizer output A LA.csv",
     "optimization_frequency": 60, #Frequency of optimization in minutes.
     "optimizer":
     {

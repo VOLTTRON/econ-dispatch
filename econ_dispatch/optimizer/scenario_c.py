@@ -66,6 +66,8 @@ from econ_dispatch.optimizer import get_pulp_optimization_function
 
 def binary_var(name):
     return pulp.LpVariable(name, 0, 1, pulp.LpInteger)
+def tertiary_var(name):
+    return pulp.LpVariable(name, -1, 1, pulp.LpInteger)
 
 
 class BuildAsset(object):
@@ -112,7 +114,7 @@ class Storage(object):
 RANGE = -1
 
 class VariableGroup(object):
-    def __init__(self, name, indexes=(), is_binary_var=False, lower_bound_func=None, upper_bound_func=None):
+    def __init__(self, name, indexes=(), is_binary_var=False, is_tertiary_var=False, lower_bound_func=None, upper_bound_func=None):
         self.variables = {}
 
         name_base = name
@@ -124,6 +126,8 @@ class VariableGroup(object):
 
             if is_binary_var:
                 var = binary_var(var_name)
+            elif is_tertiary_var:
+                var = tertiary_var(var_name)
             else:
 
                 # find upper and lower bounds for the variable, if available
@@ -344,7 +348,9 @@ def build_problem(forecast, parameters={}):
     N_Cool_storage = len(Cool_storage_para)
 
     def constant_zero(*args, **kwargs):
-        return 0
+        return 0    
+    def constant_eps(*args, **kwargs):
+        return 1.0/bigM
 
     index_turbine = turbine_names, range(H_t)
     turbine_y = VariableGroup("turbine_y", indexes=index_turbine, lower_bound_func=constant_zero)
@@ -451,6 +457,10 @@ def build_problem(forecast, parameters={}):
     Heat_dump = VariableGroup("Heat_dump", indexes=index_hour, lower_bound_func=constant_zero)
     Cool_unserve = VariableGroup("Cool_unserve", indexes=index_hour, lower_bound_func=constant_zero)
     Cool_dump = VariableGroup("Cool_dump", indexes=index_hour, lower_bound_func=constant_zero)
+
+    f = VariableGroup("f", indexes=index_hour, lower_bound_func=constant_eps)
+    s = VariableGroup("s", indexes=index_hour, is_tertiary_var=True)
+    misc_dump = VariableGroup("misc_dump", indexes=index_hour, lower_bound_func=constant_zero)
 
     # CONSTRAINTS
     constraints = []
@@ -908,6 +918,35 @@ def build_problem(forecast, parameters={}):
     add_constraint("HRUlimit", index_hour, HRUlimit)
 
 
+    # Make absorption chiller dispatch match EnergyPlus
+    def define_fs(index):
+        """
+        s is the sign of the difference between absorption chiller capacity and the cooling load
+        f is a dummy variable > eps
+        misc_dump is nonzero only if difference in (0, eps)
+        """
+        t = index[0]
+        return pulp.lpSum(abs_para[RANGE].fundata["max"][-1]) - parasys["cool_load"][t] == (f[t] - misc_dump[t])*s[t]
+    add_constraint("define_fs", index_hour, define_fs)
+
+    def absfixlowload(index):
+        """
+        When s = 1, force absorption chillers to meet demand themselves
+        When s = -1, redundant because abs_x <= abs_capacity < cool_load
+        """
+        t = index[0]
+        return s[t]*pulp.lpSum(abs_x[RANGE,t]) >= s[t]*parasys["cool_load"][t]
+    add_constraint("absfixlowload", index_hour, absfixlowload)
+
+    def absfixhighload(index):
+        """
+        When s = -1, force absorption chillers to run at either 0 or 100%
+        When s = 1, redundant because abs_x <= abs_capacity
+        """
+        i, t = index
+        return s[t]*abs_x[i,t] <= s[t]*abs_s[i,t]*abs_para[i].fundata["max"][-1]
+    add_constraint("absfixhighload", index_abs, absfixhighload)
+
 
     objective_components = []
 
@@ -946,7 +985,7 @@ def build_problem(forecast, parameters={}):
         for var in abs_start[i, RANGE]:
             objective_components.append(var * abs_para[i].start_cost)
 
-    for group in (E_unserve, E_dump, Heat_unserve, Heat_dump, Cool_unserve, Cool_dump):
+    for group in (E_unserve, E_dump, Heat_unserve, Heat_dump, Cool_unserve, Cool_dump, misc_dump):
         for var in group[RANGE]:
             objective_components.append(var * bigM)
 
