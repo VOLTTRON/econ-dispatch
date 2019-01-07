@@ -1,4 +1,4 @@
-timestamp,gas_price,export_price,heat_load,steam_load,college_electric_price,college_import_price,college_elec_load,hospital_electric_price,hospital_import_price,hospital_elec_load,home_electric_price,home_import_price,home_elec_load
+timestamp,natural_gas_cost,electricity_export_price,hot_water_load,steam_load,college_electricity_price,college_import_cost,college_electricity_load,hospital_electricity_price,hospital_import_cost,hospital_electricity_load,home_electricity_price,home_import_cost,home_electricity_load
 10/22/2017 0:00,1.46,0.01654,1.7,3987.5,0.02032,0.02174,885.2,0.01721,0.02174,1649.1,0.0107,0.02174,225.7
 10/22/2017 1:00,1.46,0.01667,1.9,3482.5,0.02032,0.02204,891.3,0.01721,0.02204,1600.9,0.0107,0.02204,223.6
 10/22/2017 2:00,1.46,0.01352,1.9,3645,0.02032,0.02134,842.4,0.01721,0.02134,1582.3,0.0107,0.02134,224.7

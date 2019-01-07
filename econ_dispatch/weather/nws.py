@@ -54,9 +54,11 @@
 # operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
 # }}}
-
-import requests
 import logging
+import datetime
+
+import pytz
+import requests
 
 from volttron.platform.agent import utils
 
@@ -70,19 +72,29 @@ KEYS = {
 }
 
 class Weather(object):
-    def __init__(self, latitude=None, longitude=None, hours_forecast=24):
+    def __init__(self, latitude=None, longitude=None, hours_forecast=24, timezone="UTC"):
         self.latitude = latitude
         self.longitude = longitude
-        self.hours_forecast = hours_forecast
         #  assert hours_forecast <= 156
+        self.hours_forecast = hours_forecast
+        self.timezone = pytz.timezone(timezone)
 
     def get_weather_forecast(self, now):
+        now = now.astimezone(self.timezone)
+
         results = self.get_live_data()
 
+        if abs(results[0]['timestamp'] - now) > datetime.timedelta(days=1):
+            _log.warn("Weather forecast for a different time. "
+                      "Should you use historical data instead?")
+        _log.debug("Weather forecast from {} to {}".format(
+            results[0]['timestamp'],
+            results[-1]['timestamp']))
         return results
     
     def get_live_data(self):
-        url = live_url_template.format(latitude=self.latitude, longitude=self.longitude)
+        url = live_url_template.format(latitude=self.latitude,
+                                       longitude=self.longitude)
         r = requests.get(url)
         try:
             r.raise_for_status()
@@ -90,11 +102,13 @@ class Weather(object):
         except (requests.exceptions.HTTPError, ValueError) as e:
             _log.error("Error retrieving weather data: " + str(e))
             return []
-        
+
         results = []
         records = parsed_json["properties"]["periods"]
         for rec in records[:self.hours_forecast]:
-            result = {"timestamp": utils.parse_timestamp_string(rec["endTime"])}
+            timestamp = utils.parse_timestamp_string(rec["endTime"])
+            timestamp = timestamp.astimezone(pytz.UTC)
+            result = {"timestamp": timestamp}
             result.update(self.get_nws_forecast_from_record(rec))
             results.append(result)
         return results

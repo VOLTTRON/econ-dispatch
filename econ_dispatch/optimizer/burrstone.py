@@ -59,22 +59,10 @@ from collections import OrderedDict
 import itertools
 
 import numpy as np
+import pytz
 import pulp
 
 from econ_dispatch.optimizer import get_pulp_optimization_function
-
-
-params = {
-    "lhv": 905,
-    "hhv": 905/0.9,
-    "cpi": 1,
-    "st_hfg": 1019.4,
-    "eta_boiler": 0.75,
-    "eta_boiler_real": 0.62,
-    "st_loss": 0.2,
-    "st_kw": 0.005,
-    "q_kw": 5.0
-}
 
 
 def binary_var(name):
@@ -225,6 +213,61 @@ def build_problem(forecast, parameters={}):
             except KeyError:
                 parasys[key] = [value]
 
+    # parameters
+    params = {
+        "cpi": 1,
+        "lhv": 905,
+        "hhv": 905/0.9,
+        "st_hfg": 1019.4,
+        "eta_boiler": 0.75,
+        "eta_boiler_real": 0.62,
+        "st_loss": 0.2,
+        "st_kw": 0.005,
+        "q_kw": 5.0,
+        "timezone_name": "America/New_York"
+    }
+
+    # Localize timestamps
+    timezone = pytz.timezone(params["timezone_name"])
+    try:
+        parasys["timestamp"] = [ts.astimezone(timezone) for ts in parasys["timestamp"]]
+    except ValueError:
+        parasys["timestamp"] = [ts.astimezone(
+            pytz.UTC.localize(timezone)) for ts in parasys["timestamp"]]
+    # Weekdays between 8:00AM and 8:00PM
+    parasys["peak_hours"] = np.array([
+        True if (i.weekday() in np.arange(0, 5))
+        and (i.hour in np.arange(8, 20))
+        else False for i in parasys["timestamp"]])
+    # Forecasts are numpy arrays
+    for k, v in parasys.iteritems():
+        parasys[k] = np.array(v)
+    # Could be updated with forecast model
+    parasys["cpi"] = parasys.get("cpi", params["cpi"])
+    # Depends on cpi and gas price
+    parasys["thermal_price"] = 9.421 + 3.918*parasys['cpi']\
+        + 0.8396*(parasys['natural_gas_cost'] - 11.22)
+    # Depends on thermal price
+    parasys["hot_water_price"] = parasys["thermal_price"]/(1-params['st_loss'])
+    parasys["steam_price"] = parasys["thermal_price"]*params['st_hfg']/1e6
+    # Depends on cpi and gas price
+    parasys["college_electricity_price"] = 0.08158 + 0.00998*parasys['cpi']\
+        + 0.0073*(parasys['natural_gas_cost'] - 11.22)
+    parasys["hospital_electricity_price"] = 0.03214 + 0.01337*parasys['cpi']\
+        + 0.0029*(parasys['natural_gas_cost'] - 11.22)
+    parasys["home_electricity_price"] = 0.10537 - 0.00293*parasys['cpi']\
+        + 0.0094*(parasys['natural_gas_cost'] - 11.22)
+    # Update gas price units
+    parasys['natural_gas_cost'] = parasys['natural_gas_cost']*params['hhv']/1e6
+
+    # map import cost categories to facilities
+    parasys["college_import_cost"] = parasys.get("college_import_cost", 
+                                                 parasys["utica_sc3_primary"])
+    parasys["hospital_import_cost"] = parasys.get("hospital_import_cost", 
+                                                  parasys["utica_sc3a_primary"])
+    parasys["home_import_cost"] = parasys.get("home_import_cost", 
+                                              parasys["utica_sc3_secondary"])
+
     # print "================================================================================"
     # for k, v in parasys.items():
     #     print k
@@ -232,6 +275,17 @@ def build_problem(forecast, parameters={}):
     # import json
     # print(json.dumps(parameters, indent=4, sort_keys=True))
     # print "================================================================================"
+    # import json
+    # _temp = {}
+    # for k, v in parasys.iteritems():
+    #     try:
+    #         _temp[k] = [str(vv) for vv in v]
+    #     except TypeError:
+    #         _temp[k] = str(v)
+    # with open("parasys.json", "w") as f:
+    #     json.dump(_temp, f, indent=4, sort_keys=True)
+    # with open("parameters.json", "w") as f:
+    #     json.dump(parameters, f, indent=4, sort_keys=True)
 
     generator_params = parameters.get("burrstone_generator", {})
     boiler_params = parameters.get("burrstone_boiler", {})
@@ -464,7 +518,7 @@ def build_problem(forecast, parameters={}):
     def facilityimport(index):
         # [i=1:N_facility,t=1:H_t]
         i, t = index
-        return facility_im[i,t] <= facility_b[i,t]*parasys['{}_elec_load'.format(i)][t]
+        return facility_im[i,t] <= facility_b[i,t]*parasys['{}_electricity_load'.format(i)][t]
     add_constraint("facilityimport", index_facility, facilityimport)
 
     # Minimum import 
@@ -498,12 +552,12 @@ def build_problem(forecast, parameters={}):
         c = facility_b['home',t] == 1
         constraints.append((c, name))
 
-    # Can't sell reject_q: charge min(heat_load, generated_q) instead.
-    # Since heat_load <= generated_q, should just be qmin == heat_load
+    # Can't sell reject_q: charge min(hot_water_load, generated_q) instead.
+    # Since hot_water_load <= generated_q, should just be qmin == hot_water_load
     def QMinDemand(index):
         # [t=1:H_t]
         t = index[0]
-        return qmin[t] <= parasys["heat_load"][t]
+        return qmin[t] <= parasys["hot_water_load"][t]
     add_constraint("QMinDemand", index_hour, QMinDemand)
 
     def QMinGenerate(index):
@@ -519,7 +573,7 @@ def build_problem(forecast, parameters={}):
         t = index[0]
         return pulp.lpSum([generator_vars['q']['y'][i,t] for i in generator_names])\
                 - reject_q[t]\
-                == parasys["heat_load"][t]
+                == parasys["hot_water_load"][t]
     add_constraint("HeatBalance", index_hour, HeatBalance)
                 # - Q_DUMP[t]\
                 # + Q_UNSERVE[t]\
@@ -542,7 +596,7 @@ def build_problem(forecast, parameters={}):
             + facility_im[i,t]\
             - facility_ex[i,t]\
             - pulp.lpSum([facility_para[i].parasite*generator_para[j].capacity*generator_s[j,t] for j in facility_para[i].generators])\
-            == parasys['{}_elec_load'.format(i)][t]
+            == parasys['{}_electricity_load'.format(i)][t]
     add_constraint("ElecBalance", index_facility, ElecBalance)
             #    - E_DUMP[i,t]\
             #    + E_UNSERVE[i,t]\
@@ -552,7 +606,7 @@ def build_problem(forecast, parameters={}):
     electric_sales = VariableGroup("electric_sales", indexes=index_facility)
     def ElecSales(index):
         i, t = index
-        return electric_sales[i,t] == -1.*parasys['{}_elec_load'.format(i)][t]*parasys['{}_electric_price'.format(i)][t]
+        return electric_sales[i,t] == -1.*parasys['{}_electricity_load'.format(i)][t]*parasys['{}_electricity_price'.format(i)][t]
     add_constraint("ElecSales", index_facility, ElecSales)
 
     generator_steam_sales = VariableGroup("generator_steam_sales", indexes=index_generator)
@@ -570,20 +624,20 @@ def build_problem(forecast, parameters={}):
     generator_heat_sales = VariableGroup("generator_heat_sales", indexes=index_hour)
     def GenHeatSales(index):
         t = index[0]
-        return generator_heat_sales[t] == -1.*qmin[t]*parasys['heat_price'][t]/params['eta_boiler']
+        return generator_heat_sales[t] == -1.*qmin[t]*parasys['hot_water_price'][t]/params['eta_boiler']
     add_constraint("GenHeatSales", index_hour, GenHeatSales)
 
     electric_export_sales = VariableGroup("electric_export_sales", indexes=index_facility)
     def ElectricExportSales(index):
         i,t = index
-        return electric_export_sales[i,t] == -1.*facility_ex[i,t]*parasys['export_price'][t]
+        return electric_export_sales[i,t] == -1.*facility_ex[i,t]*parasys['electricity_export_price'][t]
     add_constraint("ElectricExportSales", index_facility, ElectricExportSales)
 
     # Cost objective variables
     electric_import_costs = VariableGroup("electric_import_costs", indexes=index_facility)
     def ElectricImportCosts(index):
         i,t = index
-        return electric_import_costs[i,t] == facility_im[i,t]*parasys['{}_import_price'.format(i)][t]
+        return electric_import_costs[i,t] == facility_im[i,t]*parasys['{}_import_cost'.format(i)][t]
     add_constraint("ElectricImportCosts", index_facility, ElectricImportCosts)
 
     demand_charge_costs = VariableGroup("demand_charge_costs", indexes=index_facility_no_hour, lower_bound_func=constant_zero)
@@ -595,13 +649,13 @@ def build_problem(forecast, parameters={}):
     generator_fuel_costs = VariableGroup("generator_fuel_costs", indexes=index_generator)
     def GeneratorFuelCosts(index):
         i,t = index
-        return generator_fuel_costs[i,t] == generator_vars['gas']['y'][i,t]*parasys['gas_price'][t]
+        return generator_fuel_costs[i,t] == generator_vars['gas']['y'][i,t]*parasys['natural_gas_cost'][t]
     add_constraint("GeneratorFuelCosts", index_generator, GeneratorFuelCosts)
 
     boiler_fuel_costs = VariableGroup("boiler_fuel_costs", indexes=index_boiler)
     def BoilerFuelCosts(index):
         i,t = index
-        return boiler_fuel_costs[i,t] == boiler_gas[i,t]*parasys['gas_price'][t]
+        return boiler_fuel_costs[i,t] == boiler_gas[i,t]*parasys['natural_gas_cost'][t]
     add_constraint("BoilerFuelCosts", index_boiler, BoilerFuelCosts)
 
     maintenance_costs = VariableGroup("maintenance_cost", indexes=index_generator)
@@ -614,7 +668,7 @@ def build_problem(forecast, parameters={}):
     def HeatRejectionCost(index):
         # Based on electricity price at hospital
         t = index[0]
-        return heat_rejection_costs[t] == (params['q_kw']*reject_q[t]+params['st_kw']*reject_st[t])*parasys['hospital_electric_price'][t]
+        return heat_rejection_costs[t] == (params['q_kw']*reject_q[t]+params['st_kw']*reject_st[t])*parasys['hospital_electricity_price'][t]
     add_constraint("HeatRejectionCost", index_hour, HeatRejectionCost)
 
 

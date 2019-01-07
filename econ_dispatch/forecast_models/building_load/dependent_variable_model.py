@@ -59,7 +59,8 @@ import logging
 import pandas as pd
 import scipy.stats as st
 import numpy as np
-from econ_dispatch.forecast_models import ForecastModelBase
+
+from econ_dispatch.forecast_models import HistoryModelBase
 
 _log = logging.getLogger(__name__)
 
@@ -89,6 +90,8 @@ class Model(HistoryModelBase):
                            time_diff_tolerance))
             self.time_diff_tolerance = time_diff_tolerance
 
+        self.preprocess_settings = kwargs.get("preprocess_settings")
+
         self.min_samples = kwargs.get("min_samples", 2)
         self.max_retries = kwargs.get("max_retries", 5)
         self.scale_method = kwargs.get("scale_method", 'MSE')
@@ -104,8 +107,11 @@ class Model(HistoryModelBase):
             super(Model, self).train(training_data)
             self.historical_data[self.time_stamp_column] \
                 = pd.to_datetime(self.historical_data[self.time_stamp_column])
+            if self.preprocess_settings is not None:
+                self.historical_data = \
+                    self.preprocess(self.historical_data,
+                                    **self.preprocess_settings)
         else:
-            _log.warning("Not tested yet...historical data may be corrupted")
             results = {}
             for key, values in training_data.iteritems():
                 readings = pd.Series(values)
@@ -116,9 +122,74 @@ class Model(HistoryModelBase):
             df = df.set_index(self.time_stamp_column, drop=True)
             hist_df = self.historical_data.set_index(self.time_stamp_column,
                                                      drop=True)
-            # Privilege new data in case of conflict -- may leave NaN in data
-            df = df.join(hist_df, how='outer', rsuffix='_r').loc[:, df.columns]
-            self.historical_data = df.reset_index()
+            # Privilege new data in case of conflict
+            cols_in = [j for j in hist_df.columns if j in df.columns]
+            idx_in = [i for i in hist_df.index if i not in df.index]
+            df = df.append(hist_df.loc[idx_in, cols_in], sort=True)
+            # Retain old topics
+            cols_out = [j for j in hist_df.columns if j not in df.columns]
+            df[cols_out] = hist_df.loc[:, cols_out]
+            if self.preprocess_settings is not None:
+                df = self.preprocess(df, **self.preprocess_settings)
+            self.historical_data = df
+
+    def preprocess(self,
+                   df,
+                   localize_timestamp={},
+                   renamings={},
+                   linspec={},
+                   nonlinspec={},
+                   bounds={},
+                   decision_variables=None):
+        """ Pre-process data by performing the following operations in
+            order: convert local timestamps to UTC, rename variables, 
+            form linear combinations of variables, multiply variables
+            together, enforce lower (and possibly upper) bounds, and
+            finally retain only relevant variables.
+
+            :param df: dataframe on which to work
+            :param localize_timestamp: dict mapping timestamp column names to
+                                       pytz timezone name
+            :param renamings: dict mapping new names to old
+            :param bounds: dict of tuples holding lower bound
+                           and optional upper bound
+            :param linspec: dict of lists of tuples holding variable names
+                            and their coefficient for linear combinations
+            :param nonlinspec: dict of lists holding variables to be
+                               multiplied together
+            :param decision_variables: list of relevant variables
+
+            :returns pre-processed data
+            :rtype pandas.DataFrame
+        """
+        for k, v in localize_timestamp.iteritems():
+            _series = pd.Series(data=np.empty(df[k].shape), index=df[k])
+            df[k] = _series.tz_localize(v, ambiguous="infer")\
+                .tz_convert('UTC').index
+        for k, v in renamings.iteritems():
+            df[k] = df[v]
+        for k, v in linspec.iteritems():
+            _data = pd.DataFrame()
+            for vv, m in v:
+                _data[vv] = df[vv]*m
+            df[k] = _data.sum(axis=1, skipna=False)
+        for k, v in nonlinspec.iteritems():
+            df[k] = df[v].prod(axis=1, skipna=False)
+        for k, v in bounds.iteritems():
+            # assert (len(v) == 1) or (len(v) == 2)
+            _data = df[k].copy()
+            _test = _data >= v[0]
+            if len(v) == 2:
+                _test &= _data < v[1]
+            _data[np.where(~_test)[0]] = np.nan
+            df[k] = _data
+        if decision_variables is not None:
+            for k in localize_timestamp.keys():
+                if k not in decision_variables:
+                    decision_variables.append(k)
+            df = df[decision_variables]
+
+        return df
 
     def derive_variables(self, now, independent_variable_values={}):
         day_of_week = now.weekday()
@@ -165,7 +236,7 @@ class Model(HistoryModelBase):
         filtered_data = df[filter]
         if filtered_data.shape[0] >= self.min_samples:
             if self.num_retries > 0:
-                self.adjust_tolerances(1/2**self.num_retries)
+                self.adjust_tolerances(1./2**self.num_retries)
                 self.num_retries = 0
             return self.build_results(filtered_data)
         else:
@@ -173,13 +244,21 @@ class Model(HistoryModelBase):
                 _log.debug("Maximum number of tolerance increases {} reached. "
                            "Defaulting to all-of-data.".format(
                                self.max_retries))
+                self.adjust_tolerances(1./2**self.num_retries)
+                self.num_retries = 0
                 return self.build_results(df)
-            _log.debug("Number of samples {} is less than the minimum {}."
-                       "Increasing tolerances by a factor of 2.".format(
-                           filtered_data.shape[0], self.min_samples))
-            self.adjust_tolerances(2)
-            self.num_retries += 1
-            return self.derive_variables(now, independent_variable_values)
+            else:
+                self.adjust_tolerances(2)
+                self.num_retries += 1
+                _log.debug("Number of samples {} is less than the minimum {} "
+                           "after {} retries. Time tolerance increased to {} "
+                           " and other tolerances increased to {}".format(
+                               filtered_data.shape[0], 
+                               self.min_samples,
+                               self.num_retries,
+                               self.time_diff_tolerance,
+                               self.independent_variable_tolerances))
+                return self.derive_variables(now, independent_variable_values)
 
     def build_results(self, data):
         results = {}

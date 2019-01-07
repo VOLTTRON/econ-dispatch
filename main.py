@@ -75,6 +75,7 @@ import csv
 import numpy as np
 
 from dateutil.parser import parse
+import pytz
 
 _log = logging.getLogger(__name__)
 
@@ -122,6 +123,8 @@ def main(config_file, start, end,
     if int(cutoff) > 0:
         config["optimizer"]["time_limit"] = int(cutoff)
         config["optimizer_debug"] = 'experiment/optimizer_output_'+cutoff+'.csv'
+    start = pytz.UTC.localize(start)
+    end = pytz.UTC.localize(end)
     model = build_model_from_config(config["weather"],
                                     config["optimizer"],
                                     config["components"],

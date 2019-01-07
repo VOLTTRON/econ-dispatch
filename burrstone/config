@@ -3,7 +3,7 @@
 
     "historian_training": false, # Whether or not to periodically retrain component models from historian data
     "training_frequency": 7, # How often to retrain the models from historian data in days
-    "optimization_frequency": 1440, # Frequency of optimization in minutes
+    "optimization_frequency": 60, # Frequency of optimization in minutes
 
     "simulation_mode": true, # Use timestamps from device publishes to determine when to train or optimize instead of real time clock
 
@@ -23,7 +23,8 @@
         {
             "latitude": 43.0943,
             "longitude": -75.2756,
-            "hours_forecast": 24
+            "hours_forecast": 24,
+            "timezone": "America/New_York"
         }
     },
     "forecast_models":
@@ -31,7 +32,7 @@
         "building_load":
         {
             "type": "dependent_variable_model",
-            "initial_training_data": "burrstone/burrstone_loads.csv",
+            "initial_training_data": "burrstone/Burrstone_2017_YTD_data_formatted.csv",
             # "training_window": 365,
             # "training_sources": {},
             "settings":
@@ -39,12 +40,45 @@
                 "time_stamp_column": "timestamp",
                 "dependent_variables": 
                 [
-                    "college_elec_load",
-                    "hospital_elec_load",
-                    "home_elec_load",
+                    "college_electricity_load",
+                    "hospital_electricity_load",
+                    "home_electricity_load",
                     "steam_load",
-                    "heat_load"
+                    "hot_water_load"
                 ],
+                "preprocess_settings": {
+                    "localize_timestamp": {
+                        "timestamp": "UTC"
+                    },
+                    "renamings": {
+                        "temperature": "TAO",
+                        "steam_load": "FST"
+                    },
+                    "linspec": {
+                        "college_electricity_load": [["WCOL_gen", 1], ["WCOL", 1]],
+                        "home_electricity_load": [["WHOM_gen", 1], ["WHOM", 1]],
+                        "hospital_electricity_load": [["WHSP_gen", 1], ["WHSP1", 1], ["WHSP2", 1]],
+                        "hot_water_load": [["TL", 0.0005], ["TE", -0.0005]]
+                    },
+                    "nonlinspec": {
+                        "hot_water_load": ["hot_water_load", "FW"]
+                    },
+                    "bounds": {
+                        "college_electricity_load": [0],
+                        "home_electricity_load": [0],
+                        "hospital_electricity_load": [0],
+                        "steam_load": [0],
+                        "hot_water_load": [0]
+                    },
+                    "decision_variables": [
+                        "temperature",
+                        "college_electricity_load",
+                        "hospital_electricity_load",
+                        "home_electricity_load",
+                        "steam_load",
+                        "hot_water_load"
+                    ]
+                },
                 #  Must be whole number of hours
                 "time_diff_tolerance": 1, 
                 # Ignored if key not in weather forecast
