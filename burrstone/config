@@ -97,8 +97,8 @@
             "type": "obix",
             "settings":
             {
-                "user_name": None,
-                "password": None
+                "user_name": null,
+                "password": null
             }
         },
         "electricity_cost":
