@@ -56,12 +56,13 @@
 # }}}
 
 import datetime
-import requests
 import xml.etree.ElementTree as ET
-from econ_dispatch.forecast_models import ForecastModelBase
+import logging
+
+import requests
 import pytz
 
-import logging
+from econ_dispatch.forecast_models import ForecastModelBase
 
 _log = logging.getLogger(__name__)
 
@@ -71,7 +72,9 @@ class Model(ForecastModelBase):
     def __init__(self, url="http://becchp.com/obix/histories/BECHP",
                  user_name = None,
                  password = None,
-                 point_name="Nat Gas Com Cost per MM-BTU"):
+                 point_name="Nat Gas Com Cost per MM-BTU",
+                 **kwargs):
+        super(Model, self).__init__(**kwargs)
 
         self.point_name = point_name
         interface_point_name = point_name.replace(" ", "$20").replace("-", "$2d")
@@ -99,13 +102,15 @@ class Model(ForecastModelBase):
 
     def update_value(self, now):
         if (self.last_collection is not None and
-        (now - self.last_collection) < MAX_UPDATE_FREQUENCY):
+                (now - self.last_collection) < MAX_UPDATE_FREQUENCY):
             return
 
-        end_time = pytz.UTC.localize(now) + datetime.timedelta(days=1)
+        end_time = now + datetime.timedelta(days=1)
         start_time = end_time - datetime.timedelta(days=8)
 
-        print self.url
+        eastern = pytz.timezone("America/New_York")
+        start_time = start_time.astimezone(eastern)
+        end_time = end_time.astimezone(eastern)
 
         # becchp.com does not accept percent-encoded parameters
         # requests is not configurable to not encode (from lead dev: https://stackoverflow.com/a/23497903)
@@ -116,16 +121,13 @@ class Model(ForecastModelBase):
 
         r = requests.get(self.url, auth=(self.user_name, self.password), params=payload_str)
 
-        print r.url
-
         try:
             r.raise_for_status()
-            print r.text
             result = self.parse_result(r.text)
             if result is not None:
                 self.last_value = result
         except StandardError as e:
-            print repr(e)
+            _log.error(repr(e))
             return
 
     def parse_result(self, xml_tree):

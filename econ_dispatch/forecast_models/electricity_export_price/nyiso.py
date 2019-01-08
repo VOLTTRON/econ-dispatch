@@ -1,8 +1,15 @@
-from econ_dispatch.forecast_models import ForecastModelBase
-import requests
 import datetime
 from csv import DictReader
 from cStringIO import StringIO
+import logging
+
+import requests
+import pytz
+
+from econ_dispatch.forecast_models import ForecastModelBase
+
+
+_log = logging.getLogger(__name__)
 
 get_url = 'http://mis.nyiso.com/public/csv/rtlbmp/{date}rtlbmp_gen.csv'
 
@@ -17,7 +24,8 @@ class Model(ForecastModelBase):
 
     def derive_variables(self, now, independent_variable_values={}):
         """Get the predicted load values based on the independent variables."""
-        self.update_value(now)
+        eastern = pytz.timezone('America/New_York')
+        self.update_value(now.astimezone(eastern))
 
         return {"electricity_export_price": self.current_value}
 
@@ -29,6 +37,11 @@ class Model(ForecastModelBase):
         today = now.date()
 
         r = requests.get(get_url.format(date=today.strftime("%Y%m%d")))
+        try:
+            r.raise_for_status()
+        except StandardError as e:
+            _log.warn(repr(e))
+            return
 
         csv_data = StringIO(r.text)
 
