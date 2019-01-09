@@ -234,15 +234,13 @@ class SystemModel(object):
         weather_forecasts = self.weather_model.get_weather_forecast(now)
         #Loads were updated previously when we updated all components
         forecasts = []
-
         for weather_forecast in weather_forecasts:
             timestamp = weather_forecast.pop("timestamp")
-            record = {}
+            record = {"timestamp": timestamp}
             for name, model in self.forecast_models.iteritems():
                 record.update(model.derive_variables(timestamp, weather_forecast))
 
             forecasts.append(record)
-
         return forecasts
 
     def process_inputs(self, now, inputs):

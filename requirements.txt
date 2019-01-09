@@ -7,3 +7,4 @@ pandas
 coolprop
 pulp
 cvxopt
+scipy

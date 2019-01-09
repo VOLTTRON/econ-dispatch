@@ -55,12 +55,15 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
-from econ_dispatch.forecast_models import ForecastModelBase
 from HTMLParser import HTMLParser
 from dateutil import parser
 from collections import defaultdict
-import requests
 import datetime
+
+import pytz
+import requests
+
+from econ_dispatch.forecast_models import ForecastModelBase
 
 NG_DATA = {"tomorrow_month":"",
           "tomorrow_day":"",
@@ -205,12 +208,16 @@ class Model(ForecastModelBase):
 
     def update_values(self, now):
         if (self.last_collection is not None and
-        (now - self.last_collection) < MAX_UPDATE_FREQUENCY):
+                (now - self.last_collection) < MAX_UPDATE_FREQUENCY):
             return
 
-        today = now.date()
+        today = now 
         tomorrow = today + datetime.timedelta(days=1)
         start = today - datetime.timedelta(days=7)
+
+        eastern = pytz.timezone("America/New_York")
+        start = start.astimezone(eastern)
+        tomorrow = tomorrow.astimezone(eastern)
 
         request_params = self.get_request_params(start, tomorrow)
 
