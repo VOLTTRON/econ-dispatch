@@ -54,43 +54,48 @@
 # operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
 # }}}
+""".. todo:: Module docstring"""
+from cStringIO import StringIO
+import csv
+from datetime import timedelta
+import json
+import logging
+import os.path
+import random
+import re
 
+import pytz
 import numpy as np
 import pandas as pd
-import random
-import csv
-import re
-import json
-import os.path
-from cStringIO import StringIO
-from datetime import timedelta
 from cvxopt import matrix, solvers
 
-import logging
 
-_log = logging.getLogger(__name__)
-
-
-def least_squares_regression(inputs=None, output=None):
-    if inputs is None:
-        raise ValueError("At least one input column is required")
-    if output is None:
-        raise ValueError("Output column is required")
-
-    if type(inputs) != tuple:
-        inputs = (inputs,)
-
-    ones = np.ones(len(inputs[0]))
-    x_columns = np.column_stack((ones,) + inputs)
-
-    solution, resid, rank, s = np.linalg.lstsq(x_columns, output)
-
-    return solution
+LOG = logging.getLogger(__name__)
 
 def atoi(text):
+    """cast string digits to int for sorting"""
     return int(text) if text.isdigit() else text
 
+def natural_keys(text):
+    """cast each character of a string as `str` or `int` using `atoi`.
+
+    For "human sorting", http://nedbatchelder.com/blog/200712/human_sorting.html.
+    Found here: http://stackoverflow.com/questions/5967500/how-to-correctly-sort-a-string-with-a-number-inside#5967539
+
+    :param text: string containing mixed letters and digits
+    :returns: list of mixed str and int, for letters and diits, respectively
+    :rtype: list
+    """
+    return [ atoi(c) for c in re.split('(\d+)', text) ]
+
 def records_fix(data):
+    """Re-structure data formatted as [{key: value}]
+    
+    :param data: 
+    :type data: list of dicts
+    :returns: properly structured training data
+    :rtype: dict of lists
+    """
     keys = data[0].keys()
     with StringIO() as f:
         w = csv.DictWriter(f, keys)
@@ -102,6 +107,13 @@ def records_fix(data):
     return results
 
 def csv_file_fix(file_obj):
+    """Re-structure data from file or StringIO stream
+
+    :param file_obj: first argument to pandas.read_csv
+    :type file_obj: string, path, or file-like. See pandas documentation for details.
+    :returns: properly structured training data
+    :rtype: dict of lists
+    """
     try:
         df = pd.read_csv(file_obj, header=0, parse_dates=["timestamp"])
     except ValueError:
@@ -110,8 +122,14 @@ def csv_file_fix(file_obj):
     results = {k: df[k].values for k in df}
     return results
 
-
 def historian_data_fix(data):
+    """Re-structure data formatted as {topic: (timestamp, value)}
+
+    :param data: Volttron historian-formatted data
+    :type data: dict of 2-tuples
+    :returns: properly structured training data
+    :rtype: dict of lists
+    """
     results = {}
     for key, values in data.iteritems():
         time_stamps = pd.to_datetime([x[0] for x in values]).floor("1min")
@@ -126,9 +144,17 @@ def historian_data_fix(data):
     results["timestamp"] = df.index.values
 
     return results
-        
 
 def normalize_training_data(data):
+    """Parse variously structured data into common structure
+
+    Outputs data as equal-length dicts, organized by key.
+    One key is always "timestamp".
+
+    :param data: data to be normalized
+    :returns: properly structured data
+    :rtype: dict of lists
+    """
     if not data:
         return {}
 
@@ -136,7 +162,8 @@ def normalize_training_data(data):
         # Assume list of dicts from CSV file
         return records_fix(data)
 
-    if isinstance(data,basestring):
+    ## TODO: all strings are unicode in python3
+    if isinstance(data, basestring):
         # Assume file name
         if data.endswith("csv"):
             return csv_file_fix(data)
@@ -152,158 +179,144 @@ def normalize_training_data(data):
             return historian_data_fix(values)
         else:
             # Probably a json file from the config store.
-            result = {k: np.array(v) for k,v in data.iteritems()}
+            result = {k: np.array(v) for k, v in data.iteritems()}
         return result
 
     return None
 
-def natural_keys(text):
-    '''
-    alist.sort(key=natural_keys) sorts in human order
-    http://nedbatchelder.com/blog/200712/human_sorting.html
-
-    Found here: http://stackoverflow.com/questions/5967500/how-to-correctly-sort-a-string-with-a-number-inside#5967539
-    '''
-    return [ atoi(c) for c in re.split('(\d+)', text) ]
-
 class OptimizerCSVOutput(object):
+    """Handles I/O for optimizer debug output
+
+    :param file_name: path to output file
+    """
     def __init__(self, file_name):
         self.file_name = file_name
-        self.file = open(file_name, "wb")
-        self.csv_file = None
+        try:
+            with open(file_name, "wb"):
+                pass
+        except IOError as e:
+            LOG.error("Problem opening file {}".format(file_name))
+            raise e
+        self.columns = None
 
-    def writerow(self, optimization, forecasts, timestamp=""):
+    def writerow(self,
+                 timestamp,
+                 results,
+                 forecasts={},
+                 singleton_columns=['timestamp']):
+        """Write a single row of debug output. Initialize if first row
 
+        :param timestamp: beginning of optimization window
+        :type timestamp: datetime.datetime
+        :param results: results to write
+        :param forecasts: forecasts from optimization
+        :param singleton_columns: neither forecasts nor optimization variables
+        """
         flat_forecasts = {}
         for i, record in enumerate(forecasts):
             for k, v in record.iteritems():
                 if k.lower() == 'timestamp':
                     continue
                 flat_forecasts["{}_{}".format(k, i)] = v
-            # flat_forecasts.update({"elec_load" + str(i):record.get("elec_load", 0.0),
-            #                        "heat_load" + str(i): record.get("heat_load", 0.0),
-            #                        "cool_load" + str(i): record.get("cool_load", 0.0),
-            #                        "solar_kW" + str(i): record.get("solar_kW", 0.0),
-            #                        "natural_gas_cost" + str(i): record.get("natural_gas_cost", 0.0),
-            #                        "electricity_cost" + str(i): record.get("electricity_cost", 0.0)
-            #                        })
 
-        if self.csv_file is None:
-            optimization_keys = optimization.keys()
-            optimization_keys.remove("Optimization Status")
-            optimization_keys.remove("Convergence Time")
-            optimization_keys.remove("Objective Value")
-            optimization_keys.sort(key=natural_keys)
+        # initialize self.columns
+        if self.columns is None:
+            results_keys = results.keys()
+            for k in singleton_columns:
+                try:
+                    results_keys.remove(k)
+                except ValueError:
+                    pass
             forecast_keys = flat_forecasts.keys()
+            # sort keys so, e.g., key9 and key10 are next to each other
+            results_keys.sort(key=natural_keys)
             forecast_keys.sort(key=natural_keys)
-            self.csv_file = csv.DictWriter(self.file,
-                                           ["timestamp", "Optimization Status", "Objective Value", "Convergence Time"] +
-                                           optimization_keys + forecast_keys, extrasaction='ignore')
-            self.csv_file.writeheader()
+            self.columns = singleton_columns + results_keys + forecast_keys
+            with open(self.file_name, 'ab') as f:
+                csv_file = csv.DictWriter(f, self.columns, extrasaction='ignore')
+                csv_file.writeheader()
 
         row = {}
         row["timestamp"] = str(timestamp)
-        row.update(optimization)
+        row.update(results)
         row.update(flat_forecasts)
 
-        self.csv_file.writerow(row)
-
-    def close(self):
-        self.file.close()
-
-def _test_regression():
-    def one_input(x):
-        return 2 + 3*x
-
-    xs = range(100)
-    ys = map(one_input, xs)
-
-    solution = least_squares_regression(inputs=xs, output=ys)
-    check = np.array([2.0, 3.0])
-    assert np.allclose(solution, check)
-
-    def two_inputs(x, y):
-        return 2 + 3*x + 5*y
-
-    a = [random.randint(0,100) for _ in range(100)]
-    b = [random.randint(0,100) for _ in range(100)]
-    c = map(two_inputs, a, b)
-
-    solution = least_squares_regression(inputs=(a, b), output=c)
-    check = [2, 3, 5]
-    assert np.allclose(solution, check)
+        try:
+            with open(self.file_name, 'ab') as f:
+                csv_file = csv.DictWriter(f, self.columns, extrasaction='ignore')
+                csv_file.writerow(row)
+        except IOError:
+            LOG.error("Failed to open {}. Would have written row: {}".format(self.file_name, row))
 
 class PiecewiseError(StandardError):
+    """Inidcate failure of piecewise-linear curve fit"""
     pass
 
+def clean_training_data(inputs,
+                        outputs,
+                        capacity,
+                        timestamps=None,
+                        min_cap_ratio=0.0,
+                        min_time_coverage=365):
+    """Test if training data meets standards, then clean it up
 
-def clean_training_data(inputs, outputs, capacity, timestamps=None, delete_outliers_sigmas=None, min_cap_ratio=0.9):
-    """
-    Test if training data meets common-sense tests and coverage standards, then clean it up a little.
-
-    :param inputs:
-    :param outputs:
-    :param capacity:
-    :param timestamps:
-    :param delete_outliers_sigmas: TODO. Number of standard deviations from mean to define outliers.
-    :param min_cap_ratio: how close to capacity to we require data
-    :return inputs, outputs: cleaned version of parameters
+    :param inputs: dependent variable of curve fit
+    :param outputs: independent variable of curve fit
+    :param capacity: upper bound on interval of output to fit over
+        (lower is assumed to be zero)
+    :param timestamps: data timestamps to ensure representative sample
+    :param min_cap_ratio: minimum acceptable ratio of max(data) to capacity
+    :param min_time_coverage: minimum acceptable time range (in days)
+    :returns: inputs, outputs -- cleaned version of parameters
+    :rtype: tuple of numpy.array
     :raises ValueError: if training data does not meet standards
     """
-    x_values = outputs
-    max_x = max(x_values)
-    y_values = inputs
+    if (min(inputs) < 0) or (min(outputs) < 0):
+        raise ValueError("Training data is not non-negative")
 
-    if (min(y_values) < 0) or (min(x_values) < 0):
-        raise ValueError("Training data is not non-negative.")
+    if len(inputs) != len(outputs):
+        raise ValueError("Training inputs and outputs are not the same size")
 
-    if len(y_values) != len(x_values):
-        raise ValueError("Training data is not one-to-one.")
-
-    max_x_value = max(x_values)
-    cap_ratio = float(max_x_value)/float(max_x)
+    max_x = max(outputs)
+    cap_ratio = float(max_x)/capacity
 
     if cap_ratio > 1.0:
-        raise ValueError("max(outputs) {} is greater than capacity {}.".format(max_x_value,
-                                                                               capacity))
+        raise ValueError("max(outputs) {} is greater than capacity {}"
+                         "".format(max_x, capacity))
     if cap_ratio < min_cap_ratio:
         raise ValueError("Ratio of max(outputs)/capacity "
-                         "({}/{}={}) below min_cap_ratio ({}).".format(capacity,
-                                                                       max_x_value,
-                                                                       cap_ratio,
-                                                                       min_cap_ratio))
+                         "({}/{}={}) below min_cap_ratio ({}).".format(
+                             capacity, max_x, cap_ratio, min_cap_ratio))
 
     if timestamps is not None:
         time_start = min(timestamps)
         time_end = max(timestamps)
         time_delta = time_end - time_start
-        if time_delta < timedelta(days=365):
-            raise ValueError("Training data does not represent a full year of operation. "
-                             "Date range: {} to {}".format(time_start,
-                                                           time_end))
+        if time_delta < timedelta(days=min_time_coverage):
+            raise ValueError("Training data does not represent the minimum "
+                             "time range {} days. Date range: {} to {}".format(
+                                 min_time_coverage, time_start, time_end))
 
-    valid = y_values > 0.0
-    y_values = y_values[valid]
-    x_values = x_values[valid]
+    # filter NaN
+    inputs, outputs = pd.Series(inputs), pd.Series(outputs)
+    valid = (~inputs.isnull() & ~outputs.isnull())
+    inputs, outputs = inputs[valid].values, outputs[valid].values
 
-    if delete_outliers_sigmas is not None:
-        # what does this mean? noise should be around underlying curve
-        pass
+    return inputs, outputs
 
-    return y_values, x_values
+def fit_prime_mover(
+        x, y, xmin=None, xmax=None, n_fine=100, epsilon=1e-10, verbose=False):
+    """Solves a quadratic program to fit the function
+    `y = p0*x/(p1+p2*x+p3*x**2)` without singularities. Ensures
+    `p1+p2*x+p3*x**3 >= epsilon` for all x in a fine mesh
 
-
-def fit_prime_mover(x, y, xmin=None, xmax=None, n_fine=100, epsilon=1e-10, verbose=False):
-    """
-    Solves a quadratic program to fit the function y = p0*x/(p1+p2*x+p3*x**2) without singularities.
-        Ensures p1+p2*x+p3*x**3 >= epsilon for all x in a fine mesh
-    x - x data to fit
-    y - y data to fit
-    xmin - left limit of fine mesh
-    xmax - right limit of fine mesh
-    n_fine - number of points in fine mesh
-    epsilon - small value to enforce > 0
-    verbose -
+    :param x: independent variable to fit
+    :param y: dependent variable to fit
+    :param xmin: lower limit of mesh
+    :param xmax: upper limit of mesh
+    :param n_fine: number of points in mesh
+    :param epsilon: small value to enforce > 0
+    :param verbose: verbosity of `cvxopt` solver
     """
     solvers.options['show_progress'] = verbose
 
@@ -355,43 +368,49 @@ def fit_prime_mover(x, y, xmin=None, xmax=None, n_fine=100, epsilon=1e-10, verbo
 
     return np.array(sol['x'])[:, 0]
 
+def piecewise_linear(inputs,
+                     outputs,
+                     capacity,
+                     segment_target=5,
+                     curve_type='poly',
+                     **kwargs):
+    """Compute a piece-wise linear curve from inputs, outputs, and capacity
 
-def piecewise_linear(inputs, outputs, capacity,
-                     segment_target=5, curve_type='poly', **kwargs):
-    """
-    Produces a piecewise linear curve from the component inputs, outputs, and max capacity.
-
-    inputs - input values for component
-    outputs - output values for component
-    capacity - sets the max output value regardless of the output values
-    segment_target - Number of segments to target, failure to hit this target after 50
-                    iterations is an error.
-    curve_type - type of regression to perform: 'poly' for numpy polyfit, 'prime_mover' for cvxopt
-    kwargs - keyword arguments to regression function
+    :param inputs: dependent variable values
+    :param outputs: independent variable values
+    :param capacity: max output value regardless of recorded output values
+    :param segment_target: number of segments to target. Failure to hit this
+        target after 50 iterations is an error.
+    :param curve_type: type of regression to perform: 'poly' for numpy
+        polyfit, 'prime_mover' for cvxopt "prime mover" curve
+    :param kwargs: keyword arguments to regression function
+    :returns: piecewise-linear curve definition in the form (a, b, xmin, xmax)
+    :rtype: 4-tuple of floats
     """
     x_values = outputs
     y_values = inputs
     max_x = capacity
     max_y = max(y_values)
-    resolution = 100.0
+    resolution = 100.0 # number of points in inter-/extrapolation
     error_threshold_max = 1.0
     error_threshold_min = 0.0
     error_threshold = 0.5
 
-    _log.debug("Max X: {}, max Y: {}".format(max_x, max_y))
+    LOG.debug("Max X: {}, max Y: {}".format(max_x, max_y))
 
     if curve_type == 'poly':
-        if 'deg' not in kwargs:
-            kwargs['deg'] = 2
-        params = np.polyfit(x_values, y_values, **kwargs)
+        # default is quadratic fit
+        deg = kwargs.pop('deg', 2)
+        params = np.polyfit(x_values, y_values, deg=deg, **kwargs)
         curve_func = lambda x, *params: np.polyval(params, x)
     elif curve_type == 'prime_mover':
         params = fit_prime_mover(x_values, y_values, **kwargs)
         curve_func = lambda x, P0, P1, P2, P3: P0*x/(P1 + P2*x + P3*x**2)
     else:
-        raise ValueError("Unimplemented regression option '{}'. Choose from 'poly' or 'prime_mover'.".format(curve_type))
+        raise ValueError("Unimplemented regression option '{}'. Choose from "
+                         "'poly' or 'prime_mover'.".format(curve_type))
 
-    _log.debug("Curve type: {}. Regression Coefs: {}".format(curve_type, params))
+    LOG.debug("Curve type: {}. Regression Coefs: {}".format(curve_type, params))
 
     x0 = min(x_values)
     y0 = curve_func(x0, *params)
@@ -401,7 +420,7 @@ def piecewise_linear(inputs, outputs, capacity,
 
     max_iterations = 50
 
-    for iteration in xrange(1, max_iterations+1):
+    for _ in xrange(1, max_iterations+1):
         xmin = [x0]
         xmax = []
         coeffarray1 = initial_coeff[0]
@@ -433,10 +452,23 @@ def piecewise_linear(inputs, outputs, capacity,
         else:
             break
         error_threshold = (error_threshold_max + error_threshold_min) / 2.0
-        _log.debug("Segments: {} Old Error Thresh: {} New Error Thresh: {}".format(segment_total, old_error_threshold, error_threshold))
+        LOG.debug("Segments: {} Old Error Thresh: {} New Error Thresh: {}"
+                  "".format(
+                      segment_total, old_error_threshold, error_threshold))
 
     else:
-        raise PiecewiseError("Max iterations hit while testing for target segment count.")
+        if segment_total < segment_target and error_threshold < 0.05:
+            #add one segment if you are accurate, but need more segments
+            for i in range(segment_target-segment_total):
+                xmin.append((xmin[-1]+xmax[-1])/2)
+                xmax_end = xmax[-1]
+                xmax = xmax[:-1]
+                xmax.append(xmin[-1])
+                xmax.append(xmax_end)
+            #break
+        else:
+            raise PiecewiseError("Max iterations hit while testing for target "
+                                 "segment count.")
 
     a = []
     b = []
@@ -448,24 +480,6 @@ def piecewise_linear(inputs, outputs, capacity,
         b.append(coeff[1])
 
     return a, b, xmin, xmax
-
-def _test_piecewise():
-    data = pd.read_csv("../component_test_data/test_piecewise_linear_chiller.csv")
-    x = data["X"]
-    y = data["Y"]
-
-    valid = x > 0.0
-
-    x = x[valid]
-    y = y[valid]
-
-    a, b, xmin, xmax = piecewise_linear(y.values, x.values, 600)
-
-    print "a", a
-    print "b", b
-    print "xmin", xmin
-    print "xmax", xmax
-
 
 def _get_default_curve_data(curve_name):
     base_path = os.path.dirname(__file__)
@@ -485,19 +499,24 @@ def _get_default_curve_data(curve_name):
 
     return eff_cop_div_rated, plf
 
+# TODO Make this configurable
 _conversion_factors = {"centrifugal_chiller_igv": 3.5168,
                        "absorption_chiller": 0.012,
-                       "micro_turbine_generator": 0.8/3.28**3/1026/1055.06*1000}
-
-_conversion_factors["fuel_cell"] =_conversion_factors["micro_turbine_generator"]
+                       "micro_turbine_generator":
+                           0.8/3.28**3/1026/1055.06*1000}
+_conversion_factors["fuel_cell"] = \
+    _conversion_factors["micro_turbine_generator"]
 
 def get_default_curve(curve_name, capacity, rated_eff_cop):
-    """
+    """Retrieve default curve and adapt to component parameters
+
     :param curve_name: name component type (base name of the CSV file to load)
     :param capacity: capacity of the component
-    :param rated_eff_cop: efficiency or COP (depends on the component what you call it but it's used the same either way...)
-    :param conversion_factor: Factor to multiply the results by to convert units.
-    :return: input values, output values ready to be passed into the training function
+    :param rated_eff_cop: efficiency or COP (depends on the component what
+        you call it but it's used the same either way...)
+    :param conversion_factor: unit conversion factor
+    :return: input and output values to be passed into the training function
+    :rtype: dict
     """
     eff_cop_div_rated, plf = _get_default_curve_data(curve_name)
 
@@ -508,21 +527,101 @@ def get_default_curve(curve_name, capacity, rated_eff_cop):
 
     return {"outputs": outputs, "inputs": inputs}
 
+def least_squares_regression(inputs=None, output=None):
+    """Regress outputs on inputs using linear least squares with intercept"""
+    if inputs is None:
+        raise ValueError("At least one input column is required")
+    if output is None:
+        raise ValueError("Output column is required")
 
-def _test_default_curve():
-    curve_tests = [["centrifugal_chiller_igv", 600, 5.5],
-                   ["absorption_chiller", 150, 0.8],
-                   ["boiler", 300, 0.9],
-                   ["micro_turbine_generator", 300, 0.35]]
+    if type(inputs) != tuple:
+        inputs = (inputs,)
 
-    for test in curve_tests:
-        results = get_default_curve(*test)
-        print test
-        print "output", results["outputs"][:10]
-        print "input", results["inputs"][:10]
+    ones = np.ones(len(inputs[0]))
+    x_columns = np.column_stack((ones,) + inputs)
 
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
-    _test_default_curve()
-    _test_regression()
-    _test_piecewise()
+    solution, resid, rank, s = np.linalg.lstsq(x_columns, output)
+
+    return solution
+
+def preprocess(df,
+               timezone={},
+               renamings={},
+               linspec={},
+               nonlinspec={},
+               bounds={},
+               decision_variables=None):
+    """ Pre-process data in a number of ways
+
+        Performing the following operations in order:
+
+        1. convert local timestamps to UTC
+        2. rename variables
+        3. form linear combinations of variables
+        4. multiply variables together
+        5. enforce lower (and possibly upper) bounds
+        6. finally retain only relevant variables
+
+        :param df: data to process
+        :type df: pandas.dataframe
+        :param timezone: dict mapping timestamp column names to pytz
+            timezone name
+        :param renamings: dict mapping new column names to old
+        :param linspec: dict mapping new column names to lists of tuples
+            holding variable names and their coefficient for linear
+            combinations; add a constant using the name `__constant__`
+        :param nonlinspec: dict mapping new column names to lists holding
+            variables to be multiplied together
+        :param bounds: dict of tuples mapping column names to lower bound
+            and optional upper bound
+        :param decision_variables: list of relevant variables
+
+        :returns pre-processed data
+        :rtype pandas.DataFrame
+    """
+    for k, v in timezone.iteritems():
+        tz = pytz.timezone(v)
+        df[k] = df[k].apply(lambda ts: ts.replace(tzinfo=tz))
+        df[k] = df[k].apply(lambda ts: ts.astimezone(pytz.UTC))
+    for k, v in renamings.iteritems():
+        df[k] = df[v]
+    for k, v in linspec.iteritems():
+        _data = pd.DataFrame()
+        for vv, m in v:
+            if vv == "__constant__":
+                _data[vv] = np.ones(df.shape[0])*m
+            else:
+                _data[vv] = df[vv]*m
+        df[k] = _data.sum(axis=1, skipna=False)
+    for k, v in nonlinspec.iteritems():
+        df[k] = df[v].prod(axis=1, skipna=False)
+    for k, v in bounds.iteritems():
+        # assert (len(v) == 1) or (len(v) == 2)
+        _data = df[k].copy()
+        _test = _data >= v[0]
+        if len(v) == 2:
+            _test &= _data < v[1]
+        _data[np.where(~_test)[0]] = np.nan
+        df[k] = _data
+    if decision_variables is not None:
+        df = df[decision_variables]
+    return df
+
+def round_to_hour(dt):
+    """Round a datetime to the nearest hour
+
+    :param dt: timestamp
+    :type dt: datetime.datetime
+    :returns: rounded timestamp
+    """
+    dt_start_of_hour = dt.replace(minute=0, second=0, microsecond=0)
+    dt_half_hour = dt.replace(minute=30, second=0, microsecond=0)
+
+    if dt >= dt_half_hour:
+        # round up
+        dt = dt_start_of_hour + timedelta(hours=1)
+    else:
+        # round down
+        dt = dt_start_of_hour
+
+    return dt

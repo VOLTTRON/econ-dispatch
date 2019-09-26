@@ -1,2 +1,0 @@
-capacity,input_power_request,timestep,PrevSOC,InputCurrent,minimumSOC,InvEFF_Charge,IR_Charge,InvEFF_DisCharge,IR_DisCharge,Idle_A,Idle_B
-24000,-3000,500,0.3996,-12.5,0.4,0.94,0.7,0.94,0.7,-0.00012,-0.00024

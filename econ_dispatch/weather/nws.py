@@ -60,51 +60,75 @@ import datetime
 import pytz
 import requests
 
+from econ_dispatch.forecast_models import ForecastBase
 from volttron.platform.agent import utils
 
-_log = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
-live_url_template = "https://api.weather.gov/points/{latitude},{longitude}/forecast/hourly"
+LIVE_URL_TEMPLATE = \
+    "https://api.weather.gov/points/{latitude},{longitude}/forecast/hourly"
 KEYS = {
     "temperature": "temperature",
     "windSpeed": "wind_speed",
     "windDirection": "wind_direction"
 }
 
-class Weather(object):
-    def __init__(self, latitude=None, longitude=None, hours_forecast=24, timezone="UTC"):
-        self.latitude = latitude
-        self.longitude = longitude
-        #  assert hours_forecast <= 156
+class Weather(ForecastBase):
+    """Return weather forecast from National Weather Service web API
+
+    :param latitude: latitudinal coordinates of location
+    :param longitude: longitudinal coordinates of location
+    :param timezone: local timezone of location (NWS API uses local time)
+    :param hours_forecast: how long the forecast should be. Note that NWS
+        provides only hourly data
+    :param kwargs: kwargs for `forecast_models.ForecastBase`
+    """
+    def __init__(self,
+                 latitude=None,
+                 longitude=None,
+                 timezone="UTC",
+                 hours_forecast=24,
+                 **kwargs):
+        super(Weather, self).__init__(**kwargs)
+        self.url = LIVE_URL_TEMPLATE.format(latitude=latitude,
+                                            longitude=longitude)
+        assert hours_forecast <= 156, "NWS returns a maximum of 6.5 days"
         self.hours_forecast = hours_forecast
         self.timezone = pytz.timezone(timezone)
 
+    def derive_variables(self, now):
+        pass
+
     def get_weather_forecast(self, now):
+        """Validate and return weather forecasts
+
+        :param now: timestamp of first hour
+        :type now: datetime.datetime
+        """
         now = now.astimezone(self.timezone)
 
         results = self.get_live_data()
 
         if abs(results[0]['timestamp'] - now) > datetime.timedelta(days=1):
-            _log.warn("Weather forecast for a different time. "
-                      "Should you use historical data instead?")
-        _log.debug("Weather forecast from {} to {}".format(
+            LOG.warning("Weather forecast for a different time. "
+                        "Should you use historical data instead?")
+        LOG.debug("Weather forecast from {} to {}".format(
             results[0]['timestamp'],
             results[-1]['timestamp']))
         return results
     
     def get_live_data(self):
-        url = live_url_template.format(latitude=self.latitude,
-                                       longitude=self.longitude)
-        r = requests.get(url)
+        """Query and parse NWS records"""
+        r = requests.get(self.url)
         try:
             r.raise_for_status()
             parsed_json = r.json()
-        except (requests.exceptions.HTTPError, ValueError) as e:
-            _log.error("Error retrieving weather data: " + str(e))
-            return []
+            records = parsed_json["properties"]["periods"]
+        except (requests.exceptions.HTTPError, ValueError, KeyError) as e:
+            LOG.error("Error retrieving weather data: " + str(e))
+            raise e
 
         results = []
-        records = parsed_json["properties"]["periods"]
         for rec in records[:self.hours_forecast]:
             timestamp = utils.parse_timestamp_string(rec["endTime"])
             timestamp = timestamp.astimezone(pytz.UTC)
@@ -114,6 +138,7 @@ class Weather(object):
         return results
     
     def get_nws_forecast_from_record(self, record):
+        """Parse single NWS record"""
         result = {}
         for key, value in KEYS.iteritems():
             try:
@@ -127,5 +152,5 @@ class Weather(object):
                 else: 
                     result[KEYS[key]] = record[key]
             except KeyError as e:
-                _log.error("Weather record did not contain {}".format(key))
+                LOG.error("Weather record did not contain {}".format(key))
         return result

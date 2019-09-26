@@ -1,10 +1,9 @@
-networkx
-pydotplus
 requests
 python-dateutil
 numpy
 pandas
-coolprop
 pulp
 cvxopt
 scipy
+scikit-learn
+subprocess32

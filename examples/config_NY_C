@@ -1,0 +1,515 @@
+{
+    "optimization_schedule": 60,
+    "training_schedule": 0,
+    "schedule_start": "1/1/2012 00:00",
+    "schedule_end": "1/2/2012 00:00",
+    "simulation_mode": true,
+    "make_reservations": false,
+    "historian_vip_id": "platform.historian",
+    "optimizer_debug": "optimizer output C NY.csv",
+    "command_debug": "command output C NY.csv",
+    "optimizer":
+    {
+        "name": "default",
+        "write_lp": false,
+        "time_limit": 30
+    },
+    "weather":
+    {
+        "type": "history",
+        "initial_training_data": "examples/historical_data/NY/weather.csv",
+        "settings":
+        {
+            "steps_forecast": 24,
+            "timestep": 1
+        }
+    },
+    "forecast_models":
+    [
+        {
+            "type": "history",
+            "name": "building_load",
+            "initial_training_data": "examples/historical_data/NY/loads_C.csv",
+            "settings":
+            {
+                "preprocess_settings":
+                {
+                    "linspec":
+                    {
+                        "heat_load": [["heat_load", 0.0034118]],
+                        "cool_load": [["cool_load", 0.0034118]]
+                    }
+                }
+            }
+        },
+        {
+            "type": "history",
+            "name": "natural_gas_cost",
+            "initial_training_data": "examples/historical_data/NY/natural_gas_price.csv"
+        },
+        {
+            "type": "history",
+            "name": "electricity_cost",
+            "initial_training_data": "examples/historical_data/NY/electricity_price.csv"
+        }
+    ],
+    "component_models":
+    [
+        {
+            "type": "IOComponent",
+            "name": "centrifugal_chiller0",
+            # "default_parameters":
+            # {
+            #    "fundata": 
+            #    {
+            #        "a": [25.257309227376474, 41.38543169438934, 57.85670570325351, 74.32797971211778, 84.27937442580607],
+            #        "b": [2.6720267279351106, -19.938032697294823, -66.6335935356046, -136.93359069284128, -193.66751925135313], 
+            #        "min": [0.028547055932627085, 1.4019027615566932, 2.834969584816588, 4.268036408076483, 5.701103231336378],
+            #        "max": [1.4019027615566932, 2.834969584816588, 4.268036408076483, 5.701103231336378, 5.999658819515523]
+            #    }
+            # },
+            "initial_training_data": "examples/component_training_data/chiller_type1b.csv",
+            # uncomment to re-train from historian
+            # "training_window": 90,
+            # "training_sources":
+            # {
+            #     "centrifugal_chiller0/P(kW)": "P(kW)",
+            #     "centrifugal_chiller0/Qch(tons)": "Qch(tons)"
+            # },
+            "outputs":
+            {
+                "command": "centrifugal_chiller0/command"
+            },
+            "settings":
+            {
+                "input_commodity": "elec",
+                "output_commodity": "cool",
+                "ramp_up": 6,
+                "ramp_down": -6,
+                "start_cost": 15,
+                "capacity": 6.0,
+                "preprocess_settings":
+                {
+                    "renamings":
+                    {
+                        "input": "P(kW)",
+                        "output": "Qch(tons)"
+                    },
+                    "linspec":
+                    {
+                        "output": [["output", 0.012]]
+                    },
+                    "bounds":
+                    {
+                        "input": [0.00001],
+                        "output": [0.00001]
+                    },
+                    "decision_variables": ["input", "output"]
+                },
+                "clean_training_data_settings":
+                {
+                    "min_cap_ratio": 0
+                }
+            }
+        },
+        {
+            "type": "IOComponent",
+            "name": "centrifugal_chiller1",
+            # "default_parameters":
+            # {
+            #    "fundata": 
+            #    {
+            #        "a": [25.257309227376474, 41.38543169438934, 57.85670570325351, 74.32797971211778, 84.27937442580607],
+            #        "b": [2.6720267279351106, -19.938032697294823, -66.6335935356046, -136.93359069284128, -193.66751925135313], 
+            #        "min": [0.028547055932627085, 1.4019027615566932, 2.834969584816588, 4.268036408076483, 5.701103231336378],
+            #        "max": [1.4019027615566932, 2.834969584816588, 4.268036408076483, 5.701103231336378, 5.999658819515523]
+            #    }
+            # },
+            "initial_training_data": "examples/component_training_data/chiller_type1b.csv",
+            "outputs":
+            {
+                "command": "centrifugal_chiller0/command"
+            },
+            "settings":
+            {
+                "input_commodity": "elec",
+                "output_commodity": "cool",
+                "ramp_up": 6,
+                "ramp_down": -6,
+                "start_cost": 15,
+                "capacity": 6.0,
+                "preprocess_settings":
+                {
+                    "renamings":
+                    {
+                        "input": "P(kW)",
+                        "output": "Qch(tons)"
+                    },
+                    "linspec":
+                    {
+                        "output": [["output", 0.012]]
+                    },
+                    "bounds":
+                    {
+                        "input": [0.00001],
+                        "output": [0.00001]
+                    },
+                    "decision_variables": ["input", "output"]
+                },
+                "clean_training_data_settings":
+                {
+                    "min_cap_ratio": 0
+                }
+            }
+        },
+        {
+            "type": "IOComponent",
+            "name": "centrifugal_chiller2",
+            "default_parameters":
+            {
+                "fundata": 
+                {
+                    "a": [25.257309227376474, 41.38543169438934, 57.85670570325351, 74.32797971211778, 84.27937442580607],
+                    "b": [2.6720267279351106, -19.938032697294823, -66.6335935356046, -136.93359069284128, -193.66751925135313], 
+                    "min": [0.028547055932627085, 1.4019027615566932, 2.834969584816588, 4.268036408076483, 5.701103231336378],
+                    "max": [1.4019027615566932, 2.834969584816588, 4.268036408076483, 5.701103231336378, 5.999658819515523]
+                }
+            },
+            "initial_training_data": "examples/component_training_data/chiller_type2.csv",
+            "outputs":
+            {
+                "command": "centrifugal_chiller2/command"
+            },
+            "settings":
+            {
+                "input_commodity": "elec",
+                "output_commodity": "cool",
+                "ramp_up": 6,
+                "ramp_down": -6,
+                "start_cost": 15,
+                "capacity": 1.6,
+                "preprocess_settings":
+                {
+                    "renamings":
+                    {
+                        "input": "P(kW)",
+                        "output": "Qch(tons)"
+                    },
+                    "linspec":
+                    {
+                        "output": [["output", 0.012]]
+                    },
+                    "bounds":
+                    {
+                        "input": [0.00001],
+                        "output": [0.00001]
+                    },
+                    "decision_variables": ["input", "output"]
+                },
+                "clean_training_data_settings":
+                {
+                    "min_cap_ratio": 0
+                }
+            }
+        },
+        {
+            "type": "IOComponent",
+            "name": "micro_turbine_generator",
+            "default_parameters":
+             {
+                "fundata": 
+                {
+                    "a": [0.015519918336008735, 0.012924203726843388, 0.010360511570157126, 0.007924497067405912, 0.006391089657257881],
+                    "b": [0.5259557563766349, 1.1151829726571707, 1.8945453882897918, 2.831192964597635, 3.5495943362519844],
+                    "min": [150.0, 227.0, 304.0, 384.5, 468.5],
+                    "max": [227.0, 304.0, 384.5, 468.5, 500.0]
+                }
+            },
+            "initial_training_data": "examples/component_training_data/microturbine_AandC.csv",
+            "outputs":
+            {
+                "set_point": "micro_turbine_generator/set_point"
+            },
+            "settings":
+            {
+                "input_commodity": "gas",
+                "output_commodity": "elec",
+                "ramp_up": 200,
+                "ramp_down": -200,
+                "start_cost": 10,
+                "min_on": 3,
+                "capacity": 500.0,
+                "hru_convert": 0.0034118,
+                "hru_eff": 0.8,
+                "curve_type": "prime_mover",
+                "command": false,
+                "preprocess_settings":
+                {
+                    "renamings":
+                    {
+                        "input": "fuel_flow",
+                        "output": "power"
+                    },
+                    "linspec":
+                    {
+                        "input": [["input", 171.11]]
+                    },
+                    "bounds":
+                    {
+                        "input": [0.00001],
+                        "output": [0.00001]
+                    },
+                    "decision_variables": ["input", "output"]
+                },
+                "clean_training_data_settings":
+                {
+                    "min_cap_ratio": 0
+                }
+            }
+        },
+        {
+            "type": "IOComponent",
+            "name": "fuel_cell",
+            "default_parameters":
+             {
+                "fundata":
+                {
+                    "a": [0.014872748894845387, 0.013516108661412216, 0.01398054614441763, 0.0159182913947296, 0.01807895339912708],
+                    "b": [0.10926930903945732, 0.29284986542763575, 0.16238937645141618, -0.6445652555884979, -1.7287422361550666],
+                    "min": [55.0, 135.32, 280.9, 416.44, 501.78000000000003],
+                    "max": [135.32, 280.9, 416.44, 501.78000000000003, 557.0]
+                }
+            },
+            "initial_training_data": "examples/component_training_data/fuel_cell.csv",
+            "outputs":
+            {
+                "set_point": "fuel_cell/set_point"
+            },
+            "settings":
+            {
+                "input_commodity": "gas",
+                "output_commodity": "elec",
+                "ramp_up": 200,
+                "ramp_down": -200,
+                "start_cost": 20,
+                "min_on": 3,
+                "capacity": 557.0,
+                "hru_convert": 0.0034118,
+                "hru_eff": 0.8,
+                "curve_type": "prime_mover",
+                "command": false,
+                "preprocess_settings":
+                {
+                    "renamings":
+                    {
+                        "input": "fuel_flow",
+                        "output": "power"
+                    },
+                    "linspec":
+                    {
+                        "input": [["input", 171.11]]
+                    },
+                    "bounds":
+                    {
+                        "input": [0.00001],
+                        "output": [0.00001, 557]
+                    },
+                    "decision_variables": ["input", "output"]
+                },
+                "clean_training_data_settings":
+                {
+                    "min_cap_ratio": 0
+                }
+            }
+        },
+        {
+            "type": "IOComponent",
+            "name": "absorption_chiller",
+            "default_parameters":
+             {
+                "fundata":
+                {
+                    "a": [1.33868488207, 1.31344317458, 1.2882014671, 1.26295975962, 1.24072301731],
+                    "b": [0.00893845769228, 0.0129145265184, 0.0208657452315, 0.0327921138316, 0.0468005944036],
+                    "min": [3.64055834379e-05, 0.157519804423, 0.315003203263, 0.472486602103, 0.629970000942],
+                    "max": [0.157519804423, 0.315003203263, 0.472486602103, 0.629970000942, 0.749957352439]
+                }
+            },
+            "initial_training_data": "examples/component_training_data/ab_chiller_C.csv",
+            "outputs":
+            {
+                "command": "absorption_chiller/command"
+            },
+            "settings":
+            {
+                "input_commodity": "heat",
+                "output_commodity": "cool",
+                "capacity": 0.75,
+                "min_off": 3,
+                "min_on": 3,
+                "ramp_up": 0.25,
+                "ramp_down": -0.25,
+                "start_cost": 2,
+                "preprocess_settings":
+                {
+                    "renamings":
+                    {
+                        "input": "Qin(MMBtu/h)",
+                        "output": "Qch(MMBtu/h)"
+                    },
+                    "bounds":
+                    {
+                        "input": [0.00001],
+                        "output": [0.00001]
+                    },
+                    "decision_variables": ["input", "output"]
+                },
+                "clean_training_data_settings":
+                {
+                    "min_cap_ratio": 0
+                }
+            }
+        },
+        {
+            "type": "IOComponent",
+            "name": "boiler0",
+            "default_parameters":
+             {
+                "fundata":
+                {
+                    "a": [1.30741721827, 1.26646186218, 1.55589334532, 1.7682770252, 1.94265874604],
+                    "b": [0.0441480253209, 0.107219271757, -1.63631597845, -3.10940918048, -4.4514509036],
+                    "min": [0.399999944, 1.5399999524, 6.02399998544, 6.93599999216, 7.69599999776],
+                    "max": [1.5399999524, 6.02399998544, 6.93599999216, 7.69599999776, 8]
+                }
+            },
+            "initial_training_data": "examples/component_training_data/boiler.csv",
+            "outputs":
+            {
+                "command": "boiler0/command"
+            },
+            "settings":
+            {
+                "input_commodity": "gas",
+                "output_commodity": "heat",
+                "capacity": 8.0,
+                "ramp_up": 8,
+                "ramp_down": -8,
+                "start_cost": 0.8,
+                "curve_type": "prime_mover",
+                "preprocess_settings":
+                {
+                    "renamings":
+                    {
+                        "input": "gas_input",
+                        "output": "heat_output"
+                    },
+                    "bounds":
+                    {
+                        "input": [0.00001],
+                        "output": [0.00001]
+                    },
+                    "decision_variables": ["input", "output"]
+                },
+                "clean_training_data_settings":
+                {
+                    "min_cap_ratio": 0
+                }
+            }
+        },
+        {
+            "type": "IOComponent",
+            "name": "boiler1",
+            "default_parameters":
+             {
+                "fundata":
+                {
+                    "a": [1.30741721827, 1.26646186218, 1.55589334532, 1.7682770252, 1.94265874604],
+                    "b": [0.0441480253209, 0.107219271757, -1.63631597845, -3.10940918048, -4.4514509036],
+                    "min": [0.399999944, 1.5399999524, 6.02399998544, 6.93599999216, 7.69599999776],
+                    "max": [1.5399999524, 6.02399998544, 6.93599999216, 7.69599999776, 8]
+                }
+            },
+            "initial_training_data": null,
+            "initial_training_data": "examples/component_training_data/boiler.csv",
+            "outputs":
+            {
+                "command": "boiler1/command"
+            },
+            "settings":
+            {
+                "input_commodity": "gas",
+                "output_commodity": "heat",
+                "capacity": 8.0,
+                "ramp_up": 8,
+                "ramp_down": -8,
+                "start_cost": 0.8,
+                "curve_type": "prime_mover",
+                "preprocess_settings":
+                {
+                    "renamings":
+                    {
+                        "input": "gas_input",
+                        "output": "heat_output"
+                    },
+                    "bounds":
+                    {
+                        "input": [0.00001],
+                        "output": [0.00001]
+                    },
+                    "decision_variables": ["input", "output"]
+                },
+                "clean_training_data_settings":
+                {
+                    "min_cap_ratio": 0
+                }
+            }
+        },
+        {
+            "type": "battery",
+            "name": "battery",
+            "initial_training_data": "examples/component_training_data/battery.csv",
+            "default_parameters":
+            {
+                "charge_eff": 0.8,
+                "discharge_eff": 0.7
+            },
+            "outputs":
+            {
+                "charge_load": "battery/charge_load",
+                "discharge_load": "battery/discharge_load"
+            },
+            "inputs":
+            {
+                "devices/battery/soc": "soc"
+            },
+            "settings":
+            {
+                "min_power": 0.0,
+                "max_power": 500.0,
+                "min_soc": 0.3,
+                "max_soc": 1.0, # old config listed 0.8, but not enforced by optimizer
+                "capacity": 2000.0
+            }
+        },
+        {
+            "type": "thermal_storage",
+            "name": "thermal_storage",
+            "outputs":
+            {
+                "charge_load": "thermal_storage/charge_load",
+                "discharge_load": "thermal_storage/discharge_load"
+            },
+            "inputs":
+            {
+                "devices/thermal_storage/soc": "soc"
+            },
+            "settings":
+            {
+                "tank_volume": 606980, # In liters
+                "design_chilled_water_return_temp": 15.0, # Chiller return water temp in C
+                "design_chilled_water_supply_temp": 6.7 # Chiller water water supply temp in C
+            }
+        }
+    ]
+}

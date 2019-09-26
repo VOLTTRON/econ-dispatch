@@ -54,35 +54,81 @@
 # operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
 # }}}
-
-import pulp
+""".. todo:: Module docstring"""
 import logging
-_log = logging.getLogger(__name__)
-import os.path
 import os
 from pprint import pformat
 import time
 
-def get_optimization_function(config):
-    name = config["name"]
+import pulp
 
-    module = __import__(name, globals(), locals(), ['get_optimization_function'], 1)
+LOG = logging.getLogger(__name__)
+
+
+def get_optimization_function(config):
+    """Return output of `get_optimization_function` from module with name
+    from `config["name"]`
+
+    Return value should be function that takes parameters `now`, `forecast`,
+    and `parameters`, and returns the solution to an optimization problem
+    
+    :param config: argument for `module.get_optimization_function`
+    :type config: dict
+    :returns: return value of module.get_optimization_function
+    :rtype: dict[list]
+    """
+    name = config["name"]
+    try:
+        module = __import__(name,
+                            globals(),
+                            locals(),
+                            ['get_optimization_function'],
+                            1)
+    except Exception as e:
+        LOG.error('Module {name} cannot be imported. Reason: {ex}'
+                  "".format(name=name, ex=e))
+        raise e
     return module.get_optimization_function(config)
 
-
 def get_pulp_optimization_function(pulp_build_function, config):
-    write_lp = config.get("write_lp", False)
-    use_glpk = config.get("use_glpk", False)
-    time_limit = config.get("time_limit")
-    lp_out_dir = config.get("lp_out_dir", "lps")
+    """Build a function which returns the solution to an optimization problem
 
+    A helper for defining an optimizer's `get_optimization_function`, this
+    handles all the interaction with the PuLP solver, requiring only that
+    `pulp_build_function` returns a valid PuLP problem. It should take
+    `forecast` and `parameters` as arguments.
+
+    :param pulp_build_function: function which returns the problem to be solved
+    :param config: PuLP optimizer configuration
+    :rtype: function
+    :returns: function which takes forecasts and parameters, then returns an
+        the solution to an optimization problem
+    """
+    # whether to write the fully-defined problem in a plaintext format
+    write_lp = config.get("write_lp", False)
     if write_lp:
+        lp_out_dir = config.get("lp_out_dir", "lps")
         try:
             os.makedirs(lp_out_dir)
         except Exception:
             pass
 
-    def _optimize(now, forecast, parameters = {}):
+    # whether to use the GLPK solver instead of COIN-OR CBC
+    use_glpk = config.get("use_glpk", False)
+
+    # optional time limit to provide to PuLP
+    time_limit = config.get("time_limit")
+
+    def _optimize(now, forecast, parameters={}):
+        """Solve an optimization problem defined by `get_pulp_function`
+    
+        :param forecast: forecasts over the optimization window
+        :type forecast: list[dict]
+        :param parameters: component parameters
+        :type parameters: dict[dict]
+        :rtype: dict
+        :returns: optimized value of each variable in the problem
+        """
         prob = pulp_build_function(forecast, parameters)
 
         if write_lp:
@@ -92,9 +138,6 @@ def get_pulp_optimization_function(pulp_build_function, config):
                 f.write(pformat(forecast)+"\n")
             with open(base_file+".parameters", "w") as f:
                 f.write(pformat(parameters) + "\n")
-
-        convergence_time = -1
-        objective_value = -1
 
         solve_start = time.time()
         try:
@@ -106,21 +149,24 @@ def get_pulp_optimization_function(pulp_build_function, config):
             else:
                 prob.solve(pulp.solvers.PULP_CBC_CMD(maxSeconds=time_limit))
         except Exception as e:
-            _log.warning("PuLP failed: " + str(e))
+            LOG.warning("PuLP failed: " + str(e))
+            convergence_time = -1
+            objective_value = -1
         else:
+            # PuLP's solutionTime appears to return machine time, not wall
+            # time, but the time limit is defined on wall time.
+            # Could use `convergence_time = prob.solutionTime` instead.
             convergence_time = time.time() - solve_start
-            # convergence_time = prob.solutionTime
             objective_value = pulp.value(prob.objective)
 
         status = pulp.LpStatus[prob.status]
 
+        # build dict of problem variables
         result = {}
-
         for var in prob.variables():
             result[var.name] = var.varValue
-
+        # add solution meta-data
         result["Optimization Status"] = status
-
         result["Objective Value"] = objective_value
         result["Convergence Time"] = convergence_time
 

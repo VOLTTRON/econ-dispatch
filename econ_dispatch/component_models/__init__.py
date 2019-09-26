@@ -54,134 +54,94 @@
 # operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
 # }}}
-
+""".. todo:: Module docstring"""
 import abc
+from copy import deepcopy
 import logging
 import pkgutil
-from copy import deepcopy
 
-_log = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
-_componentList = [x for _, x, _ in pkgutil.iter_modules(__path__)]
-
-_componentDict = {}
-
-valid_io_types = set([u"heated_water",
-                      u"heated_air",
-                      u"waste_heat",
-                      u"heat",
-                      u"chilled_water",
-                      u"chilled_air",
-                      u"electricity",
-                      u"natural_gas"])
 
 class ComponentBase(object):
+    """Abstract base class for component models
+
+    :param name: name of model
+    :param default_parameters: dict of parameter name, value pairs
+    :param training_window: period in days over which to train
+    :param training_sources: dict of historian topic, name pairs
+    :param inputs: dict of message bus topic, name pairs
+    :param outputs: dict of name, message bus pairs
+    """
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, name="MISSING_NAME",
+    def __init__(self,
+                 name="MISSING_NAME",
                  default_parameters={},
                  training_window=365,
                  training_sources={},
                  inputs={},
-                 outputs={},
-                 cop=None,
-                 efficiency=None,
-                 capacity=None):
-
+                 outputs={}):
+        """Initialize component model"""
         self.name = name
         self.parameters = default_parameters
         self.training_window = int(training_window)
         self.training_sources = training_sources
         self.input_map = inputs
         self.output_map = outputs
-        self.eff_cop = efficiency if efficiency is not None else cop
-        self.capacity = capacity
-
-    training_inputs_name_map = {
-        "outputs": "outputs",
-        "inputs": "inputs"
-    }
-
-    @classmethod
-    def rename_default_curve_data(cls, training_data):
-        results = {}
-        results[cls.training_inputs_name_map["outputs"]] = training_data["outputs"]
-        results[cls.training_inputs_name_map["inputs"]] = training_data["inputs"]
-        return results
-
-
-    def get_input_metadata(self):
-        """Must return a string describing the required input for this component.
-        This is used by the model validator to determine if the configured network is valid.
-
-        This function must return a list of strings that names it's input type.
-        e.g. "chilled_water"
-
-        If the component has no input return None.
-
-        If the component has more than one output return a list of names.
-
-        This is used during validation of the model after/during configuration.
-        """
-        return []
-
-    def get_output_metadata(self):
-        """Must return a string describing the output for this component.
-        This is used by the model validator to determine if the configured network is valid.
-
-        This function must return a list of strings that names it's output type.
-        e.g. "chilled_water"
-
-        If the component has no output return None.
-
-        If the component has more than one output return a list of names.
-
-        This is used during validation of the model after/during configuration.
-        """
-        return []
-
-    def get_mapped_commands(self, component_loads):
-        """Override this to return the new set points on the device based
-        on the received component loads and the current state of the component.
-        Return values must take the form:
-
-        {"output1": value1,
-         "output2": value2}
-        """
-        return {}
 
     def process_input(self, timestamp, name, value):
-        """Override this to process input data from the platform.
+        """Override this to process input data from the message bus
+
         Components will typically want the current state of the device they
         represent as input.
-        name - Name of the input from the configuration file.
-        value - value of the input from the message bus.
+
+        :param timestamp: time input data was published to the message bus
+        :type timestamp: datetime.datetime
+        :param name: name of the input from the configuration file
+        :param value: value of the input from the message bus
         """
         pass
 
     def train(self, training_data):
         """Override this to use training data to update parameters
-        training_data takes the form:
 
-        {
-         "input_name1": [value1, value2,...],
-         "input_name2": [value1, value2,...]
-        }
+        :param training_data: data on which to train, organized by input name
+        :type training_data: dict of lists
         """
         pass
 
     def validate_parameters(self):
-        """Returns true if parameters exist for this component. False otherwise.
+        """Return whether parameters exist for this component
 
-        If more a sophisticated method for parameter validation is desired this
-        may be overridden.
+        If a more sophisticated method for parameter validation is desired this
+        may be overridden
+
+        :returns: whether parameters exist for this component
+        :rtype: bool
         """
         return bool(self.parameters)
 
-    def get_commands(self, component_loads):
-        """Returns the commands for this component mapped to the topics specified
-        in the configuration file."""
-        mapped_commands = self.get_mapped_commands(component_loads)
+    def get_mapped_commands(self, optimization_output):
+        """Override this to return the new set points on the device based
+        on the received component loads and the current state of the component.
+
+        :param optimization_output: full output from optimizer solution
+        :type optimization_output: dict
+        :returns: map of name, command pairs to be mapped to device topics
+        :rtype: dict
+        """
+        return {}
+
+    def get_commands(self, optimization_output):
+        """Process optimizer output into commands and then device topic, set
+        point pairs
+
+        :param optimization_output: full output from optimizer solution
+        :returns: map of device topic to set point
+        :rtype: dict
+        """
+        mapped_commands = self.get_mapped_commands(optimization_output)
         results = {}
         for output_name, topic in self.output_map.iteritems():
             value = mapped_commands.pop(output_name, None)
@@ -189,43 +149,64 @@ class ComponentBase(object):
                 results[topic] = value
 
         for name in mapped_commands:
-            _log.error("NO MAPPED TOPIC FOR {}. DROPPING COMMAND".format(name))
+            LOG.error("NO MAPPED TOPIC FOR {} IN COMPONENT {}. "
+                      "DROPPING COMMAND".format(name, self.name))
 
         return results
 
     def process_inputs(self, now, inputs):
+        """Process data from message bus only if it is in self.input_map
+
+        :param now: time data was published to message bus
+        :param inputs: map of name, value pairs
+        """
         for topic, input_name in self.input_map.iteritems():
             value = inputs.get(topic)
             if value is not None:
-                _log.debug("{} processing input from topic {}".format(self.name, topic))
+                LOG.debug("{} processing input from topic {}"
+                          "".format(self.name, topic))
                 self.process_input(now, input_name, value)
 
     def get_optimization_parameters(self):
-        """Get the current parameters of the component for the optimizer.
-        Returned values must take the form of a dictionary.
+        """Get the current parameters of the component for the optimizer
 
-        If something more sophisticated needs to happen this can be overridden."""
+        If something more sophisticated needs to happen this can be overridden
+
+        :returns: map of parameter name to parameter value
+        :rtype: dict
+        """
         return deepcopy(self.parameters)
-
 
     def __str__(self):
         return '"Component: ' + self.name + '"'
 
-for componentName in _componentList:
+
+COMPONENT_LIST = [x for _, x, _ in pkgutil.iter_modules(__path__)]
+COMPONENT_DICT = {}
+for COMPONENT_NAME in COMPONENT_LIST:
     try:
-        module = __import__(componentName, globals(), locals(), ['Component'], 1)
+        module = __import__(COMPONENT_NAME,
+                            globals(),
+                            locals(),
+                            ['Component'],
+                            1)
         klass = module.Component
     except Exception as e:
-        _log.error('Module {name} cannot be imported. Reason: {ex}'.format(name=componentName, ex=e))
+        LOG.error('Module {name} cannot be imported. Reason: {ex}'
+                  "".format(name=COMPONENT_NAME, ex=e))
         continue
 
-    #Validation of Algorithm class
-
+    #Validation of algorithm class
     if not issubclass(klass, ComponentBase):
-        _log.warning('The implementation of {name} does not inherit from econ_dispatch.component_models.ComponentBase.'.format(name=componentName))
+        LOG.warning('The implementation of {name} does not inherit from '
+                    'econ_dispatch.component_models.ComponentBase.'
+                    ''.format(name=COMPONENT_NAME))
 
-    _componentDict[componentName] = klass
-
+    COMPONENT_DICT[COMPONENT_NAME] = klass
 
 def get_component_class(name):
-    return _componentDict.get(name)
+    """Return `Component` class from module named `name`"""
+    comp = COMPONENT_DICT.get(name)
+    if comp is None:
+        LOG.warning('Module {name} not found.'.format(name=name))
+    return comp

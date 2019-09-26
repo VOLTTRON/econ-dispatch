@@ -54,30 +54,15 @@
 # operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
 # }}}
-
+import logging
 import os
-import pandas as pd
+
 import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
-from econ_dispatch.utils import least_squares_regression
 
-import logging
 
-_log = logging.getLogger(__name__)
-
-DEFAULT_CAPACITY = 24000
-DEFAULT_INPUT_POWER_REQUEST = -3000
-DEFAULT_TIMESTEP = 500
-DEFAULT_PREVSOC = 0.3996
-DEFAULT_INPUTCURRENT = -12.5
-DEFAULT_MINIMUMSOC = 0.4
-DEFAULT_INVEFF_CHARGE = 0.94
-DEFAULT_IR_CHARGE = 0.7
-DEFAULT_INVEFF_DISCHARGE = 0.94
-DEFAULT_IR_DISCHARGE = 0.7
-DEFAULT_IDLE_A = -0.00012
-DEFAULT_IDLE_B = -0.00024
+LOG = logging.getLogger(__name__)
 
 EXPECTED_PARAMETERS = set(["soc",
                            "charge_eff",
@@ -86,66 +71,108 @@ EXPECTED_PARAMETERS = set(["soc",
                            "max_power",
                            "min_soc",
                            "max_soc",
-                           "cap"])
+                           "capacity"])
 
 class Component(ComponentBase):
+    """Simple battery model
+
+    :param min_power: Unused. Always uses 0
+    :param max_power: Maximum (dis)charge. Should use same units as
+        power balance
+    :param min_soc: Minimum state of charge as fraction of capacity
+    :param max_soc: Unused. Always uses 1
+    :param capacity: Maximum charge. Should use same units as power balance
+    :param ch_point_name: optimization decision variable name
+        for charging setpoint
+    :param disch_point_name: optimization decision variable name
+        for discharging setpoint
+    :param kwargs: kwargs for `ComponentBase`
+    """
     def __init__(self,
                  min_power=None,
                  max_power=None,
                  min_soc=0.3,
                  max_soc=0.8,
+                 capacity=None,
+                 ch_point_name="storage_ch_{}_0",
+                 disch_point_name="storage_disch_{}_0",
                  **kwargs):
         super(Component, self).__init__(**kwargs)
-        self.min_power = float(min_power)
+        self.min_power = float(min_power) # unused
         self.max_power = float(max_power)
         self.min_soc = float(min_soc)
-        self.max_soc = float(max_soc)
+        self.max_soc = float(max_soc) # unused
+        self.capacity = capacity
+        self.ch_point_name = ch_point_name.format(self.name)
+        self.disch_point_name = disch_point_name.format(self.name)
         self.current_soc = None
 
         self.parameters["min_power"] = self.min_power
         self.parameters["max_power"] = self.max_power
         self.parameters["min_soc"] = self.min_soc
         self.parameters["max_soc"] = self.max_soc
-        self.parameters["cap"] = self.capacity
+        self.parameters["capacity"] = self.capacity
 
     def validate_parameters(self):
+        """Ensure that at least the necessary parameters are being passed
+        to the optimizer (i.e., the model has been trained)"""
         k = set(self.parameters.keys())
         return EXPECTED_PARAMETERS <= k and self.parameters["soc"] is not None
 
-    def get_mapped_commands(self, component_loads):
+    def get_mapped_commands(self, optimization_output):
+        """Return the new set points on the device based on the received
+        optimization output and the current state of the component.
+
+        :param optimization_output: full output from optimizer solution
+        :type optimization_output: dict
+        :returns: map of name, command pairs to be mapped to device topics
+        :rtype: dict
+        """
         try:
-            charge_load = component_loads["E_storage_ch_{}_0".format(self.name)]
-            discharge_load = component_loads["E_storage_disch_{}_0".format(self.name)]
+            charge_load = optimization_output[self.ch_point_name]
+            discharge_load = optimization_output[self.disch_point_name]
         except KeyError:
-            _log.warning("battery load missing from optimizer output")
+            LOG.warning("battery load missing from optimizer output")
             return {}
         return {"charge_load": charge_load, "discharge_load": discharge_load}
 
     def process_input(self, timestamp, name, value):
-        """Override this to process input data from the platform.
-        Components will typically want the current state of the device they
-        represent as input.
-        name - Name of the input from the configuration file.
-        value - value of the input from the message bus.
+        """Process state of charge information from message bus.
+
+        :param timestamp: time input data was published to the message bus
+        :type timestamp: datetime.datetime
+        :param name: name of the input from the configuration file
+        :param value: value of the input from the message bus
         """
         if name == "soc":
             self.current_soc = value
             self.parameters["soc"] = value
 
     def train(self, training_data):
+        """Determine efficiencies from training data
+
+        :param training_data: data on which to train, organized by input name
+        :type training_data: dict of lists
+        """
         charge_eff = self.calculate_charge_eff(training_data, True)
         discharge_eff = self.calculate_charge_eff(training_data, False)
 
-        self.parameters["soc"] = self.current_soc
         self.parameters["charge_eff"] = charge_eff
         self.parameters["discharge_eff"] = discharge_eff
-        self.parameters["min_power"] = self.min_power
-        self.parameters["max_power"] = self.max_power
-        self.parameters["min_soc"] = self.min_soc
-        self.parameters["max_soc"] = self.max_soc
-        self.parameters["cap"] = self.capacity
+        # not updated
+        # self.parameters["soc"] = self.current_soc
+        # self.parameters["min_power"] = self.min_power
+        # self.parameters["max_power"] = self.max_power
+        # self.parameters["min_soc"] = self.min_soc
+        # self.parameters["max_soc"] = self.max_soc
+        # self.parameters["capacity"] = self.capacity
 
     def calculate_charge_eff(self, charge_training_data, charging):
+        """Calculate (dis)charging efficiency from training data
+
+        :param charge_training_data:
+        :param charging:
+        """
         timestamp = charge_training_data['timestamp']
         PowerIn = charge_training_data['power']
         SOC = charge_training_data['soc']
@@ -172,7 +199,8 @@ class Component(ComponentBase):
         delta_time = current_time - prev_time
 
         # Convert delta_time to fractional hours
-        delta_time = delta_time.astype("timedelta64[s]").astype("float64")/3600.0
+        delta_time = delta_time.astype("timedelta64[s]")\
+            .astype("float64")/3600.0
 
         current_power = PowerIn[valid]
         if charging:
@@ -184,172 +212,8 @@ class Component(ComponentBase):
         valid_eff = eff[eff<1.0]
         eff_avg = abs(valid_eff.mean())
 
-        _log.debug("calculate_charge_eff charging {} result {}, dropped {} values before calculation".format(charging, eff_avg, len(eff)-len(valid_eff)))
+        LOG.debug("calculate_charge_eff charging {} result {}, dropped {}"
+                   " values before calculation".format(
+                       charging,eff_avg, len(eff)-len(valid_eff)))
 
         return eff_avg
-
-
-    # def get_optimization_parameters(self):
-    #     NewSOC, InputPower = self.getUpdatedSOC()
-    #     return {"SOC": NewSOC, "InputPower": InputPower}
-
-
-    # def update_parameters(self, timestamp, inputs):
-    #     self.capacity = inputs.get("capacity", DEFAULT_CAPACITY)
-    #     self.input_power_request = inputs.get("input_power_request", DEFAULT_INPUT_POWER_REQUEST)
-    #     self.timestep = inputs.get("timestep", DEFAULT_TIMESTEP)
-    #     self.PrevSOC = inputs.get("PrevSOC", DEFAULT_PREVSOC)
-    #     self.InputCurrent = inputs.get("InputCurrent", DEFAULT_INPUTCURRENT)
-    #     self.minimumSOC = inputs.get("minimumSOC", DEFAULT_MINIMUMSOC)
-    #     self.InvEFF_Charge = inputs.get("InvEFF_Charge", DEFAULT_INVEFF_CHARGE)
-    #     self.IR_Charge = inputs.get("IR_Charge", DEFAULT_IR_CHARGE)
-    #     self.InvEFF_DisCharge = inputs.get("InvEFF_DisCharge", DEFAULT_INVEFF_DISCHARGE)
-    #     self.IR_DisCharge = inputs.get("IR_DisCharge", DEFAULT_IR_DISCHARGE)
-    #     self.Idle_A = inputs.get("Idle_A", DEFAULT_IDLE_A)
-    #     self.Idle_B = inputs.get("Idle_B", DEFAULT_IDLE_B)
-
-
-    # def getUpdatedSOC(self):
-    #
-    #     # change in state of charge during this self.timestep. Initialization of variable
-    #     deltaSOC = 0
-    #
-    #     #for batttery charging
-    #     #P2 is power recieved into battery storage
-    #     if self.input_power_request > 0:
-    #         P2 = self.input_power_request * self.InvEFF_Charge - self.InputCurrent * self.InputCurrent * self.self.IR_Charge
-    #         deltaSOC = P2*self.timestep/3600/self.capacity
-    #
-    #     elif self.input_power_request < 0:
-    #         P2 = self.input_power_request/self.InvEFF_DisCharge-self.InputCurrent*self.InputCurrent*self.IR_DisCharge
-    #         deltaSOC = P2*self.timestep/3600/self.capacity
-    #
-    #
-    #     deltaSOC_self = (self.Idle_A + self.Idle_B * self.PrevSOC) * self.timestep / 3600
-    #     SOC = self.PrevSOC + deltaSOC + deltaSOC_self
-    #     InputPower = self.input_power_request
-    #
-    #     if SOC < self.minimumSOC:
-    #         if self.PrevSOC < self.minimumSOC and self.input_power_request < 0:
-    #             InputPower = 0
-    #             SOC = self.PrevSOC + deltaSOC_self
-    #         if self.PrevSOC > self.minimumSOC and self.input_power_request < 0:
-    #             InputPower = self.input_power_request * (self.PrevSOC - self.minimumSOC) / (self.PrevSOC - SOC)
-    #             self.InputCurrent = self.InputCurrent * InputPower / self.input_power_request
-    #             P2 = InputPower / self.InvEFF_DisCharge - self.InputCurrent * self.InputCurrent * self.IR_DisCharge
-    #             deltaSOC= P2 * self.timestep / 3600 / self.capacity
-    #             SOC = self.PrevSOC + deltaSOC + deltaSOC_self
-    #     if SOC > 1:
-    #             InputPower = self.input_power_request * (1 - self.PrevSOC) / (SOC - self.PrevSOC)
-    #             self.InputCurrent = self.InputCurrent * InputPower / self.input_power_request
-    #             P2 = InputPower * self.InvEFF_Charge - self.InputCurrent * self.InputCurrent * self.self.IR_Charge
-    #             deltaSOC= P2 * self.timestep / 3600 / self.capacity
-    #             SOC = self.PrevSOC + deltaSOC + deltaSOC_self
-    #     if SOC < 0:
-    #             SOC = 0
-    #
-    #
-    #     return SOC, InputPower
-    #
-    # def GetChargingParameters(self, charging_training_file):
-    #     # data_file = os.path.join(os.path.dirname(__file__), 'BatteryCharging.csv')
-    #     TrainingData = pd.read_csv(charging_training_file, header=0)
-    #     Time = TrainingData['Time'].values
-    #     Current = TrainingData['I'].values
-    #     PowerIn = TrainingData['Po'].values
-    #     SOC = TrainingData['SOC'].values
-    #     x = len(Time)
-    #     PrevTime = []
-    #     CurrTime = []
-    #     CurrPower = []
-    #     PrevPower = []
-    #     CurrSOC = []
-    #     self.PrevSOC = []
-    #     CurrentI = []
-    #     ChargeEff = []
-    #     Slope_RI = []
-    #
-    #     for i in range(0, x + 1):
-    #         if i>1:
-    #             PrevTime.append(Time[i-2])
-    #             CurrTime.append(Time[i-1])
-    #             CurrPower.append(PowerIn[i-1])
-    #             CurrSOC.append(SOC[i-1])
-    #             self.PrevSOC.append(SOC[i-2])
-    #             CurrentI.append(Current[i-1])
-    #
-    #     for i in range(0,x-1):
-    #         ChargeEff.append((CurrSOC[i] - self.PrevSOC[i]) * self.capacity / ((CurrTime[i] - PrevTime[i]) * 24) / CurrPower[i])
-    #         Slope_RI.append(0 - CurrentI[i] * CurrentI[i] / CurrPower[i])
-    #
-    #     x = Slope_RI
-    #     y = ChargeEff
-    #
-    #     intercept, slope = least_squares_regression(inputs=x, output=y)
-    #     return intercept, slope
-    #
-    # def GetDisChargingParameters(self, discharging_training_file):
-    #     # data_file = os.path.join(os.path.dirname(__file__), 'BatteryDisCharging.csv')
-    #     TrainingData = pd.read_csv(discharging_training_file, header=0)
-    #     Time = TrainingData['Time'].values
-    #     Current = TrainingData['I'].values
-    #     PowerIn = TrainingData['Po'].values
-    #     SOC = TrainingData['SOC'].values
-    #     Rows = len(Time)
-    #     PrevTime = []
-    #     CurrTime = []
-    #     CurrPower= []
-    #     PrevPower = []
-    #     CurrSOC = []
-    #     self.PrevSOC = []
-    #     CurrentI = []
-    #     Y = []
-    #     X = []
-    #
-    #     for i in range(0, Rows + 1):
-    #         if i > 1:
-    #             PrevTime.append(Time[i-2])
-    #             CurrTime.append(Time[i-1])
-    #             CurrPower.append(PowerIn[i-1])
-    #             CurrSOC.append(SOC[i-1])
-    #             self.PrevSOC.append(SOC[i-2])
-    #             CurrentI.append(Current[i-1])
-    #
-    #     for i in range(0,Rows-1):
-    #         Y.append((CurrSOC[i] - self.PrevSOC[i]) * self.capacity / ((CurrTime[i] - PrevTime[i]) * 24) / (CurrentI[i] * CurrentI[i]))
-    #         X.append(CurrPower[i] / (CurrentI[i] * CurrentI[i]))
-    #
-    #     intercept, slope = least_squares_regression(inputs=X, output=Y)
-    #
-    #     IR_discharge = (0 - intercept)
-    #     InvEFFDischarge = 1 / slope
-    #     return IR_discharge, InvEFFDischarge
-    #
-    # def GetIdleParameters(self, idle_training_file):
-    #     # data_file = os.path.join(os.path.dirname(__file__), 'BatteryIdle.csv')
-    #     TrainingData = pd.read_csv(idle_training_file, header=0)
-    #     Time = TrainingData['Time'].values
-    #     SOC = TrainingData['SOC'].values
-    #     Rows = len(Time)
-    #     PrevTime = []
-    #     CurrTime = []
-    #     CurrSOC = []
-    #     self.PrevSOC = []
-    #     Y = []
-    #     X = []
-    #
-    #     for i in range(0, Rows + 1):
-    #         if i > 1:
-    #             PrevTime.append(Time[i-2])
-    #             CurrTime.append(Time[i-1])
-    #             CurrSOC.append(SOC[i-1])
-    #             self.PrevSOC.append(SOC[i-2])
-    #
-    #     for i in range(0, Rows - 1):
-    #         Y.append((CurrSOC[i] - self.PrevSOC[i]) / ((CurrTime[i] - PrevTime[i]) * 24))
-    #         X.append(CurrSOC[i])
-    #
-    #     intercept, slope = least_squares_regression(inputs=X, output=Y)
-    #
-    #     return slope, intercept
-    

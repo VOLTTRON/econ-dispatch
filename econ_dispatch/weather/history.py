@@ -55,51 +55,40 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
-from dateutil.parser import parse
 import logging
-_log = logging.getLogger(__name__)
+from datetime import timedelta
+
 import pandas as pd
-import datetime as dt
+
 from econ_dispatch import utils
 
-time_step = dt.timedelta(hours=1)
+LOG = logging.getLogger(__name__)
 
-from econ_dispatch.forecast_models import HistoryModelBase
+from econ_dispatch.forecast_models.history import Forecast as HistoryBase
 
-class Weather(HistoryModelBase):
-    def __init__(self, hours_forecast=24, history_data={}, **kwargs):
+class Weather(HistoryBase):
+    """Return weather forecast from history data
+
+    :param steps_forecast: forecast length
+    :param timestep: hours between forecasts
+    :param kwargs: kwargs for `forecast_models.history.Forecast`
+    """
+    def __init__(self, steps_forecast=24, timestep=1, **kwargs):
         super(Weather, self).__init__(**kwargs)
-        self.hours_forecast = hours_forecast
-        training_data = utils.normalize_training_data(history_data)
-        self.train(training_data)
+        self.steps_forecast = steps_forecast
+        self.timestep = timedelta(hours=timestep)
 
     def get_weather_forecast(self, now):
-        # The Solar Radiation model needs the current weather data as
-        # well as data from 24 hours ago. We return a dictionary that
-        # has both. Keys for yesterday's data are suffixed with -24
+        """Return weather forecasts
 
-        def merge_results(today, yesterday):
-            for k, v in yesterday.items():
-                k = k + "-24"
-                today[k] = v
-            return today
-
-        results_current = self.get_historical_data(now)
-        results_minus24h = self.get_historical_data(now - dt.timedelta(hours=24))
-
-        results = [merge_results(t, y) for t, y in zip(results_current, results_minus24h)]
-
-        return results
-
-    def get_historical_data(self, now):
-        now = now.replace(year=self.history_year)
-
+        :param now: timestamp of first hour
+        :type now: datetime.datetime
+        """
         results = []
-        for _ in xrange(self.hours_forecast):
-            record = self.get_historical_hour(now)
+        for _ in xrange(self.steps_forecast):
+            record = self.derive_variables(now)
             record["timestamp"] = now
             results.append(record)
-            now += time_step
-            now = now.replace(year=self.history_year)
+            now += self.timestep
 
         return results

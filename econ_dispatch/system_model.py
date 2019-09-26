@@ -54,54 +54,93 @@
 # operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
 # }}}
-
-import logging
-#import networkx as nx
-import datetime
-from pprint import pformat
+""".. todo:: Module docstring"""
 from collections import defaultdict
-from econ_dispatch.utils import normalize_training_data, OptimizerCSVOutput, PiecewiseError, get_default_curve
+import datetime
+import logging
+from pprint import pformat
+
+from econ_dispatch.utils import (normalize_training_data,
+                                 OptimizerCSVOutput,
+                                 PiecewiseError,
+                                 get_default_curve)
 from econ_dispatch.component_models import get_component_class
-from econ_dispatch.forecast_models import get_forecast_model_class
+from econ_dispatch.forecast_models import get_forecast_class
 from econ_dispatch.optimizer import get_optimization_function
 
-_log = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
+
 
 def build_model_from_config(weather_config,
                             optimizer_config,
                             component_configs,
-                            forecast_model_configs,
-                            optimization_frequency=60,
-                            optimizer_csv_filename=None):
-    _log.debug("Starting parse_config")
+                            forecast_configs,
+                            optimizer_csv_filename=None,
+                            command_csv_filename=None):
+    """Initialize system model from configs
+
+    :param weather_config: weather model configuration
+    :param optimizer_config: optimization configuration
+    :param component_configs: dict of component model configurations
+    :param forecast_configs: dict of forecast model configurations
+    :param optimizer_csv_filename: path to write optimizer debug CSV
+    :param command_csv_filename: path to write command debug CSV
+    """
+    LOG.debug("Starting parse_config")
 
     weather_type = weather_config["type"]
-
-    module = __import__("weather."+weather_type, globals(), locals(), ['Weather'], 1)
+    # TODO: move to importlib in python3
+    module = __import__("weather."+weather_type,
+                        globals(),
+                        locals(),
+                        ['Weather'],
+                        1)
     klass = module.Weather
-
-    weather_model = klass(**weather_config["settings"])
+    weather_model = klass(**weather_config.get("settings", {}))
+    training_data = weather_config.get("initial_training_data")
+    if training_data is not None:
+        LOG.info("Applying config supplied training data for "
+                "weather forcast model")
+        training_data = normalize_training_data(training_data)
+        try:
+            weather_model.train(training_data)
+        except PiecewiseError:
+            pass
 
     opt_func = get_optimization_function(optimizer_config)
 
-    optimization_frequency = datetime.timedelta(minutes=optimization_frequency)
-
-    optimizer_csv = None
-    if optimizer_csv_filename is not None:
+    if optimizer_csv_filename is None:
+        optimizer_csv = None
+    else:
         optimizer_csv = OptimizerCSVOutput(optimizer_csv_filename)
 
-    system_model = SystemModel(opt_func, weather_model, optimization_frequency, optimizer_debug_csv=optimizer_csv)
+    if command_csv_filename is None:
+        command_csv = None
+    else:
+        command_csv = OptimizerCSVOutput(command_csv_filename)
 
-    for name, config_dict in forecast_model_configs.iteritems():
-        model_type = config_dict["type"]
-        klass = get_forecast_model_class(name, model_type)
+    system_model = SystemModel(opt_func,
+                               weather_model,
+                               optimizer_debug_csv=optimizer_csv,
+                               command_debug_csv=command_csv)
+
+    for config_dict in forecast_configs:
+        name = config_dict["name"]
+        klass_name = config_dict["type"]
+        klass = get_forecast_class(klass_name)
+
+        if klass is None:
+            LOG.error("No component of type: "+klass_name)
+            continue
+
         forecast_model = klass(training_window=config_dict.get("training_window", 365),
                                training_sources=config_dict.get("training_sources", {}),
-                               **config_dict.get("settings",{}))
+                               **config_dict.get("settings", {}))
 
         training_data = config_dict.get("initial_training_data")
         if training_data is not None:
-            _log.info("Applying config supplied training data for {} forcast model".format(name))
+            LOG.info("Applying config supplied training data for "
+                     "{} forcast model".format(name))
             training_data = normalize_training_data(training_data)
             try:
                 forecast_model.train(training_data)
@@ -110,281 +149,265 @@ def build_model_from_config(weather_config,
 
         system_model.add_forecast_model(forecast_model, name)
 
-    for component_dict in component_configs:
-        klass_name = component_dict["type"]
-        component_name = component_dict["name"]
+    for config_dict in component_configs:
+        name = config_dict["name"]
+        klass_name = config_dict["type"]
         klass = get_component_class(klass_name)
 
         if klass is None:
-            _log.error("No component of type: "+klass_name)
+            LOG.error("No component of type: "+klass_name)
             continue
 
         try:
-            component = klass(name=component_name,
-                              default_parameters=component_dict.get("default_parameters", {}),
-                              training_window=component_dict.get("training_window", 365),
-                              training_sources=component_dict.get("training_sources", {}),
-                              inputs=component_dict.get("inputs", {}),
-                              outputs=component_dict.get("outputs", {}),
-                              **component_dict.get("settings", {}))
+            component = klass(
+                name=name,
+                default_parameters=config_dict.get("default_parameters", {}),
+                training_window=config_dict.get("training_window", 365),
+                training_sources=config_dict.get("training_sources", {}),
+                inputs=config_dict.get("inputs", {}),
+                outputs=config_dict.get("outputs", {}),
+                **config_dict.get("settings", {}))
         except Exception as e:
-            _log.exception("Error creating component " + klass_name)
+            LOG.exception("Error creating component {}".format(klass_name))
             continue
 
-        if component.capacity is not None and component.eff_cop is not None:
-            try:
-                training_data = get_default_curve(klass_name, component.capacity, component.eff_cop)
-                _log.debug("Training data: \n{}".format(pformat(training_data)))
-            except ValueError:
-                _log.warning("Unable to create default curve for {}, unsupported type.".format(klass_name))
-            else:
-                _log.info("Applying default curve training data to component {}".format(component_name))
-                training_data = klass.rename_default_curve_data(training_data)
-                component.train(training_data)
-
-        training_data = component_dict.get("initial_training_data")
+        training_data = config_dict.get("initial_training_data")
         if training_data is not None:
-            _log.info("Applying config supplied training data for {}".format(component_name))
+            LOG.info("Applying config supplied training data for {}".format(
+                name))
             training_data = normalize_training_data(training_data)
             try:
                 component.train(training_data)
             except StandardError as e:
-                _log.warning("Failed to train component {} with initial_training_data. Using default curve.".format(component_name))
-                _log.warning("Exception raised by train function: {}".format(repr(e)))
+                LOG.warning("Failed to train component {} with "
+                            "initial_training_data. Using default curve."
+                            "".format(name))
+                LOG.warning("Exception raised by train function: {}".format(repr(e)))
+                raise e
 
         if not component.parameters:
-            _log.warning("Component {} has no parameters after initialization.".format(component_name))
+            LOG.warning("Component %s has no parameters after initialization.",
+                        name)
 
         system_model.add_component(component, klass_name)
-
-    # connections = config["connections"]
-    # for output_component_name, input_component_name in connections:
-    #
-    #     _log.debug("Adding connection: {} -> {}".format(output_component_name, input_component_name))
-    #
-    #     try:
-    #         if not system_model.add_connection(output_component_name, input_component_name):
-    #             _log.error("No compatible outputs/inputs")
-    #     except Exception as e:
-    #         _log.error("Error adding connection: " + str(e))
 
     return system_model
 
 class SystemModel(object):
-    def __init__(self, optimizer, weather_model, optimization_frequency, optimizer_debug_csv=None):
-        #self.component_graph = nx.MultiDiGraph()
-        self.instance_map = {}
-        self.type_map = defaultdict(dict)
+    """Coordinates data flow between forecasts, components, optimizer,
+    and agent
 
-        self.forecast_models = {}
-
+    :param optimizer: optimization
+    :type optimizer: function, defined as `_optimize` in econ_dispatch.optimizer
+    :param weather_model: weather model
+    :type weather_model: child of econ_dispatch.forecast_models.ForecastBase
+    :param optimizer_csv_filename: path to write optimizer debug CSV
+    :param command_debug_csv: path to write command debug CSV
+    """
+    def __init__(self,
+                 optimizer,
+                 weather_model,
+                 optimizer_debug_csv=None,
+                 command_debug_csv=None):
         self.optimizer = optimizer
         self.weather_model = weather_model
 
+        # components
+        self.instance_map = {}
+        self.type_map = defaultdict(dict)
+        # forecasts
+        self.forecast_models = {}
+
         self.optimizer_debug_csv = optimizer_debug_csv
+        self.command_debug_csv = command_debug_csv
 
-        self.optimization_frequency = optimization_frequency
-        self.next_optimization = None
+    def add_forecast_model(self, forecast, name):
+        """Add forecast model to system
 
-    def add_forecast_model(self, model, name):
-        self.forecast_models[name] = model
+        :param forecast: forecast model to add
+        :type forecast: child of econ_dispatch.forecast_models.ForecastBase
+        :name: unique name of forecast
+        """
+        if name in self.forecast_models:
+            LOG.warning("Duplicate forecast names: " + name)
+
+        self.forecast_models[name] = forecast
 
     def add_component(self, component, type_name):
-        #self.component_graph.add_node(component.name, type=type_name)
+        """Add component model to system
 
+        :param component: component model to add
+        :type component: child of econ_dispatch.component_models.ComponentBase
+        :param type_name: type of component
+        """
         self.type_map[type_name][component.name] = component
 
         if component.name in self.instance_map:
-            _log.warning("Duplicate component names: " + component.name)
-
+            LOG.warning("Duplicate component names: " + component.name)
         self.instance_map[component.name] = component
 
-    def add_connection(self, output_component_name, input_component_name, io_type=None):
-        try:
-            output_component = self.instance_map[output_component_name]
-        except KeyError:
-            _log.error("No component named {}".format(output_component_name))
-            raise
-
-        try:
-            input_component = self.instance_map[input_component_name]
-        except KeyError:
-            _log.error("No component named {}".format(input_component_name))
-            raise
-
-        output_types = output_component.get_output_metadata()
-        input_types = input_component.get_input_metadata()
-
-        _log.debug("Output types: {}".format(output_types))
-        _log.debug("Input types: {}".format(input_types))
-
-        real_io_types = []
-        if io_type is not None:
-            real_io_types = [io_type]
-        else:
-            real_io_types = [x for x in output_types if x in input_types]
-
-        for real_io_type in real_io_types:
-            _log.debug("Adding connection for io type: "+real_io_type)
-            #self.component_graph.add_edge(output_component.name, input_component.name, label=real_io_type)
-
-        return len(real_io_types)
-
     def get_forecasts(self, now):
+        """Query each forecast model with each weather forecast
+
+        :param now: time to start forecasts from
+        :type now: datetime.datetime
+        :returns: a forecast of every type for each weather forecast
+        :rtype: list of dicts
+        """
         weather_forecasts = self.weather_model.get_weather_forecast(now)
-        #Loads were updated previously when we updated all components
+
         forecasts = []
         for weather_forecast in weather_forecasts:
             timestamp = weather_forecast.pop("timestamp")
             record = {"timestamp": timestamp}
-            for name, model in self.forecast_models.iteritems():
+            for model in self.forecast_models.itervalues():
                 record.update(model.derive_variables(timestamp, weather_forecast))
 
             forecasts.append(record)
         return forecasts
 
-    def process_inputs(self, now, inputs):
-        _log.debug("Updating Components")
-        _log.debug("Inputs:\n"+pformat(inputs))
-        for component in self.instance_map.itervalues():
-            component.process_inputs(now, inputs)
-
-    def run_general_optimizer(self, now, predicted_loads, parameters):
-        _log.debug("Running General Optimizer")
-        results = self.optimizer(now, predicted_loads, parameters)
-
-        if self.optimizer_debug_csv is not None:
-            self.optimizer_debug_csv.writerow(results, predicted_loads, now)
-
-        return results
-
     def get_parameters(self):
-        results= {}
+        """Query each component for its optimization parameters
 
+        :returns: component parameters organized by type then by name
+        :rtype: dict of dicts
+        """
+        results = {}
         for type_name, component_dict in self.type_map.iteritems():
             for name, component in component_dict.iteritems():
                 parameters = component.get_optimization_parameters()
                 try:
+                    if results[type_name].get(name) is not None:
+                        LOG.warning("Multiple components with name {name} "
+                                    "of type {type}. Overwriting parameters"
+                                    "".format(name=name, type=type_name))
                     results[type_name][name] = parameters
                 except KeyError:
                     results[type_name] = {name: parameters}
 
         return results
 
-    def get_commands(self, component_loads):
-        _log.debug("Gathering commands")
-        result = {}
-        for component in self.instance_map.itervalues():
-            component_commands = component.get_commands(component_loads)
-            for device, commands in component_commands.iteritems():
-                result[device] = commands
-        return result
-
     def get_component_input_topics(self):
+        """Gather message bus topics to follow from components
+
+        :returns: message bus topics to follow
+        :rtype: set
+        """
         results = set()
         for component in self.instance_map.itervalues():
             results.update(component.input_map.keys())
 
         return results
 
+    def process_inputs(self, now, inputs):
+        """Pass input data from message bus to each component for
+        further processing"""
+        LOG.debug("Updating components with inputs: "+pformat(inputs))
+        for component in self.instance_map.itervalues():
+            component.process_inputs(now, inputs)
+
     def get_training_parameters(self, forecast_models=False):
+        """Gather time windows and historian topics to query for training data
+
+        :param forecast_models: whether to query forecast or component models
+        :type forecast_models: bool
+        :returns: mapping of model name to time window and historian topics
+        :rtype: dict of tuples
+        """
         results = dict()
         source = self.forecast_models if forecast_models else self.instance_map
         for name, component in source.iteritems():
-            # Skip components without training sources configrued.
+            # Skip components without training sources configured.
             if component.training_sources:
-                results[name] = (component.training_window, component.training_sources.keys())
+                results[name] = (component.training_window,
+                                 component.training_sources.keys())
 
         return results
 
     def apply_all_training_data(self, training_data, forecast_models=False):
+        """Train models on data from historian
+
+        :param training_data: data organized by model name then historian topic
+        :type training_data: dict of dicts
+        :param forecast_models: whether to query forecast or component models
+        :type forecast_models: bool
+        """
         target = self.forecast_models if forecast_models else self.instance_map
         for name, data in training_data.iteritems():
             component = target.get(name)
             if component is None:
-                _log.warning("No component named {} to train.".format(name))
+                LOG.warning("No component named {} to train.".format(name))
                 continue
+            # map historian topic to component's expected training data headers
             training_map = component.training_sources
             normalized_data = {}
-            for topic , topic_data in data.iteritems():
+            for topic, topic_data in data.iteritems():
                 mapped_name = training_map.get(topic)
                 if mapped_name is not None:
                     normalized = normalize_training_data(topic_data)
                     normalized_data[mapped_name] = normalized
                 else:
-                    _log.warning("Topic {} has no mapped name for component {}".format(topic, name))
+                    LOG.warning("Topic {} has no mapped name for component {}"
+                                "".format(topic, name))
             component.train(normalized_data)
 
     def invalid_parameters_list(self):
+        """Return list of components with invalid parameters"""
         results = []
         for name, component in self.instance_map.iteritems():
             if not component.validate_parameters():
                 results.append(name)
         return results
 
+    def get_commands(self, optimization_results):
+        """Pass optimization results to components and get back commands
+
+        :param optimization_results: full results from optimization solution
+        :returns: device commands defined by components
+        :rtype: dict
+        """
+        LOG.debug("Gathering commands")
+        result = {}
+        for component in self.instance_map.itervalues():
+            component_commands = component.get_commands(optimization_results)
+            for device, commands in component_commands.iteritems():
+                if device in result:
+                    LOG.warning("Command to device {} being overwritten by {}"
+                                "".format(device, component.name))
+                result[device] = commands
+        return result
+
     def run_optimizer(self, now):
-        forecasts = self.get_forecasts(now)
-        parameters = self.get_parameters()
-        component_loads = self.run_general_optimizer(now, forecasts, parameters)
-        # _log.debug("Loads: {}".format(pformat(component_loads)))
-        commands = self.get_commands(component_loads)
+        """Validate component parameters, gather forecasts and component
+        parameters, run optimizer, then process results into commands
 
-        return commands
-
-    def run(self, now, inputs):
-        """Run method for being driven by a script or simulation,
-        does own time validation and handles all input."""
-        self.process_inputs(now, inputs)
-
-        if self.next_optimization is None:
-            self.next_optimization = self.find_starting_datetime(now)
-
-        commands = {}
-        if (self.next_optimization <= now):
-            _log.info("Running optimizer: " + str(now))
-            self.next_optimization = self.next_optimization + self.optimization_frequency
-            if self.next_optimization < now:
-                # Catch case where we jump way ahead in time
-                self.next_optimization = None
-            commands = self.validate_run_optimizer(now)
-            _log.info("Next optimization: {}".format(self.next_optimization))
-
-        _log.debug("Device commands: {}".format(commands))
-
-        return commands
-
-    def validate_run_optimizer(self, now):
-        """For running from a greenlet"""
-        commands = {}
+        :param now: start of optimization window
+        :type now: datetime.datetime
+        :returns: dict of device name: command pairs
+        """
         invalid_components = self.invalid_parameters_list()
         if invalid_components:
-            _log.error("The following components are unable to provide valid optimization parameters: {}".format(
-                invalid_components))
-            _log.error("THE OPTIMIZER WILL NOT BE RUN AT THIS TIME.")
+            LOG.error("The following components are unable to provide valid "
+                      "optimization parameters: {}".format(invalid_components))
+            LOG.error("THE OPTIMIZER WILL NOT BE RUN AT THIS TIME.")
+            return {}
+
+        forecasts = self.get_forecasts(now)
+        parameters = self.get_parameters()
+
+        results = self.optimizer(now, forecasts, parameters)
+        if self.optimizer_debug_csv is not None:
+            self.optimizer_debug_csv.writerow(now,
+                                              results,
+                                              forecasts,
+                                              ["timestamp",
+                                               "Optimization Status",
+                                               "Objective Value",
+                                               "Convergence Time"])
+
+        commands = self.get_commands(results)
+        if self.command_debug_csv is not None:
+            self.command_debug_csv.writerow(now, commands)
         else:
-            commands = self.run_optimizer(now)
-
+            LOG.debug("Device commands: {}".format(commands))
         return commands
-
-    def find_starting_datetime(self, now):
-        """This is taken straight from DriverAgent in MasterDriverAgent."""
-        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        seconds_from_midnight = (now - midnight).total_seconds()
-        interval = self.optimization_frequency.total_seconds()
-
-        offset = seconds_from_midnight % interval
-
-        if not offset:
-            return now
-
-        previous_in_seconds = seconds_from_midnight - offset
-        next_in_seconds = previous_in_seconds + interval
-
-        from_midnight = datetime.timedelta(seconds=next_in_seconds)
-        return midnight + from_midnight
-
-
-
-
-
-
