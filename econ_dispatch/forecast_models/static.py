@@ -54,67 +54,25 @@
 # operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
 # }}}
-""".. todo:: Module docstring"""
-import abc
-import logging
-import pkgutil
+from econ_dispatch.forecast_models import ForecastBase
 
-LOG = logging.getLogger(__name__)
+class Forecast(ForecastBase):
+    """Return static dict of forecasts
 
-
-class ForecastBase(object):
-    """Abstract base class for forecast models
-
-    :param training_window: period in days over which to train
-    :param training_sources: dict of historian topic, name pairs
+    :param values: dict mapping forecast names to static values. Default
+        returns no forecasts
+    :param kwargs: keyword arguments for base class
     """
-    __metaclass__ = abc.ABCMeta
+    def __init__(self, values={}, **kwargs):
+        super(Forecast, self).__init__(**kwargs)
+        self.values = values
 
-    def __init__(self,
-                 training_window=365,
-                 training_sources={}
-                ):
-        self.training_window = int(training_window)
-        self.training_sources = training_sources
-
-    @abc.abstractmethod
     def derive_variables(self, now, weather_forecast={}):
-        """Return forecast for a single time, based on the weather forecast
+        """Return static dict of forecasts
 
         :param now: time of forecast
         :type now: datetime.datetime
         :param weather_forecast: dict containing a weather forecast
         :returns: dict of forecasts for time `now`
         """
-        pass
-
-    def train(self, training_data):
-        """Override this to use training data to update the model
-
-        :param training_data: data on which to train, organized by input name
-        :type training_data: dict of lists
-        """
-        pass
-
-FORECAST_LIST = [x for _, x, _ in pkgutil.iter_modules(__path__)]
-FORECAST_DICT = {}
-for FORECAST_NAME in FORECAST_LIST:
-    try:
-        module = __import__(FORECAST_NAME, globals(), locals(), ['Forecast'], 1)
-        klass = module.Forecast
-    except Exception as e:
-        LOG.error('Module {name} cannot be imported. Reason: {ex}'
-                  "".format(name=FORECAST_NAME, ex=e))
-        continue
-
-    #Validation of algorithm class
-    if not issubclass(klass, ForecastBase):
-        LOG.warning('The implementation of {name} does not inherit from '
-                    'econ_dispatch.forecast_models.ForecastBase.'
-                    ''.format(name=FORECAST_NAME))
-
-    FORECAST_DICT[FORECAST_NAME] = klass
-
-def get_forecast_class(name):
-    """Return `Forecast` class from module named `name`"""
-    return FORECAST_DICT.get(name)
+        return self.values
