@@ -85,7 +85,7 @@ class Weather(HistoryBase):
         :type now: datetime.datetime
         """
         results = []
-        for _ in xrange(self.steps_forecast):
+        for _ in range(self.steps_forecast):
             record = self.derive_variables(now)
             record["timestamp"] = now
             results.append(record)

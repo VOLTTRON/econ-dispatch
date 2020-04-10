@@ -166,7 +166,7 @@ class Forecast(HistoryForecastBase):
                           (day_of_week - 1) % 7)
                        & (df[self.timestamp_column].dt.hour >= delta))
 
-        for variable, value in weather_forecast.iteritems():
+        for variable, value in weather_forecast.items():
             tolerance = self.independent_variable_tolerances.get(variable,
                                                                  None)
             if tolerance is None:

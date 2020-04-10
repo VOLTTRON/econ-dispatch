@@ -155,7 +155,7 @@ def make_time_features(ts, index=None, epoch=None, epoch_span=None):
     time_features['workday'] = [int(weekday < 5 and date not in holidays) for weekday, date in zip(ts.weekday, ts.date)]
 
     if _singleton:
-        return {k: v[0] for k, v in time_features.iteritems()}
+        return {k: v[0] for k, v in time_features.items()}
     else:
         return pd.DataFrame(time_features, index=index)
 

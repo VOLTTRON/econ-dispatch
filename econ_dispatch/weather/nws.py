@@ -140,7 +140,7 @@ class Weather(ForecastBase):
     def get_nws_forecast_from_record(self, record):
         """Parse single NWS record"""
         result = {}
-        for key, value in KEYS.iteritems():
+        for key, value in KEYS.items():
             try:
                 result[KEYS[key]] = float(record[key])
             except ValueError:

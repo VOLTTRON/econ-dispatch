@@ -192,7 +192,7 @@ class Forecast(ForecastBase):
 
         try:
             r.raise_for_status()
-        except StandardError as e:
+        except Exception as e:
             LOG.error(repr(e))
             return
 
