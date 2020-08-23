@@ -20,7 +20,8 @@ local solar photovoltaic (PV) systems.
 
 ## Platform
 Economic Dispatch is built on the [VOLTTRON<sup>TM</sup>](https://volttron.readthedocs.io/en/develop>)
-platform.
+platform. It is tested against VOLTTRON version 7.0, and therefore requires
+python 3 with a minimum version of 3.6.
 
 VOLTTRON<sup>TM</sup> is an open-source platform for distributed sensing and
 control. The platform provides services for collecting and storing data from

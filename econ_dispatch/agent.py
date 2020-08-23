@@ -73,18 +73,14 @@ from econ_dispatch.system_model import build_model_from_config
 from econ_dispatch.forecast_models.history import Forecast as HistoryForecast
 from econ_dispatch.utils import normalize_training_data
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 __author1__ = 'Lee Burke <lee.burke@pnnl.gov>'
 __author2__ = 'Kyle Monson <kyle.monson@pnnl.gov>'
 __copyright__ = 'Copyright (c) 2018, Battelle Memorial Institute'
 __license__ = 'Apache Version 2.0'
 
-# utils.setup_logging()
-logging.basicConfig(filename=os.path.expanduser('~/econ-dispatch/logs/econ_dispatch.log'),
-                    level=logging.DEBUG,
-                    format='%(asctime)s %(name)s %(levelname)s: %(message)s')
-
-LOG = logging.getLogger(__name__)
+utils.setup_logging()
+LOG = logging.getLogger()
 
 
 class EconDispatchAgent(Agent):
