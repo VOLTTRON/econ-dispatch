@@ -212,7 +212,7 @@ def build_problem(forecast, parameters):
     # convert forecast from list of dicts to dict of lists
     _forecast = {}
     for f_c in forecast:
-        for key, value in f_c.items():
+        for key, value in list(f_c.items()):
             try:
                 _forecast[key].append(value)
             except KeyError:
@@ -264,12 +264,12 @@ def build_problem(forecast, parameters):
     #--------------------------------------------------------------------------
 
 
-    index_hour = (range(NN),)
-    index_without_first_hour = (range(1, NN),)
+    index_hour = (list(range(NN)),)
+    index_without_first_hour = (list(range(1, NN)),)
 
-    index_storage = elec_storage_names + heat_storage_names, range(NN)
-    index_component = component_names, range(NN)
-    index_component_piecewise = component_names, range(NN), range(KK)
+    index_storage = elec_storage_names + heat_storage_names, list(range(NN))
+    index_component = component_names, list(range(NN))
+    index_component_piecewise = component_names, list(range(NN)), list(range(KK))
 
     index_ramp_up = ([name for name in component_names
                       if component_para[name]["ramp_up"] is not None],)

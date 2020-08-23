@@ -160,7 +160,7 @@ class Forecast(ForecastBase):
 
     def time_format(self, dt):
         """Format timestamp for Obix query"""
-        return u"%s:%06.3f%s" % (
+        return "%s:%06.3f%s" % (
             dt.strftime('%Y-%m-%dT%H:%M'),
             float("%.3f" % (dt.second + dt.microsecond / 1e6)),
             dt.strftime('%z')[:3] + ':' + dt.strftime('%z')[3:]
@@ -184,7 +184,7 @@ class Forecast(ForecastBase):
         # do it manually:
         payload = {'start': self.time_format(start_time),
                    'end': self.time_format(end_time)}
-        payload_str = "&".join("%s=%s" % (k, v) for k, v in payload.items())
+        payload_str = "&".join("%s=%s" % (k, v) for k, v in list(payload.items()))
 
         r = requests.get(self.url,
                          auth=(self.username, self.password),
@@ -192,7 +192,7 @@ class Forecast(ForecastBase):
 
         try:
             r.raise_for_status()
-        except StandardError as e:
+        except Exception as e:
             LOG.error(repr(e))
             return
 
@@ -208,13 +208,13 @@ class Forecast(ForecastBase):
 
         values = self.parse_result(r.text, next_update)
 
-        if len([k for k in values.iterkeys()]) == 0:
+        if len([k for k in values.keys()]) == 0:
             LOG.debug("HTTP response is emtpy")
             return
         else:
             self.values = values
             # set default value to latest
-            self.default_value = self.values[max(self.values.iterkeys())]
+            self.default_value = self.values[max(self.values.keys())]
             self.last_collection = true_now
 
     def parse_result(self, xml_tree, next_update):

@@ -63,7 +63,7 @@ import pkgutil
 LOG = logging.getLogger(__name__)
 
 
-class ComponentBase(object):
+class ComponentBase(object, metaclass=abc.ABCMeta):
     """Abstract base class for component models
 
     :param name: name of model
@@ -73,7 +73,6 @@ class ComponentBase(object):
     :param inputs: dict of message bus topic, name pairs
     :param outputs: dict of name, message bus pairs
     """
-    __metaclass__ = abc.ABCMeta
 
     def __init__(self,
                  name="MISSING_NAME",
@@ -143,7 +142,7 @@ class ComponentBase(object):
         """
         mapped_commands = self.get_mapped_commands(optimization_output)
         results = {}
-        for output_name, topic in self.output_map.iteritems():
+        for output_name, topic in self.output_map.items():
             value = mapped_commands.pop(output_name, None)
             if value is not None:
                 results[topic] = value
@@ -160,7 +159,7 @@ class ComponentBase(object):
         :param now: time data was published to message bus
         :param inputs: map of name, value pairs
         """
-        for topic, input_name in self.input_map.iteritems():
+        for topic, input_name in self.input_map.items():
             value = inputs.get(topic)
             if value is not None:
                 LOG.debug("{} processing input from topic {}"

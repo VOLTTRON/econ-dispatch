@@ -178,7 +178,7 @@ def build_model_from_config(weather_config,
             training_data = normalize_training_data(training_data)
             try:
                 component.train(training_data)
-            except StandardError as e:
+            except Exception as e:
                 LOG.warning("Failed to train component {} with "
                             "initial_training_data. Using default curve."
                             "".format(name))
@@ -260,7 +260,7 @@ class SystemModel(object):
         for weather_forecast in weather_forecasts:
             timestamp = weather_forecast.pop("timestamp")
             record = {"timestamp": timestamp}
-            for model in self.forecast_models.itervalues():
+            for model in self.forecast_models.values():
                 record.update(model.derive_variables(timestamp, weather_forecast))
 
             forecasts.append(record)
@@ -273,8 +273,8 @@ class SystemModel(object):
         :rtype: dict of dicts
         """
         results = {}
-        for type_name, component_dict in self.type_map.iteritems():
-            for name, component in component_dict.iteritems():
+        for type_name, component_dict in self.type_map.items():
+            for name, component in component_dict.items():
                 parameters = component.get_optimization_parameters()
                 try:
                     if results[type_name].get(name) is not None:
@@ -294,8 +294,8 @@ class SystemModel(object):
         :rtype: set
         """
         results = set()
-        for component in self.instance_map.itervalues():
-            results.update(component.input_map.keys())
+        for component in self.instance_map.values():
+            results.update(list(component.input_map.keys()))
 
         return results
 
@@ -303,7 +303,7 @@ class SystemModel(object):
         """Pass input data from message bus to each component for
         further processing"""
         LOG.debug("Updating components with inputs: "+pformat(inputs))
-        for component in self.instance_map.itervalues():
+        for component in self.instance_map.values():
             component.process_inputs(now, inputs)
 
     def get_training_parameters(self, forecast_models=False):
@@ -316,11 +316,11 @@ class SystemModel(object):
         """
         results = dict()
         source = self.forecast_models if forecast_models else self.instance_map
-        for name, component in source.iteritems():
+        for name, component in source.items():
             # Skip components without training sources configured.
             if component.training_sources:
                 results[name] = (component.training_window,
-                                 component.training_sources.keys())
+                                 list(component.training_sources.keys()))
 
         return results
 
@@ -333,7 +333,7 @@ class SystemModel(object):
         :type forecast_models: bool
         """
         target = self.forecast_models if forecast_models else self.instance_map
-        for name, data in training_data.iteritems():
+        for name, data in training_data.items():
             component = target.get(name)
             if component is None:
                 LOG.warning("No component named {} to train.".format(name))
@@ -341,7 +341,7 @@ class SystemModel(object):
             # map historian topic to component's expected training data headers
             training_map = component.training_sources
             normalized_data = {}
-            for topic, topic_data in data.iteritems():
+            for topic, topic_data in data.items():
                 mapped_name = training_map.get(topic)
                 if mapped_name is not None:
                     normalized = normalize_training_data(topic_data)
@@ -354,7 +354,7 @@ class SystemModel(object):
     def invalid_parameters_list(self):
         """Return list of components with invalid parameters"""
         results = []
-        for name, component in self.instance_map.iteritems():
+        for name, component in self.instance_map.items():
             if not component.validate_parameters():
                 results.append(name)
         return results
@@ -368,9 +368,9 @@ class SystemModel(object):
         """
         LOG.debug("Gathering commands")
         result = {}
-        for component in self.instance_map.itervalues():
+        for component in self.instance_map.values():
             component_commands = component.get_commands(optimization_results)
-            for device, commands in component_commands.iteritems():
+            for device, commands in component_commands.items():
                 if device in result:
                     LOG.warning("Command to device {} being overwritten by {}"
                                 "".format(device, component.name))

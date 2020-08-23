@@ -369,7 +369,7 @@ class EconDispatchAgent(Agent):
         points = message[0]
 
         inputs = {}
-        for point, value in points.iteritems():
+        for point, value in points.items():
             point_topic = base_topic + '/' + point
             if point_topic in self.input_topics:
                 inputs[point_topic] = value
@@ -548,7 +548,7 @@ class EconDispatchAgent(Agent):
             results = {}
             all_parameters = self.model.get_training_parameters(forecast_models)
 
-            for name, parameters in all_parameters.iteritems():
+            for name, parameters in all_parameters.items():
                 window, sources = parameters
                 end = now
                 start = end - timedelta(days=window)
@@ -659,7 +659,7 @@ class EconDispatchAgent(Agent):
             result = self.vip.rpc.call('platform.actuator',
                                        'set_multiple_points',
                                        "",
-                                       topic_values.items()).get(timeout=4)
+                                       list(topic_values.items())).get(timeout=4)
         except RemoteError as ex:
             LOG.error("Error occured in actuator set: {}. Failed to set: {}"
                       "".format(str(ex), topic_values))

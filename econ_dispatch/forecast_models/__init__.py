@@ -62,13 +62,12 @@ import pkgutil
 LOG = logging.getLogger(__name__)
 
 
-class ForecastBase(object):
+class ForecastBase(object, metaclass=abc.ABCMeta):
     """Abstract base class for forecast models
 
     :param training_window: period in days over which to train
     :param training_sources: dict of historian topic, name pairs
     """
-    __metaclass__ = abc.ABCMeta
 
     def __init__(self,
                  training_window=365,

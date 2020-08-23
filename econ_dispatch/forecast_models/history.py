@@ -141,7 +141,7 @@ class Forecast(ForecastBase):
         """
         # build dataframe
         results = {}
-        for key, values in training_data.iteritems():
+        for key, values in training_data.items():
             readings = pd.Series(values)
             results[key] = readings
         df = pd.DataFrame(results)

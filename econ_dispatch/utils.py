@@ -55,7 +55,7 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 """.. todo:: Module docstring"""
-from cStringIO import StringIO
+from io import StringIO
 import csv
 from datetime import timedelta
 import json
@@ -96,7 +96,7 @@ def records_fix(data):
     :returns: properly structured training data
     :rtype: dict of lists
     """
-    keys = data[0].keys()
+    keys = list(data[0].keys())
     with StringIO() as f:
         w = csv.DictWriter(f, keys)
         w.writeheader()
@@ -131,7 +131,7 @@ def historian_data_fix(data):
     :rtype: dict of lists
     """
     results = {}
-    for key, values in data.iteritems():
+    for key, values in data.items():
         time_stamps = pd.to_datetime([x[0] for x in values]).floor("1min")
         readings = pd.Series((x[1] for x in values), index=time_stamps)
 
@@ -163,7 +163,7 @@ def normalize_training_data(data):
         return records_fix(data)
 
     ## TODO: all strings are unicode in python3
-    if isinstance(data, basestring):
+    if isinstance(data, str):
         # Assume file name
         if data.endswith("csv"):
             return csv_file_fix(data)
@@ -179,7 +179,7 @@ def normalize_training_data(data):
             return historian_data_fix(values)
         else:
             # Probably a json file from the config store.
-            result = {k: np.array(v) for k, v in data.iteritems()}
+            result = {k: np.array(v) for k, v in data.items()}
         return result
 
     return None
@@ -214,20 +214,20 @@ class OptimizerCSVOutput(object):
         """
         flat_forecasts = {}
         for i, record in enumerate(forecasts):
-            for k, v in record.iteritems():
+            for k, v in record.items():
                 if k.lower() == 'timestamp':
                     continue
                 flat_forecasts["{}_{}".format(k, i)] = v
 
         # initialize self.columns
         if self.columns is None:
-            results_keys = results.keys()
+            results_keys = list(results.keys())
             for k in singleton_columns:
                 try:
                     results_keys.remove(k)
                 except ValueError:
                     pass
-            forecast_keys = flat_forecasts.keys()
+            forecast_keys = list(flat_forecasts.keys())
             # sort keys so, e.g., key9 and key10 are next to each other
             results_keys.sort(key=natural_keys)
             forecast_keys.sort(key=natural_keys)
@@ -248,7 +248,7 @@ class OptimizerCSVOutput(object):
         except IOError:
             LOG.error("Failed to open {}. Would have written row: {}".format(self.file_name, row))
 
-class PiecewiseError(StandardError):
+class PiecewiseError(Exception):
     """Inidcate failure of piecewise-linear curve fit"""
     pass
 
@@ -420,7 +420,7 @@ def piecewise_linear(inputs,
 
     max_iterations = 50
 
-    for _ in xrange(1, max_iterations+1):
+    for _ in range(1, max_iterations+1):
         xmin = [x0]
         xmax = []
         coeffarray1 = initial_coeff[0]
@@ -579,13 +579,13 @@ def preprocess(df,
         :returns pre-processed data
         :rtype pandas.DataFrame
     """
-    for k, v in timezone.iteritems():
+    for k, v in timezone.items():
         tz = pytz.timezone(v)
         df[k] = df[k].apply(lambda ts: ts.replace(tzinfo=tz))
         df[k] = df[k].apply(lambda ts: ts.astimezone(pytz.UTC))
-    for k, v in renamings.iteritems():
+    for k, v in renamings.items():
         df[k] = df[v]
-    for k, v in linspec.iteritems():
+    for k, v in linspec.items():
         _data = pd.DataFrame()
         for vv, m in v:
             if vv == "__constant__":
@@ -593,9 +593,9 @@ def preprocess(df,
             else:
                 _data[vv] = df[vv]*m
         df[k] = _data.sum(axis=1, skipna=False)
-    for k, v in nonlinspec.iteritems():
+    for k, v in nonlinspec.items():
         df[k] = df[v].prod(axis=1, skipna=False)
-    for k, v in bounds.iteritems():
+    for k, v in bounds.items():
         # assert (len(v) == 1) or (len(v) == 2)
         _data = df[k].copy()
         _test = _data >= v[0]

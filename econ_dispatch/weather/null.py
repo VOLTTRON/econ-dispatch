@@ -83,4 +83,4 @@ class Weather(ForecastBase):
         :param now: timestamp of first hour
         :type now: datetime.datetime
         """
-        return [dict(timestamp=now + n*self.timestep) for n in xrange(self.steps_forecast)]
+        return [dict(timestamp=now + n*self.timestep) for n in range(self.steps_forecast)]
