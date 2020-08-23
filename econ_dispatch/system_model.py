@@ -183,7 +183,6 @@ def build_model_from_config(weather_config,
                             "initial_training_data. Using default curve."
                             "".format(name))
                 LOG.warning("Exception raised by train function: {}".format(repr(e)))
-                raise e
 
         if not component.parameters:
             LOG.warning("Component %s has no parameters after initialization.",

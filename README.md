@@ -41,10 +41,11 @@ VOLTTRON docs for details:
 Please see the [VOLTTRON documentation](https://volttron.readthedocs.io/en/develop/setup/index.html)
 for VOLTTRON installation instructions.
 
-Once VOLTTRON is installed, install Economic Dispatch like any VOLTTRON agent:
+Once VOLTTRON is installed, install and run Economic Dispatch like any VOLTTRON agent:
 
 ```bash
-python ${VOLTTRONDIR}/scripts/install-agent.py -s ${ECONDISPATCHDIR}/econ_dispatch/ -c ${ECONDISPATCHDIR}/config -t econ_dispatch
+python "${VOLTTRONDIR}/scripts/install-agent.py" -s "${ECONDISPATCHDIR}" -c "${ECONDISPATCHDIR}/examples/${CONFIGNAME}" -t econ_dispatch
+vctl start --tag econ_dispatch
 ```
 
 ## Documentation

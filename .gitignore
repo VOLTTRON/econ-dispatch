@@ -96,4 +96,8 @@ ENV/
 .vscode/
 
 lps/
-.idea/
+
+logs/*
+!logs/.gitkeep
+
+docs/source/_api/*

@@ -7,8 +7,8 @@
     "offline_mode": true,
     "make_reservations": false,
     "historian_vip_id": "platform.historian",
-    "optimizer_debug": "optimizer output A LA.csv",
-    "command_debug": "command output A LA.csv",
+    "optimizer_debug": "~/econ-dispatch/logs/optimizer output A LA.csv",
+    "command_debug": "~/econ-dispatch/logs/command output A LA.csv",
     "optimizer":
     {
         "name": "default",
@@ -18,7 +18,7 @@
     "weather":
     {
         "type": "history",
-        "initial_training_data": "examples/historical_data/LA/weather.csv",
+        "initial_training_data": "~/econ-dispatch/examples/historical_data/LA/weather.csv",
         "settings":
         {
             "steps_forecast": 24,
@@ -30,7 +30,7 @@
         {
             "type": "history",
             "name": "building_load",
-            "initial_training_data": "examples/historical_data/LA/loads_A.csv",
+            "initial_training_data": "~/econ-dispatch/examples/historical_data/LA/loads_A.csv",
             "settings":
             {
                 "preprocess_settings":
@@ -46,12 +46,12 @@
         {
             "type": "history",
             "name": "natural_gas_cost",
-            "initial_training_data": "examples/historical_data/LA/natural_gas_price.csv"
+            "initial_training_data": "~/econ-dispatch/examples/historical_data/LA/natural_gas_price.csv"
         },
         {
             "type": "history",
             "name": "electricity_cost",
-            "initial_training_data": "examples/historical_data/LA/electricity_price.csv"
+            "initial_training_data": "~/econ-dispatch/examples/historical_data/LA/electricity_price.csv"
         }
     ],
     "component_models":
@@ -68,7 +68,7 @@
                     "max": [0.9599454111224837, 1.319924940293415, 1.6799044694643464, 2.039883998635278, 2.3998635278062093]
                 }
             },
-            "initial_training_data": "examples/component_training_data/chiller_type1a.csv",
+            "initial_training_data": "~/econ-dispatch/examples/component_training_data/chiller_type1a.csv",
             "outputs":
             {
                 "command": "centrifugal_chiller0/command"
@@ -117,10 +117,10 @@
                     "max": [0.9599454111224837, 1.319924940293415, 1.6799044694643464, 2.039883998635278, 2.3998635278062093]
                 }
             },
-            "initial_training_data": "examples/component_training_data/chiller_type1a.csv",
+            "initial_training_data": "~/econ-dispatch/examples/component_training_data/chiller_type1a.csv",
             "outputs":
             {
-                "command": "centrifugal_chiller0/command"
+                "command": "centrifugal_chiller1/command"
             },
             "settings":
             {
@@ -166,10 +166,10 @@
                     "max": [0.9599454111224837, 1.319924940293415, 1.6799044694643464, 2.039883998635278, 2.3998635278062093]
                 }
             },
-            "initial_training_data": "examples/component_training_data/chiller_type1a.csv",
+            "initial_training_data": "~/econ-dispatch/examples/component_training_data/chiller_type1a.csv",
             "outputs":
             {
-                "command": "centrifugal_chiller0/command"
+                "command": "centrifugal_chiller2/command"
             },
             "settings":
             {
@@ -216,7 +216,7 @@
                     "max": [227.0, 304.0, 384.5, 468.5, 500.0]
                 }
             },
-            "initial_training_data": "examples/component_training_data/microturbine_AandC.csv",
+            "initial_training_data": "~/econ-dispatch/examples/component_training_data/microturbine_AandC.csv",
             "outputs":
             {
                 "set_point": "micro_turbine_generator/set_point"
@@ -271,7 +271,7 @@
                     "max": [0.157519804423, 0.315003203263, 0.472486602103, 0.629970000942, 0.749957352439]
                 }
             },
-            "initial_training_data": "examples/component_training_data/ab_chiller_A.csv",
+            "initial_training_data": "~/econ-dispatch/examples/component_training_data/ab_chiller_A.csv",
             "outputs":
             {
                 "command": "absorption_chiller/command"
@@ -319,7 +319,7 @@
                     "max": [1.5399999524, 6.02399998544, 6.93599999216, 7.69599999776, 8]
                 }
             },
-            "initial_training_data": "examples/component_training_data/boiler.csv",
+            "initial_training_data": "~/econ-dispatch/examples/component_training_data/boiler.csv",
             "outputs":
             {
                 "command": "boiler0/command"

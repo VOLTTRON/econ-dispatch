@@ -6,4 +6,3 @@ pulp
 cvxopt
 scipy
 scikit-learn
-subprocess32

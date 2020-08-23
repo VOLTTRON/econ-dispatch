@@ -58,6 +58,7 @@
 from datetime import datetime, timedelta
 from itertools import tee
 import logging
+import os
 
 import pytz
 
@@ -79,7 +80,7 @@ __copyright__ = 'Copyright (c) 2018, Battelle Memorial Institute'
 __license__ = 'Apache Version 2.0'
 
 # utils.setup_logging()
-logging.basicConfig(filename='/vagrant/econ-dispatch/econ_dispatch.log',
+logging.basicConfig(filename=os.path.expanduser('~/econ-dispatch/logs/econ_dispatch.log'),
                     level=logging.DEBUG,
                     format='%(asctime)s %(name)s %(levelname)s: %(message)s')
 
@@ -179,8 +180,8 @@ class EconDispatchAgent(Agent):
             "historian_vip_id", "platform.historian")
 
         # debug files
-        optimizer_debug = config.get('optimizer_debug')
-        command_debug = config.get('command_debug')
+        optimizer_debug = os.path.expanduser(config.get('optimizer_debug'))
+        command_debug = os.path.expanduser(config.get('command_debug'))
 
         # required sections
         try:
@@ -473,7 +474,7 @@ class EconDispatchAgent(Agent):
                 training_data = normalize_training_data(input_data)
                 inputs.train(training_data)
             except Exception as e:
-                LOG.error(e)
+                LOG.error(repr(e))
                 return
 
         while self.next_optimization is not None:

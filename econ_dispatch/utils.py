@@ -162,7 +162,6 @@ def normalize_training_data(data):
         # Assume list of dicts from CSV file
         return records_fix(data)
 
-    ## TODO: all strings are unicode in python3
     if isinstance(data, str):
         # Assume file name
         if data.endswith("csv"):
@@ -232,7 +231,7 @@ class OptimizerCSVOutput(object):
             results_keys.sort(key=natural_keys)
             forecast_keys.sort(key=natural_keys)
             self.columns = singleton_columns + results_keys + forecast_keys
-            with open(self.file_name, 'ab') as f:
+            with open(self.file_name, 'a') as f:
                 csv_file = csv.DictWriter(f, self.columns, extrasaction='ignore')
                 csv_file.writeheader()
 
@@ -242,7 +241,7 @@ class OptimizerCSVOutput(object):
         row.update(flat_forecasts)
 
         try:
-            with open(self.file_name, 'ab') as f:
+            with open(self.file_name, 'a') as f:
                 csv_file = csv.DictWriter(f, self.columns, extrasaction='ignore')
                 csv_file.writerow(row)
         except IOError:
