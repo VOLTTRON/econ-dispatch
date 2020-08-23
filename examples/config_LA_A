@@ -2,7 +2,7 @@
     "optimization_schedule": 60,
     "training_schedule": 0,
     "schedule_start": "1/1/2012 00:00",
-    "schedule_end": "1/2/2012 00:00",
+    "schedule_end": "1/1/2013 00:00",
     "simulation_mode": false,
     "offline_mode": true,
     "make_reservations": false,
@@ -233,7 +233,7 @@
                 "hru_convert": 0.0034118,
                 "hru_eff": 0.8,
                 "curve_type": "prime_mover",
-                "command": false,
+                "report_command": false,
                 "preprocess_settings":
                 {
                     "renamings":

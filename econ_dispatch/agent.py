@@ -306,10 +306,12 @@ class EconDispatchAgent(Agent):
                                              command_debug)
 
         if self.offline_mode:
+            self._setup_timed_events()
+            self.run_offline(input_data)
             # launch self.run_offline as greenlet
-            self.core.schedule(utils.get_aware_utc_now(),
-                               self.run_offline,
-                               input_data=input_data)
+            # self.core.schedule(utils.get_aware_utc_now(),
+            #                    self.run_offline,
+            #                    input_data=input_data)
         else:
             # run online
             self.input_topics = self.model.get_component_input_topics()
@@ -475,7 +477,7 @@ class EconDispatchAgent(Agent):
                 return
 
         while self.next_optimization is not None:
-            now = pytz.UTC.localize(self.next_optimization)
+            now = self.next_optimization
             LOG.debug("Processing timestamp: " + str(now))
 
             if input_data is not None:
