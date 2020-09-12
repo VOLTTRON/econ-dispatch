@@ -54,6 +54,7 @@
 # operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
 # }}}
+from importlib import import_module
 import logging
 
 import numpy as np
@@ -74,10 +75,9 @@ def my_import(name):
     :returns: submodule, e.g., Ridge
     """
     components = name.split('.')
-    mod = __import__(components[0], globals(), locals(), components[1:], -1)
-    for comp in components[1:]:
-        mod = getattr(mod, comp)
-    return mod
+    mod = import_module(".".join(components[:-1]))
+    klass = getattr(mod, components[-1])
+    return klass
 
 def make_time_features(ts, index=None, epoch=None, epoch_span=None):
     """Project datetimes into vector space for use in machine learning models

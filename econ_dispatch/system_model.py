@@ -57,6 +57,7 @@
 """.. todo:: Module docstring"""
 from collections import defaultdict
 import datetime
+from importlib import import_module
 import logging
 from pprint import pformat
 
@@ -89,12 +90,7 @@ def build_model_from_config(weather_config,
     LOG.debug("Starting parse_config")
 
     weather_type = weather_config["type"]
-    # TODO: move to importlib in python3
-    module = __import__("weather."+weather_type,
-                        globals(),
-                        locals(),
-                        ['Weather'],
-                        1)
+    module = import_module(".".join(["econ_dispatch", "weather", weather_type]))
     klass = module.Weather
     weather_model = klass(**weather_config.get("settings", {}))
     training_data = weather_config.get("initial_training_data")

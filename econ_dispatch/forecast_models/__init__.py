@@ -56,6 +56,7 @@
 # }}}
 """.. todo:: Module docstring"""
 import abc
+from importlib import import_module
 import logging
 import pkgutil
 
@@ -99,7 +100,7 @@ FORECAST_LIST = [x for _, x, _ in pkgutil.iter_modules(__path__)]
 FORECAST_DICT = {}
 for FORECAST_NAME in FORECAST_LIST:
     try:
-        module = __import__(FORECAST_NAME, globals(), locals(), ['Forecast'], 1)
+        module = import_module(".".join(["econ_dispatch", "forecast_models", FORECAST_NAME]))
         klass = module.Forecast
     except Exception as e:
         LOG.error('Module {name} cannot be imported. Reason: {ex}'

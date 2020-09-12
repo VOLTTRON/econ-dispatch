@@ -1,3 +1,5 @@
+from importlib import import_module
+
 from setuptools import setup, find_packages
 
 MAIN_MODULE = 'agent'
@@ -8,7 +10,7 @@ agent_package = 'econ_dispatch'
 
 # Find the version number from the main module
 agent_module = agent_package + '.' + MAIN_MODULE
-_temp = __import__(agent_module, globals(), locals(), ['__version__'], 0)
+_temp = import_module(agent_module)
 __version__ = _temp.__version__
 
 # Setup

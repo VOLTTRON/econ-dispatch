@@ -55,6 +55,7 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 """.. todo:: Module docstring"""
+from importlib import import_module
 import logging
 import os
 from pprint import pformat
@@ -79,16 +80,13 @@ def get_optimization_function(config):
     """
     name = config["name"]
     try:
-        module = __import__(name,
-                            globals(),
-                            locals(),
-                            ['get_optimization_function'],
-                            1)
+        module = import_module(".".join(["econ_dispatch", "optimizer", name]))
+        func = module.get_optimization_function
     except Exception as e:
         LOG.error('Module {name} cannot be imported. Reason: {ex}'
                   "".format(name=name, ex=e))
         raise e
-    return module.get_optimization_function(config)
+    return func(config)
 
 def get_pulp_optimization_function(pulp_build_function, config):
     """Build a function which returns the solution to an optimization problem

@@ -57,6 +57,7 @@
 """.. todo:: Module docstring"""
 import abc
 from copy import deepcopy
+from importlib import import_module
 import logging
 import pkgutil
 
@@ -184,11 +185,7 @@ COMPONENT_LIST = [x for _, x, _ in pkgutil.iter_modules(__path__)]
 COMPONENT_DICT = {}
 for COMPONENT_NAME in COMPONENT_LIST:
     try:
-        module = __import__(COMPONENT_NAME,
-                            globals(),
-                            locals(),
-                            ['Component'],
-                            1)
+        module = import_module(".".join(["econ_dispatch", "component_models", COMPONENT_NAME]))
         klass = module.Component
     except Exception as e:
         LOG.error('Module {name} cannot be imported. Reason: {ex}'
