@@ -176,8 +176,12 @@ class EconDispatchAgent(Agent):
             "historian_vip_id", "platform.historian")
 
         # debug files
-        optimizer_debug = os.path.expanduser(config.get('optimizer_debug'))
-        command_debug = os.path.expanduser(config.get('command_debug'))
+        optimizer_debug = config.get('optimizer_debug')
+        if optimizer_debug is not None:
+            optimizer_debug = os.path.expanduser(optimizer_debug)
+        command_debug = config.get('command_debug')
+        if command_debug is not None:
+            command_debug = os.path.expanduser(command_debug)
 
         # required sections
         try:

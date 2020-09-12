@@ -164,11 +164,12 @@ def normalize_training_data(data):
 
     if isinstance(data, str):
         # Assume file name
+        data = os.path.expanduser(data)
         if data.endswith("csv"):
             return csv_file_fix(data)
 
         if data.endswith("json"):
-            with open(data, "rb") as f:
+            with open(data, "r") as f:
                 return normalize_training_data(json.load(f))
 
     if isinstance(data, dict):
