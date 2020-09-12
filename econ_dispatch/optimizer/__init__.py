@@ -143,9 +143,9 @@ def get_pulp_optimization_function(pulp_build_function, config):
                 glpk_options = []
                 if time_limit is not None:
                     glpk_options = ["--tmlim", str(time_limit)]
-                prob.solve(pulp.GLPK_CMD(options=glpk_options))
+                prob.solve(pulp.GLPK_CMD(options=glpk_options, msg=False))
             else:
-                prob.solve(pulp.PULP_CBC_CMD(maxSeconds=time_limit))
+                prob.solve(pulp.PULP_CBC_CMD(timeLimit=time_limit, msg=False))
         except Exception as e:
             LOG.warning("PuLP failed: " + str(e))
             convergence_time = -1
