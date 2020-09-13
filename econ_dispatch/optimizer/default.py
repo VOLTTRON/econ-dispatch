@@ -75,7 +75,7 @@ def get_optimization_function(config):
 def constant(value):
     """define constant function"""
 
-    def _constant(*args, **kwargs):  # pylint: disable=unused-argument
+    def _constant(*args, **kwargs):
         """return constant value"""
         return value
 
@@ -186,12 +186,12 @@ def build_problem(forecast, parameters):
     # --------------------------------------------------------------------------
 
     # length of optimization window, in time steps
-    NN = len(forecast)  # pylint: disable=invalid-name
+    NN = len(forecast)
     # big number for penalties which approximate constraints
-    BIGM = 1e4  # pylint: disable=invalid-name
+    BIGM = 1e4
 
     # number of pieces in piecewise-linear efficiency curves
-    KK = 5  # pylint: disable=invalid-name
+    KK = 5
 
     # --------------------------------------------------------------------------
     # PRE-PROCESS FORECASTS & PARAMETERS
@@ -643,9 +643,7 @@ def build_problem(forecast, parameters):
         except TypeError as ex:
             LOG.error(con)
             LOG.error(type(con[0]))
-            LOG.error(
-                "PuLP variable problem with constraint {}: {}" "".format(con[1], con[0])
-            )  # pylint: disable=logging-format-interpolation,line-too-long
+            LOG.error("PuLP variable problem with constraint {}: {}" "".format(con[1], con[0]))
             raise ex
 
     return prob
