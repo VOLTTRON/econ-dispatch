@@ -75,13 +75,15 @@ class ComponentBase(object, metaclass=abc.ABCMeta):
     :param outputs: dict of name, message bus pairs
     """
 
-    def __init__(self,
-                 name="MISSING_NAME",
-                 default_parameters={},
-                 training_window=365,
-                 training_sources={},
-                 inputs={},
-                 outputs={}):
+    def __init__(
+        self,
+        name="MISSING_NAME",
+        default_parameters={},
+        training_window=365,
+        training_sources={},
+        inputs={},
+        outputs={},
+    ):
         """Initialize component model"""
         self.name = name
         self.parameters = default_parameters
@@ -149,8 +151,7 @@ class ComponentBase(object, metaclass=abc.ABCMeta):
                 results[topic] = value
 
         for name in mapped_commands:
-            LOG.error("NO MAPPED TOPIC FOR {} IN COMPONENT {}. "
-                      "DROPPING COMMAND".format(name, self.name))
+            LOG.error("NO MAPPED TOPIC FOR {} IN COMPONENT {}. " "DROPPING COMMAND".format(name, self.name))
 
         return results
 
@@ -163,8 +164,7 @@ class ComponentBase(object, metaclass=abc.ABCMeta):
         for topic, input_name in self.input_map.items():
             value = inputs.get(topic)
             if value is not None:
-                LOG.debug("{} processing input from topic {}"
-                          "".format(self.name, topic))
+                LOG.debug("{} processing input from topic {}" "".format(self.name, topic))
                 self.process_input(now, input_name, value)
 
     def get_optimization_parameters(self):
@@ -188,21 +188,23 @@ for COMPONENT_NAME in COMPONENT_LIST:
         module = import_module(".".join(["econ_dispatch", "component_models", COMPONENT_NAME]))
         klass = module.Component
     except Exception as e:
-        LOG.error('Module {name} cannot be imported. Reason: {ex}'
-                  "".format(name=COMPONENT_NAME, ex=e))
+        LOG.error("Module {name} cannot be imported. Reason: {ex}" "".format(name=COMPONENT_NAME, ex=e))
         continue
 
-    #Validation of algorithm class
+    # Validation of algorithm class
     if not issubclass(klass, ComponentBase):
-        LOG.warning('The implementation of {name} does not inherit from '
-                    'econ_dispatch.component_models.ComponentBase.'
-                    ''.format(name=COMPONENT_NAME))
+        LOG.warning(
+            "The implementation of {name} does not inherit from "
+            "econ_dispatch.component_models.ComponentBase."
+            "".format(name=COMPONENT_NAME)
+        )
 
     COMPONENT_DICT[COMPONENT_NAME] = klass
+
 
 def get_component_class(name):
     """Return `Component` class from module named `name`"""
     comp = COMPONENT_DICT.get(name)
     if comp is None:
-        LOG.warning('Module {name} not found.'.format(name=name))
+        LOG.warning("Module {name} not found.".format(name=name))
     return comp

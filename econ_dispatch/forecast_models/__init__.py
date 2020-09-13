@@ -70,10 +70,7 @@ class ForecastBase(object, metaclass=abc.ABCMeta):
     :param training_sources: dict of historian topic, name pairs
     """
 
-    def __init__(self,
-                 training_window=365,
-                 training_sources={}
-                ):
+    def __init__(self, training_window=365, training_sources={}):
         self.training_window = int(training_window)
         self.training_sources = training_sources
 
@@ -96,6 +93,7 @@ class ForecastBase(object, metaclass=abc.ABCMeta):
         """
         pass
 
+
 FORECAST_LIST = [x for _, x, _ in pkgutil.iter_modules(__path__)]
 FORECAST_DICT = {}
 for FORECAST_NAME in FORECAST_LIST:
@@ -103,17 +101,19 @@ for FORECAST_NAME in FORECAST_LIST:
         module = import_module(".".join(["econ_dispatch", "forecast_models", FORECAST_NAME]))
         klass = module.Forecast
     except Exception as e:
-        LOG.error('Module {name} cannot be imported. Reason: {ex}'
-                  "".format(name=FORECAST_NAME, ex=e))
+        LOG.error("Module {name} cannot be imported. Reason: {ex}" "".format(name=FORECAST_NAME, ex=e))
         continue
 
-    #Validation of algorithm class
+    # Validation of algorithm class
     if not issubclass(klass, ForecastBase):
-        LOG.warning('The implementation of {name} does not inherit from '
-                    'econ_dispatch.forecast_models.ForecastBase.'
-                    ''.format(name=FORECAST_NAME))
+        LOG.warning(
+            "The implementation of {name} does not inherit from "
+            "econ_dispatch.forecast_models.ForecastBase."
+            "".format(name=FORECAST_NAME)
+        )
 
     FORECAST_DICT[FORECAST_NAME] = klass
+
 
 def get_forecast_class(name):
     """Return `Forecast` class from module named `name`"""

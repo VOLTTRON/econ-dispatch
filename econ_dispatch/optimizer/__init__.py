@@ -72,7 +72,7 @@ def get_optimization_function(config):
 
     Return value should be function that takes parameters `now`, `forecast`,
     and `parameters`, and returns the solution to an optimization problem
-    
+
     :param config: argument for `module.get_optimization_function`
     :type config: dict
     :returns: return value of module.get_optimization_function
@@ -83,10 +83,10 @@ def get_optimization_function(config):
         module = import_module(".".join(["econ_dispatch", "optimizer", name]))
         func = module.get_optimization_function
     except Exception as e:
-        LOG.error('Module {name} cannot be imported. Reason: {ex}'
-                  "".format(name=name, ex=e))
+        LOG.error("Module {name} cannot be imported. Reason: {ex}" "".format(name=name, ex=e))
         raise e
     return func(config)
+
 
 def get_pulp_optimization_function(pulp_build_function, config):
     """Build a function which returns the solution to an optimization problem
@@ -119,7 +119,7 @@ def get_pulp_optimization_function(pulp_build_function, config):
 
     def _optimize(now, forecast, parameters={}):
         """Solve an optimization problem defined by `get_pulp_function`
-    
+
         :param forecast: forecasts over the optimization window
         :type forecast: list[dict]
         :param parameters: component parameters
@@ -131,10 +131,10 @@ def get_pulp_optimization_function(pulp_build_function, config):
 
         if write_lp:
             base_file = os.path.join(lp_out_dir, str(now).replace(":", "_"))
-            prob.writeLP(base_file+".lp")
-            with open(base_file+".forecast", "w") as f:
-                f.write(pformat(forecast)+"\n")
-            with open(base_file+".parameters", "w") as f:
+            prob.writeLP(base_file + ".lp")
+            with open(base_file + ".forecast", "w") as f:
+                f.write(pformat(forecast) + "\n")
+            with open(base_file + ".parameters", "w") as f:
                 f.write(pformat(parameters) + "\n")
 
         solve_start = time.time()
@@ -169,7 +169,7 @@ def get_pulp_optimization_function(pulp_build_function, config):
         result["Convergence Time"] = convergence_time
 
         if write_lp:
-            with open(base_file+".result", "w") as f:
+            with open(base_file + ".result", "w") as f:
                 f.write("Status: {}\n".format(status))
                 f.write("Objective Value: {}\n".format(objective_value))
                 f.write("Convergence Time: {}\n\n".format(convergence_time))

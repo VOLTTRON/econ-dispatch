@@ -65,13 +65,9 @@ from volttron.platform.agent import utils
 
 LOG = logging.getLogger(__name__)
 
-LIVE_URL_TEMPLATE = \
-    "https://api.weather.gov/points/{latitude},{longitude}/forecast/hourly"
-KEYS = {
-    "temperature": "temperature",
-    "windSpeed": "wind_speed",
-    "windDirection": "wind_direction"
-}
+LIVE_URL_TEMPLATE = "https://api.weather.gov/points/{latitude},{longitude}/forecast/hourly"
+KEYS = {"temperature": "temperature", "windSpeed": "wind_speed", "windDirection": "wind_direction"}
+
 
 class Weather(ForecastBase):
     """Return weather forecast from National Weather Service web API
@@ -83,15 +79,10 @@ class Weather(ForecastBase):
         provides only hourly data
     :param kwargs: kwargs for `forecast_models.ForecastBase`
     """
-    def __init__(self,
-                 latitude=None,
-                 longitude=None,
-                 timezone="UTC",
-                 hours_forecast=24,
-                 **kwargs):
+
+    def __init__(self, latitude=None, longitude=None, timezone="UTC", hours_forecast=24, **kwargs):
         super(Weather, self).__init__(**kwargs)
-        self.url = LIVE_URL_TEMPLATE.format(latitude=latitude,
-                                            longitude=longitude)
+        self.url = LIVE_URL_TEMPLATE.format(latitude=latitude, longitude=longitude)
         assert hours_forecast <= 156, "NWS returns a maximum of 6.5 days"
         self.hours_forecast = hours_forecast
         self.timezone = pytz.timezone(timezone)
@@ -109,14 +100,11 @@ class Weather(ForecastBase):
 
         results = self.get_live_data()
 
-        if abs(results[0]['timestamp'] - now) > datetime.timedelta(days=1):
-            LOG.warning("Weather forecast for a different time. "
-                        "Should you use historical data instead?")
-        LOG.debug("Weather forecast from {} to {}".format(
-            results[0]['timestamp'],
-            results[-1]['timestamp']))
+        if abs(results[0]["timestamp"] - now) > datetime.timedelta(days=1):
+            LOG.warning("Weather forecast for a different time. " "Should you use historical data instead?")
+        LOG.debug("Weather forecast from {} to {}".format(results[0]["timestamp"], results[-1]["timestamp"]))
         return results
-    
+
     def get_live_data(self):
         """Query and parse NWS records"""
         r = requests.get(self.url)
@@ -129,14 +117,14 @@ class Weather(ForecastBase):
             raise e
 
         results = []
-        for rec in records[:self.hours_forecast]:
+        for rec in records[: self.hours_forecast]:
             timestamp = utils.parse_timestamp_string(rec["endTime"])
             timestamp = timestamp.astimezone(pytz.UTC)
             result = {"timestamp": timestamp}
             result.update(self.get_nws_forecast_from_record(rec))
             results.append(result)
         return results
-    
+
     def get_nws_forecast_from_record(self, record):
         """Parse single NWS record"""
         result = {}
@@ -146,11 +134,11 @@ class Weather(ForecastBase):
             except ValueError:
                 value = record[key].split()
                 if len(value) == 2:
-                    value, unit = float(value[0]), value[1]
+                    # result[KEYS[key]+'_unit'] = value[1]
+                    value = float(value[0])
                     result[KEYS[key]] = value
-                    # result[KEYS[key]+'_unit'] = unit
-                else: 
+                else:
                     result[KEYS[key]] = record[key]
-            except KeyError as e:
+            except KeyError:
                 LOG.error("Weather record did not contain {}".format(key))
         return result

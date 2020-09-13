@@ -58,13 +58,10 @@
 import logging
 from datetime import timedelta
 
-import pandas as pd
-
-from econ_dispatch import utils
+from econ_dispatch.forecast_models.history import Forecast as HistoryBase
 
 LOG = logging.getLogger(__name__)
 
-from econ_dispatch.forecast_models.history import Forecast as HistoryBase
 
 class Weather(HistoryBase):
     """Return weather forecast from history data
@@ -73,6 +70,7 @@ class Weather(HistoryBase):
     :param timestep: hours between forecasts
     :param kwargs: kwargs for `forecast_models.history.Forecast`
     """
+
     def __init__(self, steps_forecast=24, timestep=1, **kwargs):
         super(Weather, self).__init__(**kwargs)
         self.steps_forecast = steps_forecast

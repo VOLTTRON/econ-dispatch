@@ -56,15 +56,11 @@
 # }}}
 """.. todo:: Module docstring"""
 from collections import defaultdict
-import datetime
 from importlib import import_module
 import logging
 from pprint import pformat
 
-from econ_dispatch.utils import (normalize_training_data,
-                                 OptimizerCSVOutput,
-                                 PiecewiseError,
-                                 get_default_curve)
+from econ_dispatch.utils import normalize_training_data, OptimizerCSVOutput, PiecewiseError
 from econ_dispatch.component_models import get_component_class
 from econ_dispatch.forecast_models import get_forecast_class
 from econ_dispatch.optimizer import get_optimization_function
@@ -72,12 +68,14 @@ from econ_dispatch.optimizer import get_optimization_function
 LOG = logging.getLogger(__name__)
 
 
-def build_model_from_config(weather_config,
-                            optimizer_config,
-                            component_configs,
-                            forecast_configs,
-                            optimizer_csv_filename=None,
-                            command_csv_filename=None):
+def build_model_from_config(
+    weather_config,
+    optimizer_config,
+    component_configs,
+    forecast_configs,
+    optimizer_csv_filename=None,
+    command_csv_filename=None,
+):
     """Initialize system model from configs
 
     :param weather_config: weather model configuration
@@ -95,8 +93,7 @@ def build_model_from_config(weather_config,
     weather_model = klass(**weather_config.get("settings", {}))
     training_data = weather_config.get("initial_training_data")
     if training_data is not None:
-        LOG.info("Applying config supplied training data for "
-                "weather forcast model")
+        LOG.info("Applying config supplied training data for " "weather forcast model")
         training_data = normalize_training_data(training_data)
         try:
             weather_model.train(training_data)
@@ -115,10 +112,9 @@ def build_model_from_config(weather_config,
     else:
         command_csv = OptimizerCSVOutput(command_csv_filename)
 
-    system_model = SystemModel(opt_func,
-                               weather_model,
-                               optimizer_debug_csv=optimizer_csv,
-                               command_debug_csv=command_csv)
+    system_model = SystemModel(
+        opt_func, weather_model, optimizer_debug_csv=optimizer_csv, command_debug_csv=command_csv
+    )
 
     for config_dict in forecast_configs:
         name = config_dict["name"]
@@ -126,17 +122,18 @@ def build_model_from_config(weather_config,
         klass = get_forecast_class(klass_name)
 
         if klass is None:
-            LOG.error("No component of type: "+klass_name)
+            LOG.error("No component of type: " + klass_name)
             continue
 
-        forecast_model = klass(training_window=config_dict.get("training_window", 365),
-                               training_sources=config_dict.get("training_sources", {}),
-                               **config_dict.get("settings", {}))
+        forecast_model = klass(
+            training_window=config_dict.get("training_window", 365),
+            training_sources=config_dict.get("training_sources", {}),
+            **config_dict.get("settings", {}),
+        )
 
         training_data = config_dict.get("initial_training_data")
         if training_data is not None:
-            LOG.info("Applying config supplied training data for "
-                     "{} forcast model".format(name))
+            LOG.info("Applying config supplied training data for " "{} forcast model".format(name))
             training_data = normalize_training_data(training_data)
             try:
                 forecast_model.train(training_data)
@@ -151,7 +148,7 @@ def build_model_from_config(weather_config,
         klass = get_component_class(klass_name)
 
         if klass is None:
-            LOG.error("No component of type: "+klass_name)
+            LOG.error("No component of type: " + klass_name)
             continue
 
         try:
@@ -162,31 +159,31 @@ def build_model_from_config(weather_config,
                 training_sources=config_dict.get("training_sources", {}),
                 inputs=config_dict.get("inputs", {}),
                 outputs=config_dict.get("outputs", {}),
-                **config_dict.get("settings", {}))
-        except Exception as e:
+                **config_dict.get("settings", {}),
+            )
+        except Exception:
             LOG.exception("Error creating component {}".format(klass_name))
             continue
 
         training_data = config_dict.get("initial_training_data")
         if training_data is not None:
-            LOG.info("Applying config supplied training data for {}".format(
-                name))
+            LOG.info("Applying config supplied training data for {}".format(name))
             training_data = normalize_training_data(training_data)
             try:
                 component.train(training_data)
             except Exception as e:
-                LOG.warning("Failed to train component {} with "
-                            "initial_training_data. Using default curve."
-                            "".format(name))
+                LOG.warning(
+                    "Failed to train component {} with " "initial_training_data. Using default curve." "".format(name)
+                )
                 LOG.warning("Exception raised by train function: {}".format(repr(e)))
 
         if not component.parameters:
-            LOG.warning("Component %s has no parameters after initialization.",
-                        name)
+            LOG.warning("Component %s has no parameters after initialization.", name)
 
         system_model.add_component(component, klass_name)
 
     return system_model
+
 
 class SystemModel(object):
     """Coordinates data flow between forecasts, components, optimizer,
@@ -199,11 +196,8 @@ class SystemModel(object):
     :param optimizer_csv_filename: path to write optimizer debug CSV
     :param command_debug_csv: path to write command debug CSV
     """
-    def __init__(self,
-                 optimizer,
-                 weather_model,
-                 optimizer_debug_csv=None,
-                 command_debug_csv=None):
+
+    def __init__(self, optimizer, weather_model, optimizer_debug_csv=None, command_debug_csv=None):
         self.optimizer = optimizer
         self.weather_model = weather_model
 
@@ -273,9 +267,11 @@ class SystemModel(object):
                 parameters = component.get_optimization_parameters()
                 try:
                     if results[type_name].get(name) is not None:
-                        LOG.warning("Multiple components with name {name} "
-                                    "of type {type}. Overwriting parameters"
-                                    "".format(name=name, type=type_name))
+                        LOG.warning(
+                            "Multiple components with name {name} "
+                            "of type {type}. Overwriting parameters"
+                            "".format(name=name, type=type_name)
+                        )
                     results[type_name][name] = parameters
                 except KeyError:
                     results[type_name] = {name: parameters}
@@ -297,7 +293,7 @@ class SystemModel(object):
     def process_inputs(self, now, inputs):
         """Pass input data from message bus to each component for
         further processing"""
-        LOG.debug("Updating components with inputs: "+pformat(inputs))
+        LOG.debug("Updating components with inputs: " + pformat(inputs))
         for component in self.instance_map.values():
             component.process_inputs(now, inputs)
 
@@ -314,8 +310,7 @@ class SystemModel(object):
         for name, component in source.items():
             # Skip components without training sources configured.
             if component.training_sources:
-                results[name] = (component.training_window,
-                                 list(component.training_sources.keys()))
+                results[name] = (component.training_window, list(component.training_sources.keys()))
 
         return results
 
@@ -342,8 +337,7 @@ class SystemModel(object):
                     normalized = normalize_training_data(topic_data)
                     normalized_data[mapped_name] = normalized
                 else:
-                    LOG.warning("Topic {} has no mapped name for component {}"
-                                "".format(topic, name))
+                    LOG.warning("Topic {} has no mapped name for component {}" "".format(topic, name))
             component.train(normalized_data)
 
     def invalid_parameters_list(self):
@@ -367,8 +361,7 @@ class SystemModel(object):
             component_commands = component.get_commands(optimization_results)
             for device, commands in component_commands.items():
                 if device in result:
-                    LOG.warning("Command to device {} being overwritten by {}"
-                                "".format(device, component.name))
+                    LOG.warning("Command to device {} being overwritten by {}" "".format(device, component.name))
                 result[device] = commands
         return result
 
@@ -382,8 +375,10 @@ class SystemModel(object):
         """
         invalid_components = self.invalid_parameters_list()
         if invalid_components:
-            LOG.error("The following components are unable to provide valid "
-                      "optimization parameters: {}".format(invalid_components))
+            LOG.error(
+                "The following components are unable to provide valid "
+                "optimization parameters: {}".format(invalid_components)
+            )
             LOG.error("THE OPTIMIZER WILL NOT BE RUN AT THIS TIME.")
             return {}
 
@@ -392,13 +387,9 @@ class SystemModel(object):
 
         results = self.optimizer(now, forecasts, parameters)
         if self.optimizer_debug_csv is not None:
-            self.optimizer_debug_csv.writerow(now,
-                                              results,
-                                              forecasts,
-                                              ["timestamp",
-                                               "Optimization Status",
-                                               "Objective Value",
-                                               "Convergence Time"])
+            self.optimizer_debug_csv.writerow(
+                now, results, forecasts, ["timestamp", "Optimization Status", "Objective Value", "Convergence Time"]
+            )
 
         commands = self.get_commands(results)
         if self.command_debug_csv is not None:

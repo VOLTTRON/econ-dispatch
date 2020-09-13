@@ -63,6 +63,7 @@ from econ_dispatch import utils
 
 LOG = logging.getLogger(__name__)
 
+
 class Component(ComponentBase):
     """Flexible model with a single input/output efficiency curve
 
@@ -86,25 +87,28 @@ class Component(ComponentBase):
     :param preprocess_settings: settings for preprocessor
     :param kwargs: kwargs for `ComponentBase`
     """
-    def __init__(self,
-                 input_commodity=None,
-                 output_commodity=None,
-                 ramp_up=None,
-                 ramp_down=None,
-                 min_on=0,
-                 min_off=0,
-                 start_cost=0,
-                 run_cost=0,
-                 capacity=None,
-                 hru_eff=0.,
-                 hru_convert=1.,
-                 curve_type="poly",
-                 report_command=True,
-                 report_set_point=False,
-                 set_point_name="component_output_{}_0",
-                 preprocess_settings=None,
-                 clean_training_data_settings={},
-                 **kwargs):
+
+    def __init__(
+        self,
+        input_commodity=None,
+        output_commodity=None,
+        ramp_up=None,
+        ramp_down=None,
+        min_on=0,
+        min_off=0,
+        start_cost=0,
+        run_cost=0,
+        capacity=None,
+        hru_eff=0.0,
+        hru_convert=1.0,
+        curve_type="poly",
+        report_command=True,
+        report_set_point=False,
+        set_point_name="component_output_{}_0",
+        preprocess_settings=None,
+        clean_training_data_settings={},
+        **kwargs,
+    ):
         super(Component, self).__init__(**kwargs)
         self.input_commodity = input_commodity
         self.output_commodity = output_commodity
@@ -119,19 +123,23 @@ class Component(ComponentBase):
         self.hru_convert = hru_convert
         self.output = 0
         self.command_history = [0] * 24
-        self.parameters.update({"input_commodity": self.input_commodity,
-                                "output_commodity": self.output_commodity,
-                                "ramp_up": self.ramp_up,
-                                "ramp_down": self.ramp_down,
-                                "min_on": self.min_on,
-                                "min_off": self.min_off,
-                                "start_cost": self.start_cost,
-                                "run_cost": self.run_cost,
-                                "capacity": self.capacity,
-                                "hru_eff": self.hru_eff,
-                                "hru_convert": self.hru_convert,
-                                "output": self.output,
-                                "command_history": self.command_history})
+        self.parameters.update(
+            {
+                "input_commodity": self.input_commodity,
+                "output_commodity": self.output_commodity,
+                "ramp_up": self.ramp_up,
+                "ramp_down": self.ramp_down,
+                "min_on": self.min_on,
+                "min_off": self.min_off,
+                "start_cost": self.start_cost,
+                "run_cost": self.run_cost,
+                "capacity": self.capacity,
+                "hru_eff": self.hru_eff,
+                "hru_convert": self.hru_convert,
+                "output": self.output,
+                "command_history": self.command_history,
+            }
+        )
         self.curve_type = curve_type
         self.report_command = report_command
         self.report_set_point = report_set_point
@@ -139,8 +147,7 @@ class Component(ComponentBase):
         self.set_point_name = set_point_name.format(self.name)
 
         self.preprocess_settings = preprocess_settings
-        self.timestamp_column = clean_training_data_settings.pop(
-            "timestamp_column", None)
+        self.timestamp_column = clean_training_data_settings.pop("timestamp_column", None)
         self.clean_training_data_settings = clean_training_data_settings
 
     def get_mapped_commands(self, optimization_output):
@@ -155,13 +162,14 @@ class Component(ComponentBase):
         try:
             set_point = optimization_output[self.set_point_name]
         except KeyError:
-            LOG.error("Required value {} not in optimizer output. "
-                      "Defaulting {} set point to 0."
-                      "".format(self.set_point_name, self.name))
+            LOG.error(
+                "Required value {} not in optimizer output. "
+                "Defaulting {} set point to 0."
+                "".format(self.set_point_name, self.name)
+            )
             set_point = 0
 
-
-        command = int(set_point > 0.)
+        command = int(set_point > 0.0)
 
         self.output = set_point
         self.parameters["output"] = self.output
@@ -183,23 +191,22 @@ class Component(ComponentBase):
         """
         training_data = pd.DataFrame(training_data)
         if self.preprocess_settings is not None:
-            training_data = utils.preprocess(
-                training_data, **self.preprocess_settings)
+            training_data = utils.preprocess(training_data, **self.preprocess_settings)
         try:
             inputs, outputs = utils.clean_training_data(
-                training_data['input'],
-                training_data['output'],
+                training_data["input"],
+                training_data["output"],
                 capacity=self.capacity,
                 timestamps=training_data.get(self.timestamp_column),
-                **self.clean_training_data_settings)
+                **self.clean_training_data_settings,
+            )
         except ValueError as err:
             LOG.debug("Training data does not meet standards: {}".format(err))
             return
 
         # LOG.debug([(i, o) for i, o in zip(inputs, outputs)])
 
-        a, b, xmin, xmax = utils.piecewise_linear(
-            inputs, outputs, self.capacity, curve_type=self.curve_type)
+        a, b, xmin, xmax = utils.piecewise_linear(inputs, outputs, self.capacity, curve_type=self.curve_type)
         fun_data = {"a": a, "b": b, "min": xmin, "max": xmax}
 
         LOG.debug(fun_data)

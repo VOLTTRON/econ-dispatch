@@ -59,8 +59,7 @@ import logging
 
 import numpy as np
 import pandas as pd
-import scipy.stats as st
-from pandas.tseries.holiday import Holiday
+from pandas.tseries.holiday import Holiday  # NOQA
 from dateutil.relativedelta import MO, TH
 
 from econ_dispatch.forecast_models.history import Forecast as HistoryForecastBase
@@ -68,29 +67,31 @@ from econ_dispatch.forecast_models.history import Forecast as HistoryForecastBas
 
 LOG = logging.getLogger(__name__)
 
+
 def my_import(name):
     """Import submodule by name
-    
+
     :param name: full module name, e.g., sklearn.linear_models.Ridge
     :returns: submodule, e.g., Ridge
     """
-    components = name.split('.')
+    components = name.split(".")
     mod = import_module(".".join(components[:-1]))
     klass = getattr(mod, components[-1])
     return klass
 
+
 def make_time_features(ts, index=None, epoch=None, epoch_span=None):
     """Project datetimes into vector space for use in machine learning models
 
-    Outputs: 
-    
+    Outputs:
+
     - projection onto the unit circle of
       - second of day
       - day of week
       - day of year
     - seconds since `epoch`, normalized by `epoch_span`
     - binary workday indicator (i.e., Monday-Friday except major US holidays)
-    
+
     :param ts: timestamp(s) to process
     :type ts: datetime.datetime or iterable thereof
     :param index: index of ts (e.g., if from a larger dataframe)
@@ -120,39 +121,42 @@ def make_time_features(ts, index=None, epoch=None, epoch_span=None):
     if epoch is None:
         epoch = min(ts)
     if epoch_span is None:
-        epoch_span = float((end - epoch).total_seconds())
+        epoch_span = float((max(ts) - epoch).total_seconds())
 
     time_features = {}
     start = min(ts)
     end = max(ts)
 
     # Major US holidays
-    NewYearsDay = pd.tseries.holiday.Holiday('New Years Day', month=1, day=1)
-    MemorialDay = pd.tseries.holiday.Holiday('Memorial Day', month=6, day=1, offset=pd.DateOffset(weekday=MO(-1)))
-    IndependenceDay = pd.tseries.holiday.Holiday('Independence Day', month=7, day=4)
-    LaborDay = pd.tseries.holiday.Holiday('Labor Day', month=9, day=1, offset=pd.DateOffset(weekday=MO(1)))
-    ThanksgivingDay = pd.tseries.holiday.Holiday('Thanksgiving Day', month=11, day=1, offset=pd.DateOffset(weekday=TH(4)))
-    ChristmasDay = pd.tseries.holiday.Holiday('Christmas Day', month=12, day=25)
-    holidays = \
-        NewYearsDay.dates(start.date(), end.date()).tolist() +\
-        MemorialDay.dates(start.date(), end.date()).tolist() +\
-        IndependenceDay.dates(start.date(), end.date()).tolist() +\
-        LaborDay.dates(start.date(), end.date()).tolist() +\
-        ThanksgivingDay.dates(start.date(), end.date()).tolist() +\
-        ChristmasDay.dates(start.date(), end.date()).tolist()
+    NewYearsDay = pd.tseries.holiday.Holiday("New Years Day", month=1, day=1)
+    MemorialDay = pd.tseries.holiday.Holiday("Memorial Day", month=6, day=1, offset=pd.DateOffset(weekday=MO(-1)))
+    IndependenceDay = pd.tseries.holiday.Holiday("Independence Day", month=7, day=4)
+    LaborDay = pd.tseries.holiday.Holiday("Labor Day", month=9, day=1, offset=pd.DateOffset(weekday=MO(1)))
+    ThanksgivingDay = pd.tseries.holiday.Holiday(
+        "Thanksgiving Day", month=11, day=1, offset=pd.DateOffset(weekday=TH(4))
+    )
+    ChristmasDay = pd.tseries.holiday.Holiday("Christmas Day", month=12, day=25)
+    holidays = (
+        NewYearsDay.dates(start.date(), end.date()).tolist()
+        + MemorialDay.dates(start.date(), end.date()).tolist()
+        + IndependenceDay.dates(start.date(), end.date()).tolist()
+        + LaborDay.dates(start.date(), end.date()).tolist()
+        + ThanksgivingDay.dates(start.date(), end.date()).tolist()
+        + ChristmasDay.dates(start.date(), end.date()).tolist()
+    )
     holidays = set([h.date() for h in holidays])
 
     # projections onto unit circle
-    time_features['day_cos'] = np.cos((ts.hour * 3600 + ts.minute * 60 + ts.second) * 2 * np.pi / 86400.)
-    time_features['day_sin'] = np.sin((ts.hour * 3600 + ts.minute * 60 + ts.second) * 2 * np.pi / 86400.)
-    time_features['week_cos'] = np.cos(ts.dayofweek * 2 * np.pi / 7.)
-    time_features['week_sin'] = np.sin(ts.dayofweek * 2 * np.pi / 7.)
-    time_features['year_cos'] = np.cos(ts.dayofyear * 2 * np.pi / 365.)
-    time_features['year_sin'] = np.sin(ts.dayofyear * 2 * np.pi / 365.)
+    time_features["day_cos"] = np.cos((ts.hour * 3600 + ts.minute * 60 + ts.second) * 2 * np.pi / 86400.0)
+    time_features["day_sin"] = np.sin((ts.hour * 3600 + ts.minute * 60 + ts.second) * 2 * np.pi / 86400.0)
+    time_features["week_cos"] = np.cos(ts.dayofweek * 2 * np.pi / 7.0)
+    time_features["week_sin"] = np.sin(ts.dayofweek * 2 * np.pi / 7.0)
+    time_features["year_cos"] = np.cos(ts.dayofyear * 2 * np.pi / 365.0)
+    time_features["year_sin"] = np.sin(ts.dayofyear * 2 * np.pi / 365.0)
     # linear march through time
-    time_features['epoch'] = (ts - epoch).total_seconds() / epoch_span
+    time_features["epoch"] = (ts - epoch).total_seconds() / epoch_span
     # workday indicator
-    time_features['workday'] = [int(weekday < 5 and date not in holidays) for weekday, date in zip(ts.weekday, ts.date)]
+    time_features["workday"] = [int(weekday < 5 and date not in holidays) for weekday, date in zip(ts.weekday, ts.date)]
 
     if _singleton:
         return {k: v[0] for k, v in time_features.items()}
@@ -168,11 +172,8 @@ class Forecast(HistoryForecastBase):
     :param model_settings: keyword arguments for model
     :param kwargs: keyword arguments for base class
     """
-    def __init__(self,
-                 dependent_variables=[],
-                 model_name='sklearn.linear_models.Ridge',
-                 model_settings={},
-                 **kwargs):
+
+    def __init__(self, dependent_variables=[], model_name="sklearn.linear_models.Ridge", model_settings={}, **kwargs):
         super(Forecast, self).__init__(**kwargs)
         if isinstance(dependent_variables, str):
             dependent_variables = [dependent_variables]
@@ -200,18 +201,17 @@ class Forecast(HistoryForecastBase):
             ts = self.historical_data.set_index(self.timestamp_column).index
             self.epoch = min(ts)
             self.epoch_span = float((max(ts) - self.epoch).total_seconds())
-            time_features = make_time_features(ts,
-                                               index=self.historical_data.index,
-                                               epoch=self.epoch,
-                                               epoch_span=self.epoch_span)
+            time_features = make_time_features(
+                ts, index=self.historical_data.index, epoch=self.epoch, epoch_span=self.epoch_span
+            )
             self.historical_data = pd.concat([self.historical_data, time_features], axis=1)
             self.historical_data.drop(self.timestamp_column, axis=1, inplace=True)
         # leave all other variables independent
-        self.independent_variables = [name for name in self.historical_data.columns
-                                      if name not in self.dependent_variables]
+        self.independent_variables = [
+            name for name in self.historical_data.columns if name not in self.dependent_variables
+        ]
 
-        self.model.fit(self.historical_data[self.independent_variables],
-                       self.historical_data[self.dependent_variables])
+        self.model.fit(self.historical_data[self.independent_variables], self.historical_data[self.dependent_variables])
 
         # release historical data to save on memory
         # note that python garbage collection is not instantaneous
@@ -228,8 +228,7 @@ class Forecast(HistoryForecastBase):
         """
         # project timestamps into vector space
         if self.use_timestamp:
-            time_features = make_time_features(
-                now, epoch=self.epoch, epoch_span=self.epoch_span)
+            time_features = make_time_features(now, epoch=self.epoch, epoch_span=self.epoch_span)
             weather_forecast.update(time_features)
         X = pd.DataFrame(weather_forecast, index=[0])
 

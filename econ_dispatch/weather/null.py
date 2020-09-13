@@ -62,6 +62,7 @@ from econ_dispatch.forecast_models import ForecastBase
 
 LOG = logging.getLogger(__name__)
 
+
 class Weather(ForecastBase):
     """Return only timestamps
 
@@ -69,11 +70,12 @@ class Weather(ForecastBase):
     :param timestep: time between forecasts, in hours
     :param kwargs: kwargs for `forecast_models.ForecastBase`
     """
+
     def __init__(self, steps_forecast=24, timestep=1, **kwargs):
         super(Weather, self).__init__(**kwargs)
         self.steps_forecast = steps_forecast
         self.timestep = timedelta(hours=timestep)
-    
+
     def derive_variables(self, now, weather_forecast={}):
         pass
 
@@ -83,4 +85,4 @@ class Weather(ForecastBase):
         :param now: timestamp of first hour
         :type now: datetime.datetime
         """
-        return [dict(timestamp=now + n*self.timestep) for n in range(self.steps_forecast)]
+        return [dict(timestamp=now + n * self.timestep) for n in range(self.steps_forecast)]

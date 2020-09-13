@@ -55,7 +55,6 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 import logging
-import os
 
 import numpy as np
 
@@ -64,14 +63,10 @@ from econ_dispatch.component_models import ComponentBase
 
 LOG = logging.getLogger(__name__)
 
-EXPECTED_PARAMETERS = set(["soc",
-                           "charge_eff",
-                           "discharge_eff",
-                           "min_power",
-                           "max_power",
-                           "min_soc",
-                           "max_soc",
-                           "capacity"])
+EXPECTED_PARAMETERS = set(
+    ["soc", "charge_eff", "discharge_eff", "min_power", "max_power", "min_soc", "max_soc", "capacity"]
+)
+
 
 class Component(ComponentBase):
     """Simple battery model
@@ -88,20 +83,23 @@ class Component(ComponentBase):
         for discharging setpoint
     :param kwargs: kwargs for `ComponentBase`
     """
-    def __init__(self,
-                 min_power=None,
-                 max_power=None,
-                 min_soc=0.3,
-                 max_soc=0.8,
-                 capacity=None,
-                 ch_point_name="storage_ch_{}_0",
-                 disch_point_name="storage_disch_{}_0",
-                 **kwargs):
+
+    def __init__(
+        self,
+        min_power=None,
+        max_power=None,
+        min_soc=0.3,
+        max_soc=0.8,
+        capacity=None,
+        ch_point_name="storage_ch_{}_0",
+        disch_point_name="storage_disch_{}_0",
+        **kwargs,
+    ):
         super(Component, self).__init__(**kwargs)
-        self.min_power = float(min_power) # unused
+        self.min_power = float(min_power)  # unused
         self.max_power = float(max_power)
         self.min_soc = float(min_soc)
-        self.max_soc = float(max_soc) # unused
+        self.max_soc = float(max_soc)  # unused
         self.capacity = capacity
         self.ch_point_name = ch_point_name.format(self.name)
         self.disch_point_name = disch_point_name.format(self.name)
@@ -173,18 +171,18 @@ class Component(ComponentBase):
         :param charge_training_data:
         :param charging:
         """
-        timestamp = charge_training_data['timestamp']
-        PowerIn = charge_training_data['power']
-        SOC = charge_training_data['soc']
+        timestamp = charge_training_data["timestamp"]
+        PowerIn = charge_training_data["power"]
+        SOC = charge_training_data["soc"]
 
         # Skip chunks where we do not charge.
         if charging:
-            a = PowerIn[1:  ] > 0
-            b = PowerIn[ :-1] > 0
+            a = PowerIn[1:] > 0
+            b = PowerIn[:-1] > 0
         else:
-            a = PowerIn[1:  ] < 0
-            b = PowerIn[ :-1] < 0
-        valid = np.insert(a&b, 0, False).nonzero()[0]
+            a = PowerIn[1:] < 0
+            b = PowerIn[:-1] < 0
+        valid = np.insert(a & b, 0, False).nonzero()[0]
         valid_prev = valid - 1
 
         prev_soc = SOC[valid_prev]
@@ -199,8 +197,7 @@ class Component(ComponentBase):
         delta_time = current_time - prev_time
 
         # Convert delta_time to fractional hours
-        delta_time = delta_time.astype("timedelta64[s]")\
-            .astype("float64")/3600.0
+        delta_time = delta_time.astype("timedelta64[s]").astype("float64") / 3600.0
 
         current_power = PowerIn[valid]
         if charging:
@@ -209,11 +206,12 @@ class Component(ComponentBase):
             eff = (current_power * delta_time) / (delta_kWh)
 
         # Remove garbage values.
-        valid_eff = eff[eff<1.0]
+        valid_eff = eff[eff < 1.0]
         eff_avg = abs(valid_eff.mean())
 
-        LOG.debug("calculate_charge_eff charging {} result {}, dropped {}"
-                   " values before calculation".format(
-                       charging,eff_avg, len(eff)-len(valid_eff)))
+        LOG.debug(
+            "calculate_charge_eff charging {} result {}, dropped {}"
+            " values before calculation".format(charging, eff_avg, len(eff) - len(valid_eff))
+        )
 
         return eff_avg
