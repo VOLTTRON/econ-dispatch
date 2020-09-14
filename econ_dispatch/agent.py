@@ -294,13 +294,10 @@ class EconDispatchAgent(Agent):
 
         if self.offline_mode:
             self._setup_timed_events()
-            self.run_offline(input_data)
             # launch self.run_offline as greenlet
-            # self.core.schedule(utils.get_aware_utc_now(),
-            #                    self.run_offline,
-            #                    input_data=input_data)
+            self.core.schedule(utils.get_aware_utc_now(), self.run_offline, input_data=input_data)
         else:
-            # run online
+            # greenlets already spawned by _setup_timed_events
             self.input_topics = self.model.get_component_input_topics()
             self.all_topics = self._create_all_topics(self.input_topics)
             self._create_subscriptions(self.all_topics)
@@ -385,27 +382,27 @@ class EconDispatchAgent(Agent):
 
     def _setup_timed_events(self):
         """Schedule recurring events using Volttron vip.core.schedule"""
+        # initialize self.next_optimization
+        # be careful not to mutate self.*_schedule
+        self.optimization_schedule, optimization_schedule_clone = tee(self.optimization_schedule)
+        try:
+            self.next_optimization = pytz.UTC.localize(next(optimization_schedule_clone))
+            LOG.info("Next optimization scheduled for {}" "".format(self.next_optimization))
+        except StopIteration:
+            self.next_optimization = None
+            LOG.error("No optimizations scheduled")
+        # initialize self.next_training
+        # be careful not to mutate self.*_schedule
+        self.training_schedule, training_schedule_clone = tee(self.training_schedule)
+        try:
+            self.next_training = pytz.UTC.localize(next(training_schedule_clone))
+            LOG.info("Next training scheduled for {}" "".format(self.next_training))
+        except StopIteration:
+            self.next_training = None
+            LOG.info("No trainings scheduled")
+
         # Don't setup the greenlets if we are offline/driven by simulation.
         if not self.simulation_mode and not self.offline_mode:
-            # initialize self.next_optimization
-            # be careful not to mutate self.*_schedule
-            self.optimization_schedule, optimization_schedule_clone = tee(self.optimization_schedule)
-            try:
-                self.next_optimization = pytz.UTC.localize(next(optimization_schedule_clone))
-                LOG.info("Next optimization scheduled for {}" "".format(self.next_optimization))
-            except StopIteration:
-                self.next_optimization = None
-                LOG.error("No optimizations scheduled")
-            # initialize self.next_training
-            # be careful not to mutate self.*_schedule
-            self.training_schedule, training_schedule_clone = tee(self.training_schedule)
-            try:
-                self.next_training = pytz.UTC.localize(next(training_schedule_clone))
-                LOG.info("Next training scheduled for {}" "".format(self.next_training))
-            except StopIteration:
-                self.next_training = None
-                LOG.info("No trainings scheduled")
-
             if self.optimization_greenlet is not None:
                 self.optimization_greenlet.kill()
                 self.optimization_greenlet = None
@@ -415,21 +412,6 @@ class EconDispatchAgent(Agent):
                 self.training_greenlet.kill()
                 self.training_greenlet = None
             self.training_greenlet = self.core.schedule(self.training_schedule, self.train_components)
-        else:
-            # initialize self.next_optimization
-            try:
-                self.next_optimization = pytz.UTC.localize(next(self.optimization_schedule))
-                LOG.info("Next optimization scheduled for {}" "".format(self.next_optimization))
-            except StopIteration:
-                self.next_optimization = None
-                LOG.error("No optimizations scheduled")
-            # initialize self.next_training
-            try:
-                self.next_training = pytz.UTC.localize(next(self.training_schedule))
-                LOG.info("Next training scheduled for {}" "".format(self.next_training))
-            except StopIteration:
-                self.next_training = None
-                LOG.info("No trainings scheduled")
 
     def run_offline(self, input_data=None):
         """TODO: write docstring for offline mode
@@ -473,13 +455,6 @@ class EconDispatchAgent(Agent):
             return
 
         LOG.info("Running optimization for {}".format(now))
-        try:
-            self.next_optimization = pytz.UTC.localize(next(self.optimization_schedule))
-            LOG.info("Next optimization scheduled for {}" "".format(self.next_optimization))
-        except StopIteration:
-            self.next_optimization = None
-            LOG.info("No more optimizations scheduled")
-
         commands = self.model.run_optimizer(now)
 
         if commands:
@@ -490,6 +465,15 @@ class EconDispatchAgent(Agent):
                     self.reserve_actuator_cancel()
                 else:
                     self.actuator_set(commands)
+
+        # be careful not to mutate self.*_schedule
+        self.optimization_schedule, optimization_schedule_clone = tee(self.optimization_schedule)
+        try:
+            self.next_optimization = pytz.UTC.localize(next(optimization_schedule_clone))
+            LOG.info("Next optimization scheduled for {}" "".format(self.next_optimization))
+        except StopIteration:
+            self.next_optimization = None
+            LOG.error("No optimizations scheduled")
 
     def train_components(self, now=None):
         """Gather training parameters, query historian for training data,
