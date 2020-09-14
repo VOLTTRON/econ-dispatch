@@ -633,7 +633,7 @@ def build_problem(forecast, parameters):
     # BUILD PROBLEM
     # --------------------------------------------------------------------------
 
-    prob = pulp.LpProblem("Economic Dispatch Optimization", pulp.LpMinimize)
+    prob = pulp.LpProblem("Economic-Dispatch-Optimization", pulp.LpMinimize)
     prob += pulp.lpSum(objective_components), "Objective Function"
 
     for con in constraints:
