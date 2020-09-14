@@ -55,19 +55,18 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 """.. todo:: Module docstring"""
-from io import StringIO
 import csv
-from datetime import timedelta
 import json
 import logging
 import os.path
 import re
+from datetime import timedelta
+from io import StringIO
 
-import pytz
 import numpy as np
 import pandas as pd
+import pytz
 from cvxopt import matrix, solvers
-
 
 LOG = logging.getLogger(__name__)
 

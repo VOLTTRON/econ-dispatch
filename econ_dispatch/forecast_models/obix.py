@@ -58,14 +58,13 @@ import datetime
 import logging
 import xml.etree.ElementTree as ET
 
-from dateutil.parser import parse
 import pandas as pd
 import pytz
 import requests
+from dateutil.parser import parse
 
 from econ_dispatch.forecast_models import ForecastBase
 from econ_dispatch.utils import round_to_hour
-
 
 LOG = logging.getLogger(__name__)
 

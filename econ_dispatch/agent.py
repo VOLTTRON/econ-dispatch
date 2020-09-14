@@ -55,22 +55,21 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 """.. todo:: Module docstring"""
-from datetime import datetime, timedelta
-from itertools import tee
 import logging
 import os
+from datetime import datetime, timedelta
+from itertools import tee
 
 import pytz
-
 from volttron.platform.agent import utils
-from volttron.platform.vip.agent import Agent
-from volttron.platform.vip.agent.errors import Unreachable
 from volttron.platform.jsonrpc import RemoteError
 from volttron.platform.messaging import headers as headers_mod
 from volttron.platform.scheduling import cron, periodic
+from volttron.platform.vip.agent import Agent
+from volttron.platform.vip.agent.errors import Unreachable
 
-from econ_dispatch.system_model import build_model_from_config
 from econ_dispatch.forecast_models.history import Forecast as HistoryForecast
+from econ_dispatch.system_model import build_model_from_config
 from econ_dispatch.utils import normalize_training_data
 
 __version__ = "1.1.0"

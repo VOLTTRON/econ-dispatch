@@ -55,11 +55,11 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 """.. todo:: Module docstring"""
-from importlib import import_module
 import logging
 import os
-from pprint import pformat
 import time
+from importlib import import_module
+from pprint import pformat
 
 import pulp
 

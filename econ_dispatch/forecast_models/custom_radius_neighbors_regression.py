@@ -56,12 +56,11 @@
 # }}}
 import logging
 
+import numpy as np
 import pandas as pd
 import scipy.stats as st
-import numpy as np
 
 from econ_dispatch.forecast_models.history import Forecast as HistoryForecastBase
-
 
 LOG = logging.getLogger(__name__)
 

@@ -54,16 +54,15 @@
 # operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
 # }}}
+import logging
 from collections import Counter
 from datetime import timedelta
-import logging
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from econ_dispatch.forecast_models import ForecastBase
 from econ_dispatch.utils import preprocess
-
 
 LOG = logging.getLogger(__name__)
 

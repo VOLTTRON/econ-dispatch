@@ -56,10 +56,10 @@
 # }}}
 """.. todo:: Module docstring"""
 import abc
-from copy import deepcopy
-from importlib import import_module
 import logging
 import pkgutil
+from copy import deepcopy
+from importlib import import_module
 
 LOG = logging.getLogger(__name__)
 

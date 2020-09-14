@@ -60,7 +60,6 @@ import numpy as np
 
 from econ_dispatch.component_models import ComponentBase
 
-
 LOG = logging.getLogger(__name__)
 
 EXPECTED_PARAMETERS = set(

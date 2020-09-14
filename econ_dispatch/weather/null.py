@@ -55,8 +55,8 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 
-from datetime import timedelta
 import logging
+from datetime import timedelta
 
 from econ_dispatch.forecast_models import ForecastBase
 

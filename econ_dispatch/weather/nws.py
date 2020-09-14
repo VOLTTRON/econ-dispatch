@@ -54,14 +54,14 @@
 # operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
 # }}}
-import logging
 import datetime
+import logging
 
 import pytz
 import requests
+from volttron.platform.agent import utils
 
 from econ_dispatch.forecast_models import ForecastBase
-from volttron.platform.agent import utils
 
 LOG = logging.getLogger(__name__)
 

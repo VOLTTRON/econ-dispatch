@@ -56,9 +56,9 @@
 # }}}
 """.. todo:: Module docstring"""
 import abc
-from importlib import import_module
 import logging
 import pkgutil
+from importlib import import_module
 
 LOG = logging.getLogger(__name__)
 

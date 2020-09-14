@@ -58,8 +58,8 @@ import logging
 
 import pandas as pd
 
-from econ_dispatch.component_models import ComponentBase
 from econ_dispatch import utils
+from econ_dispatch.component_models import ComponentBase
 
 LOG = logging.getLogger(__name__)
 

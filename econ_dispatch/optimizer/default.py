@@ -55,14 +55,13 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 """Example optimizer builds MILP problem from component & forecast info"""
-from collections import OrderedDict
 import itertools
 import logging
+from collections import OrderedDict
 
 import pulp
 
 from econ_dispatch.optimizer import get_pulp_optimization_function
-
 
 LOG = logging.getLogger(__name__)
 

@@ -55,15 +55,15 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 """.. todo:: Module docstring"""
+import logging
 from collections import defaultdict
 from importlib import import_module
-import logging
 from pprint import pformat
 
-from econ_dispatch.utils import normalize_training_data, OptimizerCSVOutput, PiecewiseError
 from econ_dispatch.component_models import get_component_class
 from econ_dispatch.forecast_models import get_forecast_class
 from econ_dispatch.optimizer import get_optimization_function
+from econ_dispatch.utils import OptimizerCSVOutput, PiecewiseError, normalize_training_data
 
 LOG = logging.getLogger(__name__)
 

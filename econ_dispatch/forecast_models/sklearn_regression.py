@@ -54,16 +54,15 @@
 # operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
 # }}}
-from importlib import import_module
 import logging
+from importlib import import_module
 
 import numpy as np
 import pandas as pd
-from pandas.tseries.holiday import Holiday  # NOQA
 from dateutil.relativedelta import MO, TH
+from pandas.tseries.holiday import Holiday  # NOQA
 
 from econ_dispatch.forecast_models.history import Forecast as HistoryForecastBase
-
 
 LOG = logging.getLogger(__name__)
 
