@@ -627,3 +627,26 @@ def round_to_hour(dt):
         dt = dt_start_of_hour
 
     return dt
+
+
+def localize_datetime_iter(target, tz=None, return_utc=True):
+    """Add timezone to iterable of datetimes
+
+    :param target: iterable of timezone-unaware datetimes
+    :type target: iterable[datetime.datetime]
+    :param tz: timezone of underlying datetimes, defaults to UTC
+    :type tz: str
+    :param return_utc: Whether to force return values into UTC
+    :type return_utc: bool
+    :returns: iterable of timezone-aware datetimes
+    """
+    if tz is None:
+        tz = pytz.utc
+    else:
+        tz = pytz.timezone(tz)
+
+    for item in target:
+        tz_aware_item = tz.localize(item)
+        if return_utc:
+            tz_aware_item = tz_aware_item.astimezone(pytz.utc)
+        yield tz_aware_item

@@ -60,6 +60,7 @@ import os
 from datetime import datetime, timedelta
 from itertools import tee
 
+import gevent
 import pytz
 from volttron.platform.agent import utils
 from volttron.platform.jsonrpc import RemoteError
@@ -70,7 +71,7 @@ from volttron.platform.vip.agent.errors import Unreachable
 
 from econ_dispatch.forecast_models.history import Forecast as HistoryForecast
 from econ_dispatch.system_model import build_model_from_config
-from econ_dispatch.utils import normalize_training_data
+from econ_dispatch.utils import localize_datetime_iter, normalize_training_data
 
 __version__ = "1.1.0"
 __author1__ = "Lee Burke <lee.burke@pnnl.gov>"
@@ -272,6 +273,7 @@ class EconDispatchAgent(Agent):
             # never train
             self.historian_training = False  # redundant, False by default
             self.training_schedule = iter(())
+        self.training_schedule = localize_datetime_iter(self.training_schedule)
 
         optimization_schedule = config.get("optimization_schedule", 60)
         try:
@@ -287,6 +289,7 @@ class EconDispatchAgent(Agent):
             else:
                 _start = None
             self.optimization_schedule = cron(optimization_schedule, start=_start, stop=end)
+        self.optimization_schedule = localize_datetime_iter(self.optimization_schedule)
 
         self.model = build_model_from_config(
             weather_config, optimizer_config, component_configs, forecast_configs, optimizer_debug, command_debug
@@ -382,36 +385,45 @@ class EconDispatchAgent(Agent):
 
     def _setup_timed_events(self):
         """Schedule recurring events using Volttron vip.core.schedule"""
-        # initialize self.next_optimization
-        # be careful not to mutate self.*_schedule
-        self.optimization_schedule, optimization_schedule_clone = tee(self.optimization_schedule)
-        try:
-            self.next_optimization = pytz.UTC.localize(next(optimization_schedule_clone))
-            LOG.info("Next optimization scheduled for {}" "".format(self.next_optimization))
-        except StopIteration:
-            self.next_optimization = None
-            LOG.error("No optimizations scheduled")
-        # initialize self.next_training
-        # be careful not to mutate self.*_schedule
-        self.training_schedule, training_schedule_clone = tee(self.training_schedule)
-        try:
-            self.next_training = pytz.UTC.localize(next(training_schedule_clone))
-            LOG.info("Next training scheduled for {}" "".format(self.next_training))
-        except StopIteration:
-            self.next_training = None
-            LOG.info("No trainings scheduled")
-
         # Don't setup the greenlets if we are offline/driven by simulation.
         if not self.simulation_mode and not self.offline_mode:
             if self.optimization_greenlet is not None:
                 self.optimization_greenlet.kill()
                 self.optimization_greenlet = None
-            self.optimization_greenlet = self.core.schedule(self.optimization_schedule, self.run_optimizer)
+            # be careful not to mutate self.*_schedule
+            self.optimization_schedule, optimization_schedule_clone = tee(self.optimization_schedule)
+            self.optimization_greenlet = self.core.schedule(optimization_schedule_clone, self.run_optimizer)
 
             if self.training_greenlet is not None:
                 self.training_greenlet.kill()
                 self.training_greenlet = None
-            self.training_greenlet = self.core.schedule(self.training_schedule, self.train_components)
+            # be careful not to mutate self.*_schedule
+            self.training_schedule, training_schedule_clone = tee(self.training_schedule)
+            self.training_greenlet = self.core.schedule(training_schedule_clone, self.train_components)
+
+        # initialize self.next_optimization
+        try:
+            self.next_optimization = next(self.optimization_schedule)
+            LOG.info("Next optimization scheduled for {}" "".format(self.next_optimization))
+        except StopIteration:
+            self.next_optimization = None
+            LOG.error("No optimizations scheduled")
+        # initialize self.next_training
+        try:
+            self.next_training = next(self.training_schedule)
+            LOG.info("Next training scheduled for {}" "".format(self.next_training))
+        except StopIteration:
+            self.next_training = None
+            LOG.info("No trainings scheduled")
+
+        if self.day_ahead_model is not None:
+            # initialize self.next_day_ahead
+            try:
+                self.next_day_ahead = next(self.day_ahead_schedule)
+                LOG.info("Next day-ahead optimization scheduled for {}" "".format(self.next_day_ahead))
+            except StopIteration:
+                self.next_day_ahead = None
+                LOG.info("No more day-ahead optimizations scheduled")
 
     def run_offline(self, input_data=None):
         """TODO: write docstring for offline mode
@@ -455,21 +467,27 @@ class EconDispatchAgent(Agent):
             return
 
         LOG.info("Running optimization for {}".format(now))
-        commands = self.model.run_optimizer(now)
+        try:
+            commands = self.model.run_optimizer(now)
+        except Exception as ex:
+            LOG.error(f"Optimization failed: {repr(ex)}")
+            commands = []
 
         if commands:
             if not self.offline_mode:
-                if self.make_reservations:
-                    self.reserve_actuator(commands)
-                    self.actuator_set(commands)
-                    self.reserve_actuator_cancel()
-                else:
-                    self.actuator_set(commands)
+                try:
+                    if self.make_reservations:
+                        self.reserve_actuator(commands)
+                        self.actuator_set(commands)
+                        self.reserve_actuator_cancel()
+                    else:
+                        self.actuator_set(commands)
+                except (Exception, gevent.Timeout) as ex:
+                    LOG.error(f"Could not send commands: {repr(ex)}. Tried to send {commands}")
 
-        # be careful not to mutate self.*_schedule
-        self.optimization_schedule, optimization_schedule_clone = tee(self.optimization_schedule)
+        LOG.info("Optimization complete")
         try:
-            self.next_optimization = pytz.UTC.localize(next(optimization_schedule_clone))
+            self.next_optimization = next(self.optimization_schedule)
             LOG.info("Next optimization scheduled for {}" "".format(self.next_optimization))
         except StopIteration:
             self.next_optimization = None
@@ -519,7 +537,7 @@ class EconDispatchAgent(Agent):
             self.model.apply_all_training_data(results, forecast_models)
 
         try:
-            self.next_training = pytz.UTC.localize(next(self.training_schedule))
+            self.next_training = next(self.training_schedule)
             LOG.info("Next training scheduled for {}" "".format(self.next_training))
         except StopIteration:
             self.next_training = None
