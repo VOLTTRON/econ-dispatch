@@ -54,14 +54,13 @@
 # operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
 # }}}
-import json
 import logging
 import os
 import pickle
-from importlib import import_module
 
 import pandas as pd
-from volttron.platform.agent.utils import format_timestamp
+from sklearn import __version__ as this_sklearn_version
+from volttron.platform.agent.utils import process_timestamp
 
 from econ_dispatch.forecast_models.history import Forecast as HistoryForecastBase
 from econ_dispatch.forecast_models.utils import make_time_features
@@ -69,118 +68,58 @@ from econ_dispatch.forecast_models.utils import make_time_features
 LOG = logging.getLogger(__name__)
 
 
-def my_import(name):
-    """Import submodule by name
-
-    :param name: full module name, e.g., sklearn.linear_models.Ridge
-    :returns: submodule, e.g., Ridge
-    """
-    components = name.split(".")
-    mod = import_module(".".join(components[:-1]))
-    klass = getattr(mod, components[-1])
-    return klass
-
-
 class Forecast(HistoryForecastBase):
-    """Return forecasts from scikit-learn regression on historical data
+    """Return forecasts from pre-trained scikit-learn regression on historical data
 
     :param dependent_variables: historical variables to regress on
-    :param model_name: name of module with scikit-learn regression interface
     :param model_settings: keyword arguments for model
     :param kwargs: keyword arguments for base class
     """
 
     def __init__(
         self,
-        dependent_variables=[],
-        model_name="sklearn.linear_models.Ridge",
-        model_settings={},
-        serialize_on_train=False,
-        output_dir=None,
+        dependent_variables,
+        independent_variables,
+        use_timestamp,
+        epoch,
+        epoch_span,
+        model_settings=None,
         **kwargs,
     ):
         super(Forecast, self).__init__(**kwargs)
-        if isinstance(dependent_variables, str):
-            dependent_variables = [dependent_variables]
+        if model_settings is None:
+            model_settings = {}
         self.dependent_variables = dependent_variables
-        if model_name.split(".")[0] != "sklearn":
-            raise NotImplementedError("Only sklearn models are supported")
-        self.model = my_import(model_name)(**model_settings)
+        self.independent_variables = independent_variables
+        self.use_timestamp = use_timestamp
+        self.epoch, _ = process_timestamp(epoch)
+        self.epoch_span = epoch_span
 
-        self.independent_variables = []
-        self.use_timestamp = False
-        self.epoch = None
-        self.epoch_span = None
+        self.model = self.load_serialized_model(**model_settings)
 
-        self.serialize_on_train = serialize_on_train
-        self.output_dir = None
-        if self.serialize_model and output_dir is None:
-            raise ValueError("Specify an output directory to serialize the model on training")
-        else:
-            self.output_dir = os.path.expanduser(output_dir)
+    def load_serialized_model(self, filepath, sklearn_version):
+        """Load a pickled sklearn model from disk
+
+        :param filepath: path to serialized sklearn model
+        :param source_sklearn_version: version of sklearn used to train the model
+        """
+        if this_sklearn_version != sklearn_version:
+            raise ValueError(
+                f"This model was trained with sklearn version {sklearn_version}, but you're using "
+                f"{this_sklearn_version}. Please install the correct version"
+            )
+        LOG.warning("Never unpickle data from an untrusted source. Beginning unpickle")
+        with open(os.path.expanduser(filepath), "rb") as fh:
+            model = pickle.load(fh)
+        return model
 
     def train(self, training_data):
-        """Train regression model on historical data
+        """Re-train regression model on historical data
 
         :param training_data: data on which to train, organized by input name
         :type training_data: dict of lists
         """
-        # load and preprocess
-        super(Forecast, self).train(training_data)
-        # remove NaNs
-        self.historical_data = self.historical_data.loc[~self.historical_data.isnull().any(axis=1)]
-        # project timestamps into vector space
-        if self.timestamp_column in self.historical_data.columns:
-            self.use_timestamp = True
-            ts = self.historical_data.set_index(self.timestamp_column).index
-            self.epoch = min(ts)
-            self.epoch_span = float((max(ts) - self.epoch).total_seconds())
-            time_features = make_time_features(
-                ts, index=self.historical_data.index, epoch=self.epoch, epoch_span=self.epoch_span
-            )
-            self.historical_data = pd.concat([self.historical_data, time_features], axis=1)
-            self.historical_data.drop(self.timestamp_column, axis=1, inplace=True)
-        # leave all other variables independent
-        self.independent_variables = [
-            name for name in self.historical_data.columns if name not in self.dependent_variables
-        ]
-
-        self.model.fit(self.historical_data[self.independent_variables], self.historical_data[self.dependent_variables])
-
-        # release historical data to save on memory
-        # note that python garbage collection is not instantaneous
-        LOG.warn("Releasing building load forecast training data. The agent will not be able to retrain on this data")
-        self.historical_data = None
-
-        if self.serialize_on_train:
-            self.serialize_model(self.output_dir)
-
-    def serialize_model(self, output_dir):
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-        config_file = os.path.join(output_dir, "config.json")
-        if os.path.exists(config_file):
-            LOG.warning("Overwriting serialized model config")
-        model_file = os.path.join(output_dir, "sklearn_model.pkl")
-        if os.path.exists(model_file):
-            LOG.warning("Overwriting serialized model")
-
-        LOG.debug(f"Serializing model to {output_dir}")
-        with open(config_file, "w") as fh:
-            json.dump(
-                {
-                    "use_timestamp": self.use_timestamp,
-                    "epoch": format_timestamp(self.epoch),
-                    "epoch_span": self.epoch_span,
-                    "dependent_variables": self.dependent_variables,
-                    "independent_variables": self.independent_variables,
-                    "protocol": 5,
-                    "sklearn_version": import_module("sklearn").__version__,
-                },
-                fh,
-            )
-        with open(model_file, "wb") as fh:
-            pickle.dump(self.model, fh, protocol=5)
+        raise NotImplementedError("Pre-trained model cannot be re-trained")
 
     def derive_variables(self, now, weather_forecast={}):
         """Predict forecast using regression model
