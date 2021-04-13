@@ -60,39 +60,40 @@ from econ_dispatch.component_models import ComponentBase
 
 LOG = logging.getLogger(__name__)
 
-DEFAULT_MFR_CHWBLDG = 30.0 #kg/s
-CP_FLUID_MAP = {'water': 4.186,
-                'glycolwater30': 3.913,
-                'glycolwater50': 3.558}
+DEFAULT_MFR_CHWBLDG = 30.0  # kg/s
+CP_FLUID_MAP = {"water": 4.186, "glycolwater30": 3.913, "glycolwater50": 3.558}
 
 EXPECTED_PARAMETERS = set(["heat_cap", "max_power", "eff", "soc"])
 
 
 class Component(ComponentBase):
     """Simple thermal storage model
-    
+
     :param tank_volume:
     :param design_chilled_water_return_temp:
     :param design_chilled_water_supply_temp:
     :param max_power:
     :param fluid_type: one of 'water', 'glycolwater30' or 'glycolwater50'
-    :param eff: 
+    :param eff:
     :param ch_point_name: optimization decision variable name
         for charging setpoint
     :param disch_point_name: optimization decision variable name
         for discharging setpoint
-    :param kwargs: 
+    :param kwargs:
     """
-    def __init__(self,
-                 tank_volume=None,
-                 design_chilled_water_return_temp=None,
-                 design_chilled_water_supply_temp=None,
-                 max_power=None,
-                 fluid_type="water",
-                 eff=0.98,
-                 ch_point_name="storage_ch_{}_0",
-                 disch_point_name="storage_disch_{}_0",
-                 **kwargs):
+
+    def __init__(
+        self,
+        tank_volume=None,
+        design_chilled_water_return_temp=None,
+        design_chilled_water_supply_temp=None,
+        max_power=None,
+        fluid_type="water",
+        eff=0.98,
+        ch_point_name="storage_ch_{}_0",
+        disch_point_name="storage_disch_{}_0",
+        **kwargs,
+    ):
         super(Component, self).__init__(**kwargs)
         self.ch_point_name = ch_point_name.format(self.name)
         self.disch_point_name = disch_point_name.format(self.name)
@@ -105,19 +106,16 @@ class Component(ComponentBase):
 
         # may cause problems if optimization starts before co-simulator
         # self.soc = None
-        self.soc = 0.
+        self.soc = 0.0
 
         if fluid_type not in CP_FLUID_MAP:
-            LOG.warning("Unrecognized fluid type {}."
-                        " Defaulting to water.".format(fluid_type))
-            fluid_type = 'water'
+            LOG.warning("Unrecognized fluid type {}." " Defaulting to water.".format(fluid_type))
+            fluid_type = "water"
         cp_fluid = CP_FLUID_MAP[fluid_type]
 
-        unit_capacity_kWh = cp_fluid *\
-            abs(design_chilled_water_return_temp -
-                design_chilled_water_supply_temp) / 3600.0
+        unit_capacity_kWh = cp_fluid * abs(design_chilled_water_return_temp - design_chilled_water_supply_temp) / 3600.0
 
-        heat_capacity = tank_volume * unit_capacity_kWh / 293.3 # to mmBTU
+        heat_capacity = tank_volume * unit_capacity_kWh / 293.3  # to mmBTU
 
         if max_power is None:
             max_power = DEFAULT_MFR_CHWBLDG * unit_capacity_kWh
@@ -164,5 +162,4 @@ class Component(ComponentBase):
         except KeyError:
             LOG.warning("Thermal Storage missing from optimizer output")
             return {}
-        return {"charge_load": charge_load*293.3,
-                "discharge_load": discharge_load*293.3}
+        return {"charge_load": charge_load * 293.3, "discharge_load": discharge_load * 293.3}

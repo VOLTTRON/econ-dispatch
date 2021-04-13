@@ -55,35 +55,32 @@
 # under Contract DE-AC05-76RL01830
 # }}}
 """.. todo:: Module docstring"""
+import logging
+import os
 from datetime import datetime, timedelta
 from itertools import tee
-import logging
 
+import gevent
 import pytz
-
 from volttron.platform.agent import utils
-from volttron.platform.vip.agent import Agent, Core
-from volttron.platform.vip.agent.errors import Unreachable
 from volttron.platform.jsonrpc import RemoteError
 from volttron.platform.messaging import headers as headers_mod
 from volttron.platform.scheduling import cron, periodic
+from volttron.platform.vip.agent import Agent
+from volttron.platform.vip.agent.errors import Unreachable
 
-from econ_dispatch.system_model import build_model_from_config
 from econ_dispatch.forecast_models.history import Forecast as HistoryForecast
-from econ_dispatch.utils import normalize_training_data
+from econ_dispatch.system_model import build_model_from_config
+from econ_dispatch.utils import localize_datetime_iter, normalize_training_data
 
-__version__ = '1.0.0'
-__author1__ = 'Lee Burke <lee.burke@pnnl.gov>'
-__author2__ = 'Kyle Monson <kyle.monson@pnnl.gov>'
-__copyright__ = 'Copyright (c) 2018, Battelle Memorial Institute'
-__license__ = 'Apache Version 2.0'
+__version__ = "1.1.0"
+__author1__ = "Lee Burke <lee.burke@pnnl.gov>"
+__author2__ = "Kyle Monson <kyle.monson@pnnl.gov>"
+__copyright__ = "Copyright (c) 2018, Battelle Memorial Institute"
+__license__ = "Apache Version 2.0"
 
-# utils.setup_logging()
-logging.basicConfig(filename='/vagrant/econ-dispatch/econ_dispatch.log',
-                    level=logging.DEBUG,
-                    format='%(asctime)s %(name)s %(levelname)s: %(message)s')
-
-LOG = logging.getLogger(__name__)
+utils.setup_logging()
+LOG = logging.getLogger()
 
 
 class EconDispatchAgent(Agent):
@@ -93,22 +90,25 @@ class EconDispatchAgent(Agent):
 
     :param kwargs: keyword arguments to Agent base class
     """
-    def __init__(self,
-                 optimization_schedule=60,
-                 training_schedule=0,
-                 schedule_start=None,
-                 schedule_end=None,
-                 make_reservations=False,
-                 historian_vip_id="platform.historian",
-                 simulation_mode=False,
-                 offline_mode=False,
-                 optimizer_debug=None,
-                 command_debug=None,
-                 optimizer_config={},
-                 weather_config={},
-                 forecast_configs={},
-                 component_configs={},
-                 **kwargs):
+
+    def __init__(
+        self,
+        optimization_schedule=60,
+        training_schedule=0,
+        schedule_start=None,
+        schedule_end=None,
+        make_reservations=False,
+        historian_vip_id="platform.historian",
+        simulation_mode=False,
+        offline_mode=False,
+        optimizer_debug=None,
+        command_debug=None,
+        optimizer_config={},
+        weather_config={},
+        forecast_configs={},
+        component_configs={},
+        **kwargs,
+    ):
         super(EconDispatchAgent, self).__init__(**kwargs)
 
         self.make_reservations = make_reservations
@@ -132,28 +132,29 @@ class EconDispatchAgent(Agent):
         self.model = None
         self.optimization_greenlet = None
         self.training_greenlet = None
-        self.default_config = dict(optimization_schedule=optimization_schedule,
-                                   training_schedule=training_schedule,
-                                   schedule_start=schedule_start,
-                                   schedule_end=schedule_end,
-                                   make_reservations=make_reservations,
-                                   historian_vip_id=historian_vip_id,
-                                   simulation_mode=simulation_mode,
-                                   offline_mode=offline_mode,
-                                   optimizer_debug=optimizer_debug,
-                                   command_debug=command_debug,
-                                   optimizer=optimizer_config,
-                                   weather=weather_config,
-                                   forecast_models=forecast_configs,
-                                   component_models=component_configs)
+        self.default_config = dict(
+            optimization_schedule=optimization_schedule,
+            training_schedule=training_schedule,
+            schedule_start=schedule_start,
+            schedule_end=schedule_end,
+            make_reservations=make_reservations,
+            historian_vip_id=historian_vip_id,
+            simulation_mode=simulation_mode,
+            offline_mode=offline_mode,
+            optimizer_debug=optimizer_debug,
+            command_debug=command_debug,
+            optimizer=optimizer_config,
+            weather=weather_config,
+            forecast_models=forecast_configs,
+            component_models=component_configs,
+        )
 
         # Set a default configuration to ensure that self.configure is called
         # immediately to setup the agent.
         self.vip.config.set_default("config", self.default_config)
 
         # Hook self.configure up to changes to the configuration file "config".
-        self.vip.config.subscribe(
-            self.configure, actions=["NEW", "UPDATE"], pattern="config")
+        self.vip.config.subscribe(self.configure, actions=["NEW", "UPDATE"], pattern="config")
 
     def configure(self, config_name, action, contents):
         """Set agent parameters, subscribe to message bus, and schedule
@@ -175,22 +176,24 @@ class EconDispatchAgent(Agent):
 
         # interactions with platform
         self.make_reservations = config.get("make_reservations", False)
-        self.historian_vip_id = config.get(
-            "historian_vip_id", "platform.historian")
+        self.historian_vip_id = config.get("historian_vip_id", "platform.historian")
 
         # debug files
-        optimizer_debug = config.get('optimizer_debug')
-        command_debug = config.get('command_debug')
+        optimizer_debug = config.get("optimizer_debug")
+        if optimizer_debug is not None:
+            optimizer_debug = os.path.expanduser(optimizer_debug)
+        command_debug = config.get("command_debug")
+        if command_debug is not None:
+            command_debug = os.path.expanduser(command_debug)
 
         # required sections
         try:
-            optimizer_config = config['optimizer']
-            weather_config = config['weather']
-            forecast_configs = config['forecast_models']
-            component_configs = config['component_models']
+            optimizer_config = config["optimizer"]
+            weather_config = config["weather"]
+            forecast_configs = config["forecast_models"]
+            component_configs = config["component_models"]
         except KeyError as e:
-            raise ValueError("Required section missing from config: {}"
-                             "".format(repr(e)))
+            raise ValueError("Required section missing from config: {}" "".format(repr(e)))
 
         # for co-simulation with EnergyPlus
         self.simulation_mode = bool(config.get("simulation_mode", False))
@@ -204,8 +207,7 @@ class EconDispatchAgent(Agent):
                 offline_config = {}
             elif isinstance(offline_mode, dict):
                 offline_config = offline_mode
-                self.offline_mode = bool(
-                    offline_config.pop("offline_mode", True))
+                self.offline_mode = bool(offline_config.pop("offline_mode", True))
             else:
                 raise ValueError
         except ValueError:
@@ -248,8 +250,7 @@ class EconDispatchAgent(Agent):
         if end is None:
             LOG.debug("Running from {start}".format(start=start))
         else:
-            LOG.debug("Running from {start} to {end}".format(start=start,
-                                                             end=end))
+            LOG.debug("Running from {start} to {end}".format(start=start, end=end))
 
         # schedules can be int (period in hours) or cron schedule
         training_schedule = config.get("training_schedule", 0)
@@ -257,10 +258,7 @@ class EconDispatchAgent(Agent):
             self.historian_training = True
             try:
                 # assume schedule is int, try `periodic`
-                self.training_schedule = periodic(
-                    timedelta(minutes=int(training_schedule)),
-                    start=start,
-                    stop=end)
+                self.training_schedule = periodic(timedelta(minutes=int(training_schedule)), start=start, stop=end)
             except ValueError:
                 # assume `training_schedule` is valid cron string
 
@@ -270,21 +268,17 @@ class EconDispatchAgent(Agent):
                     _start = start - timedelta(minutes=1)
                 else:
                     _start = None
-                self.training_schedule = cron(training_schedule,
-                                              start=_start,
-                                              end=end)
+                self.training_schedule = cron(training_schedule, start=_start, end=end)
         else:
             # never train
             self.historian_training = False  # redundant, False by default
             self.training_schedule = iter(())
+        self.training_schedule = localize_datetime_iter(self.training_schedule)
 
-        optimization_schedule = config.get('optimization_schedule', 60)
+        optimization_schedule = config.get("optimization_schedule", 60)
         try:
             # assume `optimization_schedule` is int, try `periodic`
-            self.optimization_schedule = periodic(
-                timedelta(minutes=int(optimization_schedule)),
-                start=start,
-                stop=end)
+            self.optimization_schedule = periodic(timedelta(minutes=int(optimization_schedule)), start=start, stop=end)
         except ValueError:
             # assume `optimization_schedule` is valid cron string
 
@@ -294,24 +288,19 @@ class EconDispatchAgent(Agent):
                 _start = start - timedelta(minutes=1)
             else:
                 _start = None
-            self.optimization_schedule = cron(optimization_schedule,
-                                              start=_start,
-                                              stop=end)
+            self.optimization_schedule = cron(optimization_schedule, start=_start, stop=end)
+        self.optimization_schedule = localize_datetime_iter(self.optimization_schedule)
 
-        self.model = build_model_from_config(weather_config,
-                                             optimizer_config,
-                                             component_configs,
-                                             forecast_configs,
-                                             optimizer_debug,
-                                             command_debug)
+        self.model = build_model_from_config(
+            weather_config, optimizer_config, component_configs, forecast_configs, optimizer_debug, command_debug
+        )
 
         if self.offline_mode:
+            self._setup_timed_events()
             # launch self.run_offline as greenlet
-            self.core.schedule(utils.get_aware_utc_now(),
-                               self.run_offline,
-                               input_data=input_data)
+            self.core.schedule(utils.get_aware_utc_now(), self.run_offline, input_data=input_data)
         else:
-            # run online
+            # greenlets already spawned by _setup_timed_events
             self.input_topics = self.model.get_component_input_topics()
             self.all_topics = self._create_all_topics(self.input_topics)
             self._create_subscriptions(self.all_topics)
@@ -334,9 +323,7 @@ class EconDispatchAgent(Agent):
             for topic in all_topics:
                 # call `self._handle_publish` whenever a message is published
                 # on a topic with prefix `topic`
-                self.vip.pubsub.subscribe(peer='pubsub',
-                                          prefix=topic,
-                                          callback=self._handle_publish)
+                self.vip.pubsub.subscribe(peer="pubsub", prefix=topic, callback=self._handle_publish)
 
     def _create_all_topics(self, input_topics):
         """Convert list of topics in the form `base/point` to single
@@ -348,12 +335,11 @@ class EconDispatchAgent(Agent):
         """
         all_topics = set()
         for topic in input_topics:
-            base, _ = topic.rsplit('/', 1)
-            all_topics.add(base+'/all')
+            base, _ = topic.rsplit("/", 1)
+            all_topics.add(base + "/all")
         return all_topics
 
-    def _handle_publish(
-            self, peer, sender, bus, topic, headers, message):
+    def _handle_publish(self, peer, sender, bus, topic, headers, message):
         """Process messages posted to message bus
 
         :param peer: unused
@@ -363,21 +349,19 @@ class EconDispatchAgent(Agent):
         :param headers: message headers including timestamp
         :param message: body of message
         """
-        base_topic, _ = topic.rsplit('/', 1)
+        base_topic, _ = topic.rsplit("/", 1)
         points = message[0]
 
         inputs = {}
-        for point, value in points.iteritems():
-            point_topic = base_topic + '/' + point
+        for point, value in points.items():
+            point_topic = base_topic + "/" + point
             if point_topic in self.input_topics:
                 inputs[point_topic] = value
 
-        timestamp = utils.parse_timestamp_string(
-            headers[headers_mod.TIMESTAMP])
+        timestamp = utils.parse_timestamp_string(headers[headers_mod.TIMESTAMP])
 
         # assume unaware timestamps are UTC
-        if (timestamp.tzinfo is None
-                or timestamp.tzinfo.utcoffset(timestamp) is None):
+        if timestamp.tzinfo is None or timestamp.tzinfo.utcoffset(timestamp) is None:
             timestamp = pytz.utc.localize(timestamp)
 
         if inputs:
@@ -403,61 +387,43 @@ class EconDispatchAgent(Agent):
         """Schedule recurring events using Volttron vip.core.schedule"""
         # Don't setup the greenlets if we are offline/driven by simulation.
         if not self.simulation_mode and not self.offline_mode:
-            # initialize self.next_optimization
-            # be careful not to mutate self.*_schedule
-            self.optimization_schedule, optimization_schedule_clone = \
-                tee(self.optimization_schedule)
-            try:
-                self.next_optimization = pytz.UTC.localize(
-                    next(optimization_schedule_clone))
-                LOG.info("Next optimization scheduled for {}"
-                         "".format(self.next_optimization))
-            except StopIteration:
-                self.next_optimization = None
-                LOG.error("No optimizations scheduled")
-            # initialize self.next_training
-            # be careful not to mutate self.*_schedule
-            self.training_schedule, training_schedule_clone = \
-                tee(self.training_schedule)
-            try:
-                self.next_training = pytz.UTC.localize(
-                    next(training_schedule_clone))
-                LOG.info("Next training scheduled for {}"
-                         "".format(self.next_training))
-            except StopIteration:
-                self.next_training = None
-                LOG.info("No trainings scheduled")
-
             if self.optimization_greenlet is not None:
                 self.optimization_greenlet.kill()
                 self.optimization_greenlet = None
-            self.optimization_greenlet = self.core.schedule(
-                self.optimization_schedule, self.run_optimizer)
+            # be careful not to mutate self.*_schedule
+            self.optimization_schedule, optimization_schedule_clone = tee(self.optimization_schedule)
+            self.optimization_greenlet = self.core.schedule(optimization_schedule_clone, self.run_optimizer)
 
             if self.training_greenlet is not None:
                 self.training_greenlet.kill()
                 self.training_greenlet = None
-            self.training_greenlet = self.core.schedule(
-                self.training_schedule, self.train_components)
-        else:
-            # initialize self.next_optimization
+            # be careful not to mutate self.*_schedule
+            self.training_schedule, training_schedule_clone = tee(self.training_schedule)
+            self.training_greenlet = self.core.schedule(training_schedule_clone, self.train_components)
+
+        # initialize self.next_optimization
+        try:
+            self.next_optimization = next(self.optimization_schedule)
+            LOG.info("Next optimization scheduled for {}" "".format(self.next_optimization))
+        except StopIteration:
+            self.next_optimization = None
+            LOG.error("No optimizations scheduled")
+        # initialize self.next_training
+        try:
+            self.next_training = next(self.training_schedule)
+            LOG.info("Next training scheduled for {}" "".format(self.next_training))
+        except StopIteration:
+            self.next_training = None
+            LOG.info("No trainings scheduled")
+
+        if self.day_ahead_model is not None:
+            # initialize self.next_day_ahead
             try:
-                self.next_optimization = pytz.UTC.localize(
-                    next(self.optimization_schedule))
-                LOG.info("Next optimization scheduled for {}"
-                         "".format(self.next_optimization))
+                self.next_day_ahead = next(self.day_ahead_schedule)
+                LOG.info("Next day-ahead optimization scheduled for {}" "".format(self.next_day_ahead))
             except StopIteration:
-                self.next_optimization = None
-                LOG.error("No optimizations scheduled")
-            # initialize self.next_training
-            try:
-                self.next_training = pytz.UTC.localize(
-                    next(self.training_schedule))
-                LOG.info("Next training scheduled for {}"
-                         "".format(self.next_training))
-            except StopIteration:
-                self.next_training = None
-                LOG.info("No trainings scheduled")
+                self.next_day_ahead = None
+                LOG.info("No more day-ahead optimizations scheduled")
 
     def run_offline(self, input_data=None):
         """TODO: write docstring for offline mode
@@ -471,11 +437,11 @@ class EconDispatchAgent(Agent):
                 training_data = normalize_training_data(input_data)
                 inputs.train(training_data)
             except Exception as e:
-                LOG.error(e)
+                LOG.error(repr(e))
                 return
 
         while self.next_optimization is not None:
-            now = pytz.UTC.localize(self.next_optimization)
+            now = self.next_optimization
             LOG.debug("Processing timestamp: " + str(now))
 
             if input_data is not None:
@@ -496,31 +462,36 @@ class EconDispatchAgent(Agent):
         if now is None:
             now = utils.get_aware_utc_now()
 
-        if (self.next_optimization is not None
-                and self.next_optimization > now):
+        if self.next_optimization is not None and self.next_optimization > now:
             LOG.debug("Not running optimizer: not enough time has passed")
             return
 
         LOG.info("Running optimization for {}".format(now))
         try:
-            self.next_optimization = pytz.UTC.localize(
-                next(self.optimization_schedule))
-            LOG.info("Next optimization scheduled for {}"
-                     "".format(self.next_optimization))
-        except StopIteration:
-            self.next_optimization = None
-            LOG.info("No more optimizations scheduled")
-
-        commands = self.model.run_optimizer(now)
+            commands = self.model.run_optimizer(now)
+        except Exception as ex:
+            LOG.error(f"Optimization failed: {repr(ex)}")
+            commands = []
 
         if commands:
             if not self.offline_mode:
-                if self.make_reservations:
-                    self.reserve_actuator(commands)
-                    self.actuator_set(commands)
-                    self.reserve_actuator_cancel()
-                else:
-                    self.actuator_set(commands)
+                try:
+                    if self.make_reservations:
+                        self.reserve_actuator(commands)
+                        self.actuator_set(commands)
+                        self.reserve_actuator_cancel()
+                    else:
+                        self.actuator_set(commands)
+                except (Exception, gevent.Timeout) as ex:
+                    LOG.error(f"Could not send commands: {repr(ex)}. Tried to send {commands}")
+
+        LOG.info("Optimization complete")
+        try:
+            self.next_optimization = next(self.optimization_schedule)
+            LOG.info("Next optimization scheduled for {}" "".format(self.next_optimization))
+        except StopIteration:
+            self.next_optimization = None
+            LOG.error("No optimizations scheduled")
 
     def train_components(self, now=None):
         """Gather training parameters, query historian for training data,
@@ -546,18 +517,19 @@ class EconDispatchAgent(Agent):
             results = {}
             all_parameters = self.model.get_training_parameters(forecast_models)
 
-            for name, parameters in all_parameters.iteritems():
+            for name, parameters in all_parameters.items():
                 window, sources = parameters
                 end = now
                 start = end - timedelta(days=window)
                 training_data = {}
                 for topic in sources:
-                    value = self.vip.rpc.call(self.historian_vip_id,
-                                              "query",
-                                              topic,
-                                              utils.format_timestamp(start),
-                                              utils.format_timestamp(end),
-                                             ).get(timeout=4)
+                    value = self.vip.rpc.call(
+                        self.historian_vip_id,
+                        "query",
+                        topic,
+                        utils.format_timestamp(start),
+                        utils.format_timestamp(end),
+                    ).get(timeout=4)
                     training_data[topic] = value
 
                 results[name] = training_data
@@ -565,10 +537,8 @@ class EconDispatchAgent(Agent):
             self.model.apply_all_training_data(results, forecast_models)
 
         try:
-            self.next_training = pytz.UTC.localize(
-                next(training_schedule))
-            LOG.info("Next training scheduled for {}"
-                     "".format(self.next_training))
+            self.next_training = next(self.training_schedule)
+            LOG.info("Next training scheduled for {}" "".format(self.next_training))
         except StopIteration:
             self.next_training = None
             self.historian_training = False
@@ -594,7 +564,7 @@ class EconDispatchAgent(Agent):
             return success
 
         # TODO: can we use the usual utils.format_timestamp for this?
-        DATE_FORMAT = '%m-%d-%y %H:%M'
+        DATE_FORMAT = "%m-%d-%y %H:%M"
 
         _now = datetime.now()
         str_now = _now.strftime(DATE_FORMAT)
@@ -604,31 +574,27 @@ class EconDispatchAgent(Agent):
         # build list of unique schedule requests from topic list
         schedule_request = set()
         for topic in topic_values:
-            actuation_device, _ = topic.rsplit('/', 1)
+            actuation_device, _ = topic.rsplit("/", 1)
             schedule_request.add((actuation_device, str_now, str_end))
         schedule_request = list(schedule_request)
 
         try:
-            result = self.vip.rpc.call('platform.actuator',
-                                       'request_new_schedule',
-                                       "",
-                                       "econ_dispatch",
-                                       'HIGH',
-                                       schedule_request).get(timeout=4)
+            result = self.vip.rpc.call(
+                "platform.actuator", "request_new_schedule", "", "econ_dispatch", "HIGH", schedule_request
+            ).get(timeout=4)
         except RemoteError as ex:
-            LOG.warning("Failed to create actuator schedule (RemoteError): "
-                        "{}".format(str(ex)))
+            LOG.warning("Failed to create actuator schedule (RemoteError): " "{}".format(str(ex)))
             return False
         except Unreachable:
             LOG.error("Unable to reach platform.actuator")
             return False
 
-        if result['result'] == 'FAILURE':
-            if result['info'] == 'TASK_ID_ALREADY_EXISTS':
-                LOG.info('Task to schedule device already exists')
+        if result["result"] == "FAILURE":
+            if result["info"] == "TASK_ID_ALREADY_EXISTS":
+                LOG.info("Task to schedule device already exists")
                 success = True
             else:
-                LOG.warn('Failed to schedule devices (unavailable)')
+                LOG.warn("Failed to schedule devices (unavailable)")
                 success = False
 
         return success
@@ -637,13 +603,9 @@ class EconDispatchAgent(Agent):
         """Cancel actuator reservations"""
         if self.make_reservations:
             try:
-                self.vip.rpc.call('platform.actuator',
-                                  'request_cancel_schedule',
-                                  "",
-                                  "econ_dispatch").get(timeout=4)
+                self.vip.rpc.call("platform.actuator", "request_cancel_schedule", "", "econ_dispatch").get(timeout=4)
             except RemoteError as ex:
-                LOG.warning("Failed to cancel schedule (RemoteError): "
-                            "{}".format(str(ex)))
+                LOG.warning("Failed to cancel schedule (RemoteError): " "{}".format(str(ex)))
             except Unreachable:
                 LOG.error("Unable to reach platform.actuator")
 
@@ -654,16 +616,12 @@ class EconDispatchAgent(Agent):
         """
 
         try:
-            result = self.vip.rpc.call('platform.actuator',
-                                       'set_multiple_points',
-                                       "",
-                                       topic_values.items()).get(timeout=4)
+            self.vip.rpc.call("platform.actuator", "set_multiple_points", "", list(topic_values.items())).get(timeout=4)
         except RemoteError as ex:
-            LOG.error("Error occured in actuator set: {}. Failed to set: {}"
-                      "".format(str(ex), topic_values))
+            LOG.error("Error occured in actuator set: {}. Failed to set: {}" "".format(str(ex), topic_values))
         except Unreachable:
-            LOG.error("Unable to reach platform.actuator. Failed to set: {}"
-                      "".format(topic_values))
+            LOG.error("Unable to reach platform.actuator. Failed to set: {}" "".format(topic_values))
+
 
 def econ_dispatch_agent(config_path, **kwargs):
     """Parses agent configuration to run driven agent.
@@ -674,7 +632,7 @@ def econ_dispatch_agent(config_path, **kwargs):
     config = utils.load_config(config_path)
 
     # schedules can be int (period in hours), cron schedule, or null
-    optimization_schedule = config.get('optimization_schedule', 60)
+    optimization_schedule = config.get("optimization_schedule", 60)
     training_schedule = config.get("training_schedule", 0)
 
     schedule_start = config.get("schedule_start")
@@ -689,41 +647,44 @@ def econ_dispatch_agent(config_path, **kwargs):
     offline_mode = config.get("offline_mode", False)
 
     # debug files
-    optimizer_debug = config.get('optimizer_debug')
+    optimizer_debug = config.get("optimizer_debug")
     command_debug = config.get("command_debug")
 
     # required sections
     try:
-        optimizer_config = config['optimizer']
-        weather_config = config['weather']
-        forecast_configs = config['forecast_models']
-        component_configs = config['component_models']
+        optimizer_config = config["optimizer"]
+        weather_config = config["weather"]
+        forecast_configs = config["forecast_models"]
+        component_configs = config["component_models"]
     except KeyError as e:
-        raise ValueError("Required section missing from config: {}"
-                            "".format(repr(e)))
+        raise ValueError("Required section missing from config: {}" "".format(repr(e)))
 
     LOG.debug("Launching agent")
 
-    return EconDispatchAgent(optimization_schedule=optimization_schedule,
-                             training_schedule=training_schedule,
-                             schedule_start=schedule_start,
-                             schedule_end=schedule_end,
-                             make_reservations=make_reservations,
-                             historian_vip_id=historian_vip_id,
-                             simulation_mode=simulation_mode,
-                             offline_mode=offline_mode,
-                             optimizer_debug=optimizer_debug,
-                             command_debug=command_debug,
-                             optimizer_config=optimizer_config,
-                             weather_config=weather_config,
-                             forecast_configs=forecast_configs,
-                             component_configs=component_configs,
-                             **kwargs)
+    return EconDispatchAgent(
+        optimization_schedule=optimization_schedule,
+        training_schedule=training_schedule,
+        schedule_start=schedule_start,
+        schedule_end=schedule_end,
+        make_reservations=make_reservations,
+        historian_vip_id=historian_vip_id,
+        simulation_mode=simulation_mode,
+        offline_mode=offline_mode,
+        optimizer_debug=optimizer_debug,
+        command_debug=command_debug,
+        optimizer_config=optimizer_config,
+        weather_config=weather_config,
+        forecast_configs=forecast_configs,
+        component_configs=component_configs,
+        **kwargs,
+    )
+
 
 def main():
     """Launch agent using Volttron VIP wrapper"""
     utils.vip_main(econ_dispatch_agent)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # Entry point for script
     main()

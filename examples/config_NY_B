@@ -2,12 +2,13 @@
     "optimization_schedule": 60,
     "training_schedule": 0,
     "schedule_start": "1/1/2012 00:00",
-    "schedule_end": "1/2/2012 00:00",
-    "simulation_mode": true,
+    "schedule_end": "1/1/2013 00:00",
+    "simulation_mode": false,
+    "offline_mode": {"offline_mode": true, "input_data": "~/econ-dispatch/examples/inputs.csv"},
     "make_reservations": false,
     "historian_vip_id": "platform.historian",
-    "optimizer_debug": "optimizer output B NY.csv",
-    "command_debug": "command output B NY.csv",
+    "optimizer_debug": "~/econ-dispatch/logs/optimizer output B NY.csv",
+    "command_debug": "~/econ-dispatch/logs/command output B NY.csv",
     "optimizer":
     {
         "name": "default",
@@ -17,7 +18,7 @@
     "weather":
     {
         "type": "history",
-        "initial_training_data": "examples/historical_data/NY/weather.csv",
+        "initial_training_data": "~/econ-dispatch/examples/historical_data/NY/weather.csv",
         "settings":
         {
             "steps_forecast": 24,
@@ -29,7 +30,7 @@
         {
             "type": "history",
             "name": "building_load",
-            "initial_training_data": "examples/historical_data/NY/loads_B.csv",
+            "initial_training_data": "~/econ-dispatch/examples/historical_data/NY/loads_B.csv",
             "settings":
             {
                 "preprocess_settings":
@@ -45,12 +46,12 @@
         {
             "type": "history",
             "name": "natural_gas_cost",
-            "initial_training_data": "examples/historical_data/NY/natural_gas_price.csv"
+            "initial_training_data": "~/econ-dispatch/examples/historical_data/NY/natural_gas_price.csv"
         },
         {
             "type": "history",
             "name": "electricity_cost",
-            "initial_training_data": "examples/historical_data/NY/electricity_price.csv"
+            "initial_training_data": "~/econ-dispatch/examples/historical_data/NY/electricity_price.csv"
         }
     ],
     "component_models":
@@ -68,7 +69,7 @@
             #         "max": [1.4019027615566932, 2.834969584816588, 4.268036408076483, 5.701103231336378, 5.999658819515523]
             #     }
             # },
-            "initial_training_data": "examples/component_training_data/chiller_type1a.csv",
+            "initial_training_data": "~/econ-dispatch/examples/component_training_data/chiller_type1a.csv",
             # uncomment to re-train from historian
             # "training_window": 90,
             # "training_sources":
@@ -125,7 +126,7 @@
             #         "max": [1.4019027615566932, 2.834969584816588, 4.268036408076483, 5.701103231336378, 5.999658819515523]
             #     }
             # },
-            "initial_training_data": "examples/component_training_data/chiller_type1a.csv",
+            "initial_training_data": "~/econ-dispatch/examples/component_training_data/chiller_type1a.csv",
             "outputs":
             {
                 "command": "centrifugal_chiller1/command"
@@ -175,7 +176,7 @@
             #         "max": [227.0, 304.0, 384.5, 468.5, 500.0]
             #     }
             # },
-            "initial_training_data": "examples/component_training_data/microturbine_B.csv",
+            "initial_training_data": "~/econ-dispatch/examples/component_training_data/microturbine_B.csv",
             "outputs":
             {
                 "set_point": "micro_turbine_generator/set_point"
@@ -192,7 +193,7 @@
                 "hru_convert": 0.0034118,
                 "hru_eff": 0.8,
                 "curve_type": "prime_mover",
-                "command": false,
+                "report_command": false,
                 "preprocess_settings":
                 {
                     "renamings":
@@ -230,7 +231,7 @@
                     "max": [205.274, 647.342, 741.114, 764.557, 788.0]
                 }
             },
-            "initial_training_data": "examples/component_training_data/reciprocating_engine.csv",
+            "initial_training_data": "~/econ-dispatch/examples/component_training_data/reciprocating_engine.csv",
             "outputs":
             {
                 "set_point": "reciprocating_engine/set_point"
@@ -247,7 +248,7 @@
                 "hru_convert": 0.0034118,
                 "hru_eff": 0.8,
                 "curve_type": "prime_mover",
-                "command": false,
+                "report_command": false,
                 "preprocess_settings":
                 {
                     "renamings":
@@ -275,7 +276,7 @@
         {
             "type": "IOComponent",
             "name": "absorption_chiller",
-            "initial_training_data": "./scenario_c/ab_chiller.csv",
+            "initial_training_data": "~/econ-dispatch/examples/component_training_data/ab_chiller_B.csv",
             "outputs":
             {
                 "command": "absorption_chiller/command"
@@ -313,7 +314,7 @@
         {
             "type": "IOComponent",
             "name": "boiler0",
-            "initial_training_data": "examples/component_training_data/boiler.csv",
+            "initial_training_data": "~/econ-dispatch/examples/component_training_data/boiler.csv",
             "outputs":
             {
                 "command": "boiler0/command"
@@ -350,10 +351,10 @@
         {
             "type": "IOComponent",
             "name": "boiler1",
-            "initial_training_data": "examples/component_training_data/boiler.csv",
+            "initial_training_data": "~/econ-dispatch/examples/component_training_data/boiler.csv",
             "outputs":
             {
-                "command": "boiler0/command"
+                "command": "boiler1/command"
             },
             "settings":
             {
@@ -387,7 +388,7 @@
         {
             "type": "battery",
             "name": "battery",
-            "initial_training_data": "examples/component_training_data/battery.csv",
+            "initial_training_data": "~/econ-dispatch/examples/component_training_data/battery.csv",
             "default_parameters":
             {
                 "charge_eff": 0.8,

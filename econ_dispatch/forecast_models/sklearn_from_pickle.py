@@ -54,67 +54,88 @@
 # operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
 # }}}
-""".. todo:: Module docstring"""
-import abc
 import logging
-import pkgutil
-from importlib import import_module
+import os
+import pickle
+
+import pandas as pd
+from sklearn import __version__ as this_sklearn_version
+from volttron.platform.agent.utils import process_timestamp
+
+from econ_dispatch.forecast_models.history import Forecast as HistoryForecastBase
+from econ_dispatch.forecast_models.utils import make_time_features
 
 LOG = logging.getLogger(__name__)
 
 
-class ForecastBase(object, metaclass=abc.ABCMeta):
-    """Abstract base class for forecast models
+class Forecast(HistoryForecastBase):
+    """Return forecasts from pre-trained scikit-learn regression on historical data
 
-    :param training_window: period in days over which to train
-    :param training_sources: dict of historian topic, name pairs
+    :param dependent_variables: historical variables to regress on
+    :param model_settings: keyword arguments for model
+    :param kwargs: keyword arguments for base class
     """
 
-    def __init__(self, training_window=365, training_sources={}):
-        self.training_window = int(training_window)
-        self.training_sources = training_sources
+    def __init__(
+        self,
+        dependent_variables,
+        independent_variables,
+        use_timestamp,
+        epoch,
+        epoch_span,
+        model_settings=None,
+        **kwargs,
+    ):
+        super(Forecast, self).__init__(**kwargs)
+        if model_settings is None:
+            model_settings = {}
+        self.dependent_variables = dependent_variables
+        self.independent_variables = independent_variables
+        self.use_timestamp = use_timestamp
+        self.epoch, _ = process_timestamp(epoch)
+        self.epoch_span = epoch_span
 
-    @abc.abstractmethod
+        self.model = self.load_serialized_model(**model_settings)
+
+    def load_serialized_model(self, filepath, sklearn_version):
+        """Load a pickled sklearn model from disk
+
+        :param filepath: path to serialized sklearn model
+        :param source_sklearn_version: version of sklearn used to train the model
+        """
+        if this_sklearn_version != sklearn_version:
+            raise ValueError(
+                f"This model was trained with sklearn version {sklearn_version}, but you're using "
+                f"{this_sklearn_version}. Please install the correct version"
+            )
+        LOG.warning("Never unpickle data from an untrusted source. Beginning unpickle")
+        with open(os.path.expanduser(filepath), "rb") as fh:
+            model = pickle.load(fh)
+        return model
+
+    def train(self, training_data):
+        """Re-train regression model on historical data
+
+        :param training_data: data on which to train, organized by input name
+        :type training_data: dict of lists
+        """
+        raise NotImplementedError("Pre-trained model cannot be re-trained")
+
     def derive_variables(self, now, weather_forecast={}):
-        """Return forecast for a single time, based on the weather forecast
+        """Predict forecast using regression model
 
         :param now: time of forecast
         :type now: datetime.datetime
         :param weather_forecast: dict containing a weather forecast
         :returns: dict of forecasts for time `now`
         """
-        pass
+        # project timestamps into vector space
+        if self.use_timestamp:
+            time_features = make_time_features(now, epoch=self.epoch, epoch_span=self.epoch_span)
+            weather_forecast.update(time_features)
+        X = pd.DataFrame(weather_forecast, index=[0])
 
-    def train(self, training_data):
-        """Override this to use training data to update the model
-
-        :param training_data: data on which to train, organized by input name
-        :type training_data: dict of lists
-        """
-        pass
-
-
-FORECAST_LIST = [x for _, x, _ in pkgutil.iter_modules(__path__)]
-FORECAST_DICT = {}
-for FORECAST_NAME in FORECAST_LIST:
-    try:
-        module = import_module(".".join(["econ_dispatch", "forecast_models", FORECAST_NAME]))
-        klass = module.Forecast
-    except Exception as e:
-        LOG.error("Module {name} cannot be imported. Reason: {ex}" "".format(name=FORECAST_NAME, ex=e))
-        continue
-
-    # Validation of algorithm class
-    if not issubclass(klass, ForecastBase):
-        LOG.warning(
-            "The implementation of {name} does not inherit from "
-            "econ_dispatch.forecast_models.ForecastBase."
-            "".format(name=FORECAST_NAME)
-        )
-
-    FORECAST_DICT[FORECAST_NAME] = klass
-
-
-def get_forecast_class(name):
-    """Return `Forecast` class from module named `name`"""
-    return FORECAST_DICT.get(name)
+        # Only ever see one record a time: pop values from 2D array
+        y = self.model.predict(X[self.independent_variables])[0]
+        result = {k: v for k, v in zip(self.dependent_variables, y)}
+        return result

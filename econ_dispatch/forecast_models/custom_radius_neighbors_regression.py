@@ -56,19 +56,19 @@
 # }}}
 import logging
 
+import numpy as np
 import pandas as pd
 import scipy.stats as st
-import numpy as np
 
 from econ_dispatch.forecast_models.history import Forecast as HistoryForecastBase
 
-
 LOG = logging.getLogger(__name__)
+
 
 class Forecast(HistoryForecastBase):
     """Return forecasts and uncertainty estimate from custom regression on
     historical data
-    
+
     The regression is based on the "radius neighbors" paradigm: return the
     average of data points in some fixed-size neighborhood around a query.
 
@@ -78,7 +78,7 @@ class Forecast(HistoryForecastBase):
     If too few data points are found within the neighborhood, all its radii
     are doubled. If this happens too many times, we use the global average over
     all historical data.
-    
+
     Either means or medians may be used as an average.
 
     The method's main advantage is that it comes equipped with a measure of
@@ -100,23 +100,26 @@ class Forecast(HistoryForecastBase):
     :param p: proportion of samples to be less than calculated upper bound
     :param kwargs: keyword arguments for base class
     """
-    def __init__(self,
-                 time_diff_tolerance=1,
-                 independent_variable_tolerances={},
-                 min_samples=2,
-                 max_retries=5,
-                 scale_method='MSE',
-                 alpha=0.05,
-                 p=0.99,
-                 **kwargs):
+
+    def __init__(
+        self,
+        time_diff_tolerance=1,
+        independent_variable_tolerances={},
+        min_samples=2,
+        max_retries=5,
+        scale_method="MSE",
+        alpha=0.05,
+        p=0.99,
+        **kwargs,
+    ):
         super(Forecast, self).__init__(**kwargs)
         self.time_diff_tolerance = time_diff_tolerance
         if int(self.time_diff_tolerance) != self.time_diff_tolerance:
-            time_diff_tolerance = int(time_diff_tolerance)+1
-            LOG.debug("Time difference tolerance must be in whole hours. "
-                       "Rounding up from {} to {}".format(
-                           self.time_diff_tolerance,
-                           time_diff_tolerance))
+            time_diff_tolerance = int(time_diff_tolerance) + 1
+            LOG.debug(
+                "Time difference tolerance must be in whole hours. "
+                "Rounding up from {} to {}".format(self.time_diff_tolerance, time_diff_tolerance)
+            )
             self.time_diff_tolerance = time_diff_tolerance
         self.independent_variable_tolerances = independent_variable_tolerances
         self.min_samples = min_samples
@@ -140,69 +143,75 @@ class Forecast(HistoryForecastBase):
         df = self.historical_data
 
         # requires minimum difference in timestamps >= 1min
-        filter = (  (df[self.timestamp_column].dt.weekday == day_of_week)
-                  & (df[self.timestamp_column].dt.hour >=
-                     hour_of_day - self.time_diff_tolerance)
-                  & (  (df[self.timestamp_column].dt.hour <
-                        hour_of_day + self.time_diff_tolerance)
-                     | (  (df[self.timestamp_column].dt.hour ==
-                           hour_of_day + self.time_diff_tolerance)
-                        & (df[self.timestamp_column].dt.minute ==
-                           0))))
-        if hour_of_day > 23-self.time_diff_tolerance:
+        filter = (
+            (df[self.timestamp_column].dt.weekday == day_of_week)
+            & (df[self.timestamp_column].dt.hour >= hour_of_day - self.time_diff_tolerance)
+            & (
+                (df[self.timestamp_column].dt.hour < hour_of_day + self.time_diff_tolerance)
+                | (
+                    (df[self.timestamp_column].dt.hour == hour_of_day + self.time_diff_tolerance)
+                    & (df[self.timestamp_column].dt.minute == 0)
+                )
+            )
+        )
+        if hour_of_day > 23 - self.time_diff_tolerance:
             # last hour to include in the next day
             delta = (hour_of_day + self.time_diff_tolerance) % 24
-            filter |= (  (df[self.timestamp_column].dt.weekday ==
-                          (day_of_week + 1) % 7)
-                       & (df[self.timestamp_column].dt.hour < delta))
-            filter |= (  (df[self.timestamp_column].dt.weekday ==
-                          (day_of_week + 1) % 7)
-                       & (df[self.timestamp_column].dt.hour == delta)
-                       & (df[self.timestamp_column].dt.minute == 0))
+            filter |= (df[self.timestamp_column].dt.weekday == (day_of_week + 1) % 7) & (
+                df[self.timestamp_column].dt.hour < delta
+            )
+            filter |= (
+                (df[self.timestamp_column].dt.weekday == (day_of_week + 1) % 7)
+                & (df[self.timestamp_column].dt.hour == delta)
+                & (df[self.timestamp_column].dt.minute == 0)
+            )
         if hour_of_day < 0 + self.time_diff_tolerance:
             # first hour to include in the previous day
             delta = (hour_of_day - self.time_diff_tolerance) % 24
-            filter |= (  (df[self.timestamp_column].dt.weekday ==
-                          (day_of_week - 1) % 7)
-                       & (df[self.timestamp_column].dt.hour >= delta))
+            filter |= (df[self.timestamp_column].dt.weekday == (day_of_week - 1) % 7) & (
+                df[self.timestamp_column].dt.hour >= delta
+            )
 
-        for variable, value in weather_forecast.iteritems():
-            tolerance = self.independent_variable_tolerances.get(variable,
-                                                                 None)
+        for variable, value in weather_forecast.items():
+            tolerance = self.independent_variable_tolerances.get(variable, None)
             if tolerance is None:
                 continue
             # Note: this will also filter any records where
             # independent variable is NaN
-            filter &= (df[variable] >= value-tolerance)
-            filter &= (df[variable] <= value+tolerance)
+            filter &= df[variable] >= value - tolerance
+            filter &= df[variable] <= value + tolerance
 
         filtered_data = df[filter]
         min_num_samples = filtered_data.shape[0] - sum(pd.isnull(filtered_data).any(axis=1))
 
         if min_num_samples >= self.min_samples:
             if self.num_retries > 0:
-                self.adjust_tolerances(1./2**self.num_retries)
+                self.adjust_tolerances(1.0 / 2 ** self.num_retries)
                 self.num_retries = 0
             return self.build_results(filtered_data)
         else:
             if self.num_retries == self.max_retries:
-                LOG.debug("Maximum number of tolerance increases {} reached. "
-                           "Defaulting to all-of-data.".format(
-                               self.max_retries))
-                self.adjust_tolerances(1./2**self.num_retries)
+                LOG.debug(
+                    "Maximum number of tolerance increases {} reached. "
+                    "Defaulting to all-of-data.".format(self.max_retries)
+                )
+                self.adjust_tolerances(1.0 / 2 ** self.num_retries)
                 self.num_retries = 0
                 return self.build_results(df)
             else:
                 self.adjust_tolerances(2)
                 self.num_retries += 1
-                LOG.debug("Number of samples {} is less than the minimum {} "
-                           "after {} retries. Time tolerance increased to {} "
-                           " and other tolerances increased to {}".format(
-                               min_num_samples, 
-                               self.min_samples,
-                               self.num_retries,
-                               self.time_diff_tolerance,
-                               self.independent_variable_tolerances))
+                LOG.debug(
+                    "Number of samples {} is less than the minimum {} "
+                    "after {} retries. Time tolerance increased to {} "
+                    " and other tolerances increased to {}".format(
+                        min_num_samples,
+                        self.min_samples,
+                        self.num_retries,
+                        self.time_diff_tolerance,
+                        self.independent_variable_tolerances,
+                    )
+                )
                 return self.derive_variables(now, weather_forecast)
 
     def build_results(self, data):
@@ -216,10 +225,9 @@ class Forecast(HistoryForecastBase):
             # NaN values in dependent variables usually co-occur with
             # NaNs in indpendent variables, so are already filtered.
             # Filter them anyway.
-            loc, (_, ub) = self.estimate_center(
-                data[dep].loc[~pd.isnull(data[dep])])
+            loc, (_, ub) = self.estimate_center(data[dep].loc[~pd.isnull(data[dep])])
             results[dep] = loc
-            results[dep+"_ub"] = ub
+            results[dep + "_ub"] = ub
         return results
 
     def adjust_tolerances(self, factor):
@@ -231,7 +239,7 @@ class Forecast(HistoryForecastBase):
         for k in self.independent_variable_tolerances:
             self.independent_variable_tolerances[k] *= factor
 
-    def get_loc_scale(self, a, scale_method='MAD'):
+    def get_loc_scale(self, a, scale_method="MAD"):
         """Compute measure of central tendency and spread
 
         :param a: data
@@ -243,18 +251,16 @@ class Forecast(HistoryForecastBase):
         :rtype: tuple[float]
         """
         if len(a) < 2:
-            LOG.warning("Not enough samples to estimate "
-                         "distribution parameters.")
+            LOG.warning("Not enough samples to estimate " "distribution parameters.")
             return a[0], 0
-        if scale_method == 'MAD':
+        if scale_method == "MAD":
             _c = 0.6744897501960817  # st.norm.ppf(3/4)
             med = np.median(a)
-            return med, np.median(np.absolute(med - a))/_c
-        if scale_method == 'MSE':
+            return med, np.median(np.absolute(med - a)) / _c
+        if scale_method == "MSE":
             return np.mean(a), np.std(a)
-        LOG.debug("Location and scale estimation method {} "
-                   "not found; defaulting to MSE".format(scale_method))
-        return self.get_loc_scale(a, 'MAD')
+        LOG.debug("Location and scale estimation method {} " "not found; defaulting to MSE".format(scale_method))
+        return self.get_loc_scale(a, "MAD")
 
     def tolerance_interval(self, x, alpha=0.05, p=0.99, loc=None, scale=None):
         """Calculate one-sided normal tolerance interval as in
@@ -272,22 +278,21 @@ class Forecast(HistoryForecastBase):
         """
         n = len(x)
         if n < 2:
-            LOG.warning("Not enough samples to estimate "
-                         "distribution parameters.")
+            LOG.warning("Not enough samples to estimate " "distribution parameters.")
             return x[0], (-np.inf, np.inf)
-        df = n-1
+        df = n - 1
 
         if loc is None:
             loc = x.mean()
         if scale is None:
             scale = x.std()
 
-        z_p = st.norm.ppf(1-p, loc=loc, scale=scale)
+        z_p = st.norm.ppf(1 - p, loc=loc, scale=scale)
         ncp = np.sqrt(n) * z_p
-        t_a = st.nct.ppf(1-alpha, df, ncp)
-        K = t_a/np.sqrt(n)
+        t_a = st.nct.ppf(1 - alpha, df, ncp)
+        K = t_a / np.sqrt(n)
 
-        return sorted((loc - scale*K, loc + scale*K))
+        return sorted((loc - scale * K, loc + scale * K))
 
     def estimate_center(self, data):
         """Estimate center and tolerance interval of 1D data
@@ -300,10 +305,6 @@ class Forecast(HistoryForecastBase):
         :rtype: tuple[float]
         """
         loc, scale = self.get_loc_scale(data, scale_method=self.scale_method)
-        _data = (data - loc)/scale  # stabilize numerical errors
-        lb, ub = self.tolerance_interval(_data,
-                                         self.alpha,
-                                         self.p,
-                                         loc=0,
-                                         scale=1)
-        return loc, (lb*scale+loc, ub*scale+loc)
+        _data = (data - loc) / scale  # stabilize numerical errors
+        lb, ub = self.tolerance_interval(_data, self.alpha, self.p, loc=0, scale=1)
+        return loc, (lb * scale + loc, ub * scale + loc)

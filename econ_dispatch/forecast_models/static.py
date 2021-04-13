@@ -56,6 +56,7 @@
 # }}}
 from econ_dispatch.forecast_models import ForecastBase
 
+
 class Forecast(ForecastBase):
     """Return static dict of forecasts
 
@@ -63,6 +64,7 @@ class Forecast(ForecastBase):
         returns no forecasts
     :param kwargs: keyword arguments for base class
     """
+
     def __init__(self, values={}, **kwargs):
         super(Forecast, self).__init__(**kwargs)
         self.values = values

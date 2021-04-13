@@ -1,4 +1,4 @@
-Timestamp,battery/soc,thermal_storage/soc
+timestamp,devices/battery/soc,devices/thermal_storage/soc
 1/1/2012 0:00,0.399327996,0.399327996
 1/1/2012 1:00,0.576828286,0.576828286
 1/1/2012 2:00,0.599656226,0.599656226

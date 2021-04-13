@@ -58,18 +58,18 @@ import datetime
 import logging
 import xml.etree.ElementTree as ET
 
-from dateutil.parser import parse
 import pandas as pd
 import pytz
 import requests
+from dateutil.parser import parse
 
 from econ_dispatch.forecast_models import ForecastBase
 from econ_dispatch.utils import round_to_hour
 
-
 LOG = logging.getLogger(__name__)
 
 MAX_UPDATE_FREQUENCY = datetime.timedelta(hours=0.5)
+
 
 class Forecast(ForecastBase):
     """Query a REST endpoint with an Obix backend
@@ -82,14 +82,17 @@ class Forecast(ForecastBase):
     :param dependent_variable: variable name for post-processing
     :param kwargs: keyword arguments for base class
     """
-    def __init__(self,
-                 url=None,
-                 point_name="Nat Gas Com Cost per MM-BTU",
-                 username=None,
-                 password=None,
-                 timezone='UTC',
-                 dependent_variable='natural_gas_cost',
-                 **kwargs):
+
+    def __init__(
+        self,
+        url=None,
+        point_name="Nat Gas Com Cost per MM-BTU",
+        username=None,
+        password=None,
+        timezone="UTC",
+        dependent_variable="natural_gas_cost",
+        **kwargs,
+    ):
         super(Forecast, self).__init__(**kwargs)
         self.url = url
         self.username = username
@@ -102,10 +105,9 @@ class Forecast(ForecastBase):
         # requests is not configurable to not encode
         # (https://stackoverflow.com/a/23497903)
         # do it manually:
-        interface_point_name = \
-            point_name.replace(" ", "$20").replace("-", "$2d")
+        interface_point_name = point_name.replace(" ", "$20").replace("-", "$2d")
         url = url if url.endswith("/") else url + "/"
-        self.url = url + interface_point_name + '/~historyQuery'
+        self.url = url + interface_point_name + "/~historyQuery"
 
         try:
             self.timezone = pytz.FixedOffset(int(timezone))
@@ -143,35 +145,31 @@ class Forecast(ForecastBase):
         else:
             # look back one day
             new_time = rounded_time - datetime.timedelta(days=lookback)
-            LOG.debug("{} for {} not available. "
-                       "Trying {}".format(self.dependent_variable,
-                                          rounded_time,
-                                          new_time))
+            LOG.debug("{} for {} not available. " "Trying {}".format(self.dependent_variable, rounded_time, new_time))
             rounded_time = new_time
 
         if rounded_time in self.values:
             return {self.dependent_variable: self.values[rounded_time]}
         else:
             # use latest succesfully retrieved value
-            LOG.debug("{} for {} not available either. "
-                       "Using default value".format(self.dependent_variable,
-                                                    rounded_time))
+            LOG.debug(
+                "{} for {} not available either. " "Using default value".format(self.dependent_variable, rounded_time)
+            )
             return {self.dependent_variable: self.default_value}
 
     def time_format(self, dt):
         """Format timestamp for Obix query"""
-        return u"%s:%06.3f%s" % (
-            dt.strftime('%Y-%m-%dT%H:%M'),
+        return "%s:%06.3f%s" % (
+            dt.strftime("%Y-%m-%dT%H:%M"),
             float("%.3f" % (dt.second + dt.microsecond / 1e6)),
-            dt.strftime('%z')[:3] + ':' + dt.strftime('%z')[3:]
+            dt.strftime("%z")[:3] + ":" + dt.strftime("%z")[3:],
         )
 
     def update_values(self, now):
         """Query Obix site for new values, but not often"""
         true_now = datetime.datetime.utcnow()
         true_now = pytz.UTC.localize(true_now)
-        if (self.last_collection is not None and
-                (true_now - self.last_collection) < MAX_UPDATE_FREQUENCY):
+        if self.last_collection is not None and (true_now - self.last_collection) < MAX_UPDATE_FREQUENCY:
             return
 
         now = now.astimezone(self.timezone)
@@ -182,51 +180,41 @@ class Forecast(ForecastBase):
         # requests is not configurable to not encode
         # (https://stackoverflow.com/a/23497903)
         # do it manually:
-        payload = {'start': self.time_format(start_time),
-                   'end': self.time_format(end_time)}
-        payload_str = "&".join("%s=%s" % (k, v) for k, v in payload.items())
+        payload = {"start": self.time_format(start_time), "end": self.time_format(end_time)}
+        payload_str = "&".join("%s=%s" % (k, v) for k, v in list(payload.items()))
 
-        r = requests.get(self.url,
-                         auth=(self.username, self.password),
-                         params=payload_str)
+        r = requests.get(self.url, auth=(self.username, self.password), params=payload_str)
 
         try:
             r.raise_for_status()
-        except StandardError as e:
+        except Exception as e:
             LOG.error(repr(e))
             return
 
         # assume next update will occur at the next 7am, local time
         _now = true_now.astimezone(self.timezone)
-        next_update = _now.replace(hour=7,
-                                   minute=0,
-                                   second=0,
-                                   microsecond=0)
+        next_update = _now.replace(hour=7, minute=0, second=0, microsecond=0)
         if _now.hour >= 7:
             next_update += datetime.timedelta(days=1)
         next_update = next_update.astimezone(pytz.UTC)
 
         values = self.parse_result(r.text, next_update)
 
-        if len([k for k in values.iterkeys()]) == 0:
+        if len([k for k in values.keys()]) == 0:
             LOG.debug("HTTP response is emtpy")
             return
         else:
             self.values = values
             # set default value to latest
-            self.default_value = self.values[max(self.values.iterkeys())]
+            self.default_value = self.values[max(self.values.keys())]
             self.last_collection = true_now
 
     def parse_result(self, xml_tree, next_update):
         """Parse XML response from Obix query"""
-        obix_types = {'int': int,
-                      'bool': bool,
-                      'real': float}
-        obix_schema_spec = '{http://obix.org/ns/schema/1.0}'
+        obix_types = {"int": int, "bool": bool, "real": float}
+        obix_schema_spec = "{http://obix.org/ns/schema/1.0}"
         root = ET.fromstring(xml_tree)
-        value_def = root.findall(
-            ".{0}obj[@href='#RecordDef']*[@name='value']".format(
-                obix_schema_spec))
+        value_def = root.findall(".{0}obj[@href='#RecordDef']*[@name='value']".format(obix_schema_spec))
 
         if len(value_def) == 0:
             LOG.error("No values in time slice")
@@ -237,27 +225,18 @@ class Forecast(ForecastBase):
         else:
             value_def = value_def[0]
 
-        value_tag = value_def.tag[len(obix_schema_spec):]
+        value_tag = value_def.tag[len(obix_schema_spec) :]
 
         records = root.findall(".{0}list/".format(obix_schema_spec))
 
-        _times = [record.find("./*[@name='timestamp']").attrib['val']
-                  for record in records]
-        _values = [
-            obix_types[value_tag](
-                record.find("./*[@name='value']").attrib['val'])
-            for record in records]
+        _times = [record.find("./*[@name='timestamp']").attrib["val"] for record in records]
+        _values = [obix_types[value_tag](record.find("./*[@name='value']").attrib["val"]) for record in records]
 
-        _times = [round_to_hour(parse(_t)\
-                  .replace(tzinfo=self.timezone)\
-                  .astimezone(pytz.UTC)) for _t in _times]
+        _times = [round_to_hour(parse(_t).replace(tzinfo=self.timezone).astimezone(pytz.UTC)) for _t in _times]
         _values = [float(_v) for _v in _values]
 
         # pad times between updates with last value
         values = pd.Series(_values, index=_times)
-        values = values.reindex(pd.date_range(start=values.index.min(),
-                                              end=next_update,
-                                              freq='1H'),
-                                method='pad')
+        values = values.reindex(pd.date_range(start=values.index.min(), end=next_update, freq="1H"), method="pad")
 
         return dict(values)

@@ -20,7 +20,8 @@ local solar photovoltaic (PV) systems.
 
 ## Platform
 Economic Dispatch is built on the [VOLTTRON<sup>TM</sup>](https://volttron.readthedocs.io/en/develop>)
-platform.
+platform. It is tested against VOLTTRON version 7.0, and therefore requires
+python 3 with a minimum version of 3.6.
 
 VOLTTRON<sup>TM</sup> is an open-source platform for distributed sensing and
 control. The platform provides services for collecting and storing data from
@@ -41,10 +42,11 @@ VOLTTRON docs for details:
 Please see the [VOLTTRON documentation](https://volttron.readthedocs.io/en/develop/setup/index.html)
 for VOLTTRON installation instructions.
 
-Once VOLTTRON is installed, install Economic Dispatch like any VOLTTRON agent:
+Once VOLTTRON is installed, install and run Economic Dispatch like any VOLTTRON agent:
 
 ```bash
-python ${VOLTTRONDIR}/scripts/install-agent.py -s ${ECONDISPATCHDIR}/econ_dispatch/ -c ${ECONDISPATCHDIR}/config -t econ_dispatch
+python "${VOLTTRONDIR}/scripts/install-agent.py" -s "${ECONDISPATCHDIR}" -c "${ECONDISPATCHDIR}/examples/${CONFIGNAME}" -t econ_dispatch
+vctl start --tag econ_dispatch
 ```
 
 ## Documentation

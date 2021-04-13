@@ -54,24 +54,23 @@
 # operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
 # }}}
-import logging
 import datetime
+import logging
 
+import pandas as pd
 import pytz
 import requests
+from volttron.platform.agent import utils
 
 from econ_dispatch.forecast_models import ForecastBase
-from volttron.platform.agent import utils
+from econ_dispatch.utils import round_to_hour
 
 LOG = logging.getLogger(__name__)
 
-LIVE_URL_TEMPLATE = \
-    "https://api.weather.gov/points/{latitude},{longitude}/forecast/hourly"
-KEYS = {
-    "temperature": "temperature",
-    "windSpeed": "wind_speed",
-    "windDirection": "wind_direction"
-}
+LIVE_URL_TEMPLATE = "https://api.weather.gov/points/{latitude},{longitude}/forecast/hourly"
+KEYS = {"temperature": "temperature", "windSpeed": "wind_speed", "windDirection": "wind_direction"}
+TIMESTAMP_FIELD = "timestamp"
+
 
 class Weather(ForecastBase):
     """Return weather forecast from National Weather Service web API
@@ -83,15 +82,10 @@ class Weather(ForecastBase):
         provides only hourly data
     :param kwargs: kwargs for `forecast_models.ForecastBase`
     """
-    def __init__(self,
-                 latitude=None,
-                 longitude=None,
-                 timezone="UTC",
-                 hours_forecast=24,
-                 **kwargs):
+
+    def __init__(self, latitude=None, longitude=None, timezone="UTC", hours_forecast=24, **kwargs):
         super(Weather, self).__init__(**kwargs)
-        self.url = LIVE_URL_TEMPLATE.format(latitude=latitude,
-                                            longitude=longitude)
+        self.url = LIVE_URL_TEMPLATE.format(latitude=latitude, longitude=longitude)
         assert hours_forecast <= 156, "NWS returns a maximum of 6.5 days"
         self.hours_forecast = hours_forecast
         self.timezone = pytz.timezone(timezone)
@@ -106,17 +100,37 @@ class Weather(ForecastBase):
         :type now: datetime.datetime
         """
         now = now.astimezone(self.timezone)
+        start = round_to_hour(now)
+        hours = [start + datetime.timedelta(hours=i) for i in range(self.hours_forecast)]
 
         results = self.get_live_data()
 
-        if abs(results[0]['timestamp'] - now) > datetime.timedelta(days=1):
-            LOG.warning("Weather forecast for a different time. "
-                        "Should you use historical data instead?")
-        LOG.debug("Weather forecast from {} to {}".format(
-            results[0]['timestamp'],
-            results[-1]['timestamp']))
+        # Join to desired timestamps
+        results = pd.DataFrame(results).set_index(TIMESTAMP_FIELD).T
+        _empty = pd.DataFrame(index=pd.Index(hours, name=TIMESTAMP_FIELD))
+        results = _empty.join(results.T, how="left")
+
+        # Fill missing data
+        missing_hours = results.loc[results.isna().any(axis=1)].index.tolist()
+        if len(missing_hours) == 24:
+            raise ValueError(
+                "Weather forecast has no overlap with requested hours. Should you use historical data instead?"
+            )
+        elif missing_hours:
+            LOG.warning(f"Weather forecast does not contain values for {missing_hours}. Filling in.")
+            results = results.bfill().ffill()
+
+        # cast to expected format
+        _results = []
+        for ts, vals in results.iterrows():
+            vals = vals.to_dict()
+            vals.update({TIMESTAMP_FIELD: ts.to_pydatetime()})  # pd.Timestamp --> datetime.datetime
+            _results.append(vals)
+        results = _results
+
+        LOG.debug("Weather forecast from {} to {}".format(results[0][TIMESTAMP_FIELD], results[-1][TIMESTAMP_FIELD]))
         return results
-    
+
     def get_live_data(self):
         """Query and parse NWS records"""
         r = requests.get(self.url)
@@ -129,28 +143,28 @@ class Weather(ForecastBase):
             raise e
 
         results = []
-        for rec in records[:self.hours_forecast]:
+        for rec in records[: self.hours_forecast]:
             timestamp = utils.parse_timestamp_string(rec["endTime"])
             timestamp = timestamp.astimezone(pytz.UTC)
-            result = {"timestamp": timestamp}
+            result = {TIMESTAMP_FIELD: timestamp}
             result.update(self.get_nws_forecast_from_record(rec))
             results.append(result)
         return results
-    
+
     def get_nws_forecast_from_record(self, record):
         """Parse single NWS record"""
         result = {}
-        for key, value in KEYS.iteritems():
+        for key, value in KEYS.items():
             try:
                 result[KEYS[key]] = float(record[key])
             except ValueError:
                 value = record[key].split()
                 if len(value) == 2:
-                    value, unit = float(value[0]), value[1]
+                    # result[KEYS[key]+"_unit"] = value[1]
+                    value = float(value[0])
                     result[KEYS[key]] = value
-                    # result[KEYS[key]+'_unit'] = unit
-                else: 
+                else:
                     result[KEYS[key]] = record[key]
-            except KeyError as e:
+            except KeyError:
                 LOG.error("Weather record did not contain {}".format(key))
         return result

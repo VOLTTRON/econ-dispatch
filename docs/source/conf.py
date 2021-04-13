@@ -67,25 +67,29 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
+from importlib import import_module
 import os
 import sys
 
 from volttron.platform.agent.utils import execute_command
 
 
-sys.path.insert(0, os.path.abspath('/vagrant/econ-dispatch'))
-
-
 # -- Project information -----------------------------------------------------
 
-project = u'Econ_Dispatch'
-copyright = u'2019, Pacific Northwest National Laboratory'
-author = u'Lee Burke, Nadia Panossian, Kyle Monson'
+# Find the version number from the main module
+sys.path.insert(0, os.path.abspath(os.path.expanduser(('~/econ-dispatch'))))
+agent_module = "econ_dispatch.agent"
+_temp = import_module(agent_module)
 
+project = 'Econ_Dispatch'
+copyright = _temp.__copyright__
+author = 'Lee Burke, Nadia Panossian, Kyle Monson'
+
+__version__ = _temp.__version__
 # The short X.Y version
-version = u'1.0.0'
+version = __version__
 # The full version, including alpha/beta/rc tags
-release = u'1.0.0'
+release = __version__
 
 
 # -- General configuration ---------------------------------------------------

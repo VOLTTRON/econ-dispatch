@@ -56,14 +56,15 @@
 # }}}
 """.. todo:: Module docstring"""
 import abc
-from copy import deepcopy
 import logging
 import pkgutil
+from copy import deepcopy
+from importlib import import_module
 
 LOG = logging.getLogger(__name__)
 
 
-class ComponentBase(object):
+class ComponentBase(object, metaclass=abc.ABCMeta):
     """Abstract base class for component models
 
     :param name: name of model
@@ -73,15 +74,16 @@ class ComponentBase(object):
     :param inputs: dict of message bus topic, name pairs
     :param outputs: dict of name, message bus pairs
     """
-    __metaclass__ = abc.ABCMeta
 
-    def __init__(self,
-                 name="MISSING_NAME",
-                 default_parameters={},
-                 training_window=365,
-                 training_sources={},
-                 inputs={},
-                 outputs={}):
+    def __init__(
+        self,
+        name="MISSING_NAME",
+        default_parameters={},
+        training_window=365,
+        training_sources={},
+        inputs={},
+        outputs={},
+    ):
         """Initialize component model"""
         self.name = name
         self.parameters = default_parameters
@@ -143,14 +145,13 @@ class ComponentBase(object):
         """
         mapped_commands = self.get_mapped_commands(optimization_output)
         results = {}
-        for output_name, topic in self.output_map.iteritems():
+        for output_name, topic in self.output_map.items():
             value = mapped_commands.pop(output_name, None)
             if value is not None:
                 results[topic] = value
 
         for name in mapped_commands:
-            LOG.error("NO MAPPED TOPIC FOR {} IN COMPONENT {}. "
-                      "DROPPING COMMAND".format(name, self.name))
+            LOG.error("NO MAPPED TOPIC FOR {} IN COMPONENT {}. " "DROPPING COMMAND".format(name, self.name))
 
         return results
 
@@ -160,11 +161,10 @@ class ComponentBase(object):
         :param now: time data was published to message bus
         :param inputs: map of name, value pairs
         """
-        for topic, input_name in self.input_map.iteritems():
+        for topic, input_name in self.input_map.items():
             value = inputs.get(topic)
             if value is not None:
-                LOG.debug("{} processing input from topic {}"
-                          "".format(self.name, topic))
+                LOG.debug("{} processing input from topic {}" "".format(self.name, topic))
                 self.process_input(now, input_name, value)
 
     def get_optimization_parameters(self):
@@ -185,28 +185,26 @@ COMPONENT_LIST = [x for _, x, _ in pkgutil.iter_modules(__path__)]
 COMPONENT_DICT = {}
 for COMPONENT_NAME in COMPONENT_LIST:
     try:
-        module = __import__(COMPONENT_NAME,
-                            globals(),
-                            locals(),
-                            ['Component'],
-                            1)
+        module = import_module(".".join(["econ_dispatch", "component_models", COMPONENT_NAME]))
         klass = module.Component
     except Exception as e:
-        LOG.error('Module {name} cannot be imported. Reason: {ex}'
-                  "".format(name=COMPONENT_NAME, ex=e))
+        LOG.error("Module {name} cannot be imported. Reason: {ex}" "".format(name=COMPONENT_NAME, ex=e))
         continue
 
-    #Validation of algorithm class
+    # Validation of algorithm class
     if not issubclass(klass, ComponentBase):
-        LOG.warning('The implementation of {name} does not inherit from '
-                    'econ_dispatch.component_models.ComponentBase.'
-                    ''.format(name=COMPONENT_NAME))
+        LOG.warning(
+            "The implementation of {name} does not inherit from "
+            "econ_dispatch.component_models.ComponentBase."
+            "".format(name=COMPONENT_NAME)
+        )
 
     COMPONENT_DICT[COMPONENT_NAME] = klass
+
 
 def get_component_class(name):
     """Return `Component` class from module named `name`"""
     comp = COMPONENT_DICT.get(name)
     if comp is None:
-        LOG.warning('Module {name} not found.'.format(name=name))
+        LOG.warning("Module {name} not found.".format(name=name))
     return comp

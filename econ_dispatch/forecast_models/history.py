@@ -54,16 +54,15 @@
 # operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
 # }}}
+import logging
 from collections import Counter
 from datetime import timedelta
-import logging
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from econ_dispatch.forecast_models import ForecastBase
 from econ_dispatch.utils import preprocess
-
 
 LOG = logging.getLogger(__name__)
 
@@ -79,12 +78,15 @@ class Forecast(ForecastBase):
         historical data is acceptable
     :param kwargs: keyword arguments for base class
     """
-    def __init__(self,
-                 timestamp_column="timestamp",
-                 preprocess_settings=None,
-                 retain_old_on_retrain=False,
-                 threshold=0.5,
-                 **kwargs):
+
+    def __init__(
+        self,
+        timestamp_column="timestamp",
+        preprocess_settings=None,
+        retain_old_on_retrain=False,
+        threshold=0.5,
+        **kwargs,
+    ):
         super(Forecast, self).__init__(**kwargs)
         self.timestamp_column = timestamp_column
         self.preprocess_settings = preprocess_settings
@@ -94,7 +96,7 @@ class Forecast(ForecastBase):
 
     def derive_variables(self, now, weather_forecast={}):
         """Return record with closest matching date
-        
+
         If no date is found within `self.threshold` hours, try changing the
         year to match historical data
 
@@ -107,9 +109,7 @@ class Forecast(ForecastBase):
             raise ValueError("Forecast model not trained.")
         # make pandas.DatetimeIndex for faster datetime function calls
         times = self.historical_data[self.timestamp_column]
-        times = pd.Series(
-            data=np.empty(times.shape),
-            index=times).index
+        times = pd.Series(data=np.empty(times.shape), index=times).index
 
         # assume both are localized to UTC
         indices = abs(times - now)
@@ -118,16 +118,18 @@ class Forecast(ForecastBase):
             # query datetime not in historical data. try to find same date in a
             # different year (sort years by number of records to speed search)
             counts = Counter(times.year)
-            years = sorted(list(counts.keys()), key=lambda k: -1*counts[k])
+            years = sorted(list(counts.keys()), key=lambda k: -1 * counts[k])
             for year in years:
                 _now = now.replace(year=year)
                 indices = abs(times - _now)
                 if min(indices) <= self.threshold:
                     break
             else:
-                raise ValueError("No historical data within {} hours of query "
-                                 "datetime {}, irrespective of year"
-                                 "".format(self.threshold, now))
+                raise ValueError(
+                    "No historical data within {} hours of query "
+                    "datetime {}, irrespective of year"
+                    "".format(self.threshold, now)
+                )
 
         index = pd.Series(indices).idxmin()
         # Return the row as a dict.
@@ -141,26 +143,22 @@ class Forecast(ForecastBase):
         """
         # build dataframe
         results = {}
-        for key, values in training_data.iteritems():
+        for key, values in training_data.items():
             readings = pd.Series(values)
             results[key] = readings
         df = pd.DataFrame(results)
         # localize to UTC
         if self.timestamp_column is not None:
-            df[self.timestamp_column] = pd.to_datetime(
-                df[self.timestamp_column])
+            df[self.timestamp_column] = pd.to_datetime(df[self.timestamp_column])
             try:
-                df[self.timestamp_column] = df[self.timestamp_column].apply(
-                    lambda ts: ts.tz_localize('UTC'))
+                df[self.timestamp_column] = df[self.timestamp_column].apply(lambda ts: ts.tz_localize("UTC"))
             except TypeError:
-                df[self.timestamp_column] = df[self.timestamp_column].apply(
-                    lambda ts: ts.astimezone('UTC'))
+                df[self.timestamp_column] = df[self.timestamp_column].apply(lambda ts: ts.astimezone("UTC"))
 
         # keep old data if desired
         if self.retain_old_on_retrain and (self.historical_data is not None):
             df = df.set_index(self.timestamp_column, drop=True)
-            hist_df = self.historical_data.set_index(self.timestamp_column,
-                                                     drop=True)
+            hist_df = self.historical_data.set_index(self.timestamp_column, drop=True)
             # Privilege new data in case of conflict
             cols_in = [j for j in hist_df.columns if j in df.columns]
             idx_in = [i for i in hist_df.index if i not in df.index]
@@ -172,16 +170,15 @@ class Forecast(ForecastBase):
         # preprocess
         if self.preprocess_settings is not None:
             # override config so we never lose timestamps in preprocessing
-            decision_variables = self.preprocess_settings.get('decision_variables')
+            decision_variables = self.preprocess_settings.get("decision_variables")
             if decision_variables is not None:
-                timestamp_vars = \
-                    set(self.preprocess_settings.get('timezone', {}).keys())
+                timestamp_vars = set(self.preprocess_settings.get("timezone", {}).keys())
                 if self.timestamp_column is not None:
                     timestamp_vars.add(self.timestamp_column)
                 for k in timestamp_vars:
                     if k not in decision_variables:
                         decision_variables.append(k)
-                self.preprocess_settings['decision_variables'] = decision_variables
+                self.preprocess_settings["decision_variables"] = decision_variables
 
             df = preprocess(df, **self.preprocess_settings)
 
